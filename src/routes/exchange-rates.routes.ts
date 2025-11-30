@@ -25,7 +25,10 @@ const convertQuerySchema = z.object({
 const historyQuerySchema = z.object({
   from: z.nativeEnum(Currency).optional(),
   to: z.nativeEnum(Currency).optional(),
-  limit: z.string().transform(val => parseInt(val)).optional(),
+  limit: z
+    .string()
+    .transform(val => parseInt(val))
+    .optional(),
 });
 
 /**
@@ -51,7 +54,12 @@ router.get('/', authenticate, async (req, res) => {
 
     // Get latest rates for all pairs (simplified)
     // Ideally we'd group by pair and get latest, but for now just getting history
-    const rates = await exchangeRateService.getHistory(organizationId, undefined, undefined, 50);
+    const rates = await exchangeRateService.getHistory(
+      organizationId,
+      undefined,
+      undefined,
+      50
+    );
 
     res.json({
       success: true,

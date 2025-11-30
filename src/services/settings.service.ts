@@ -40,7 +40,10 @@ export class SettingsService {
   /**
    * Set or update a setting for an organization.
    */
-  async set(organizationId: string, input: OrganizationSettingsInput): Promise<any> {
+  async set(
+    organizationId: string,
+    input: OrganizationSettingsInput
+  ): Promise<any> {
     return prisma.organizationSettings.upsert({
       where: {
         organizationId_settingKey: {

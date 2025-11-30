@@ -94,15 +94,25 @@ export class ExchangeRateService {
       return amount;
     }
 
-    const rate = await this.getCurrentRate(organizationId, fromCurrency, toCurrency);
+    const rate = await this.getCurrentRate(
+      organizationId,
+      fromCurrency,
+      toCurrency
+    );
 
     if (!rate) {
       // Try reverse rate
-      const reverseRate = await this.getCurrentRate(organizationId, toCurrency, fromCurrency);
+      const reverseRate = await this.getCurrentRate(
+        organizationId,
+        toCurrency,
+        fromCurrency
+      );
       if (reverseRate) {
         return new Decimal(amount).div(reverseRate).toNumber();
       }
-      throw new Error(`No exchange rate found for ${fromCurrency} to ${toCurrency}`);
+      throw new Error(
+        `No exchange rate found for ${fromCurrency} to ${toCurrency}`
+      );
     }
 
     return new Decimal(amount).mul(rate).toNumber();
