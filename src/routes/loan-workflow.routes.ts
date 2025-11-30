@@ -280,7 +280,9 @@ router.post(
       const visit = await loanVisitService.create({
         ...req.body,
         visitedBy: userId,
-        visitedAt: req.body.visitedAt ? new Date(req.body.visitedAt) : undefined,
+        visitedAt: req.body.visitedAt
+          ? new Date(req.body.visitedAt)
+          : undefined,
       });
 
       res.status(201).json({
@@ -402,7 +404,9 @@ router.put(
       }
       const visit = await loanVisitService.update(id, {
         ...req.body,
-        visitedAt: req.body.visitedAt ? new Date(req.body.visitedAt) : undefined,
+        visitedAt: req.body.visitedAt
+          ? new Date(req.body.visitedAt)
+          : undefined,
       });
 
       res.json({
@@ -446,7 +450,9 @@ router.post(
       }
       const visit = await loanVisitService.syncVisit(id, {
         ...req.body,
-        visitedAt: req.body.visitedAt ? new Date(req.body.visitedAt) : undefined,
+        visitedAt: req.body.visitedAt
+          ? new Date(req.body.visitedAt)
+          : undefined,
       });
 
       res.json({
@@ -886,7 +892,9 @@ router.get('/loans/:loanId/next-statuses', authenticate, async (req, res) => {
       });
     }
 
-    const nextStatuses = loanStatusTransitionService.getNextStatuses(loan.status);
+    const nextStatuses = loanStatusTransitionService.getNextStatuses(
+      loan.status
+    );
 
     res.json({
       success: true,

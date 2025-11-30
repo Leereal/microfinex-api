@@ -860,7 +860,7 @@
           "name": "Create/Update Assessment",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"clientCharacter\": \"GOOD\",\n  \"clientCapacity\": \"ADEQUATE\",\n  \"collateralQuality\": \"SATISFACTORY\",\n  \"conditions\": \"FAVORABLE\",\n  \"capitalAdequacy\": \"ADEQUATE\",\n  \"recommendedAmount\": 5000,\n  \"notes\": \"Client has good repayment history\",\n  \"recommendation\": \"APPROVED\"\n}"
@@ -890,7 +890,7 @@
           "name": "Create Visit",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"visitType\": \"HOME\",\n  \"scheduledDate\": \"2024-12-01T10:00:00Z\",\n  \"purpose\": \"Initial assessment visit\",\n  \"address\": \"123 Main Street\",\n  \"notes\": \"Client requested morning visit\"\n}"
@@ -907,7 +907,7 @@
           "name": "Update Visit",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"COMPLETED\",\n  \"actualDate\": \"2024-12-01T11:00:00Z\",\n  \"findings\": \"Client resides at stated address, property verified\",\n  \"outcome\": \"POSITIVE\"\n}"
@@ -937,7 +937,7 @@
           "name": "Create Pledge",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"pledgeType\": \"VEHICLE\",\n  \"description\": \"2020 Toyota Corolla\",\n  \"estimatedValue\": 15000,\n  \"location\": \"Client premises\",\n  \"registrationNumber\": \"ABC 123 GP\",\n  \"notes\": \"Vehicle in good condition\"\n}"
@@ -954,7 +954,7 @@
           "name": "Update Pledge",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"VERIFIED\",\n  \"verifiedValue\": 14500,\n  \"verificationNotes\": \"Value confirmed by independent assessor\"\n}"
@@ -984,7 +984,7 @@
           "name": "Transition Loan Status",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"newStatus\": \"APPROVED\",\n  \"notes\": \"All requirements verified, loan approved for disbursement\"\n}"
@@ -1054,7 +1054,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Downtown Electronics\",\n  \"address\": \"123 Main Street, City Center\",\n  \"phone\": \"+1234567890\",\n  \"contactPerson\": \"John Smith\",\n  \"bankAccount\": \"1234567890\",\n  \"mobileNumber\": \"+1234567891\"\n}"
@@ -1084,7 +1084,7 @@
           "name": "Update Shop",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Downtown Electronics Plus\",\n  \"phone\": \"+1234567899\"\n}"
@@ -1174,7 +1174,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Samsung Galaxy S24\",\n  \"description\": \"Latest Samsung flagship smartphone\",\n  \"price\": 999.99,\n  \"currency\": \"USD\",\n  \"sku\": \"SAM-S24-001\"\n}"
@@ -1191,7 +1191,7 @@
           "name": "Update Shop Product",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"price\": 949.99,\n  \"description\": \"Samsung Galaxy S24 - Sale Price\"\n}"
@@ -1244,7 +1244,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"shopProductId\": \"{{shopProductId}}\",\n  \"quantity\": 1,\n  \"unitPrice\": 999.99\n}"
@@ -1306,8 +1306,8 @@
               "host": ["{{baseUrl}}"],
               "path": ["loan-items", "shops", "{{shopId}}", "sales-stats"],
               "query": [
-                {"key": "startDate", "value": "2024-01-01"},
-                {"key": "endDate", "value": "2024-12-31"}
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" }
               ]
             },
             "description": "Get sales statistics for a shop"
@@ -1345,7 +1345,7 @@
               "raw": "{{baseUrl}}/online-applications?status=PENDING",
               "host": ["{{baseUrl}}"],
               "path": ["online-applications"],
-              "query": [{"key": "status", "value": "PENDING"}]
+              "query": [{ "key": "status", "value": "PENDING" }]
             },
             "description": "Get all online applications with optional filters"
           }
@@ -1371,7 +1371,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"source\": \"WEB\",\n  \"applicationType\": \"NEW\",\n  \"clientPhone\": \"+263771234567\",\n  \"clientName\": \"Jane Doe\",\n  \"idNumber\": \"63-123456A78\",\n  \"amount\": 5000,\n  \"productId\": \"{{productId}}\",\n  \"disbursementPreference\": \"CASH\",\n  \"notes\": \"Urgent loan request for business expansion\"\n}"
@@ -1401,7 +1401,7 @@
           "name": "Update Application",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"amount\": 6000,\n  \"notes\": \"Amount adjusted based on client request\"\n}"
@@ -1418,7 +1418,7 @@
           "name": "Verify Application",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"notes\": \"Identity verified, documents confirmed\"\n}"
@@ -1435,7 +1435,7 @@
           "name": "Convert Application to Loan",
           "request": {
             "method": "POST",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"loanOfficerId\": \"{{userId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"interestRate\": 15,\n  \"term\": 12,\n  \"repaymentFrequency\": \"MONTHLY\",\n  \"purpose\": \"Business expansion\"\n}"
@@ -1443,7 +1443,11 @@
             "url": {
               "raw": "{{baseUrl}}/online-applications/{{applicationId}}/convert-to-loan",
               "host": ["{{baseUrl}}"],
-              "path": ["online-applications", "{{applicationId}}", "convert-to-loan"]
+              "path": [
+                "online-applications",
+                "{{applicationId}}",
+                "convert-to-loan"
+              ]
             },
             "description": "Convert a verified application into a loan. Required: clientId, loanOfficerId, branchId, interestRate, term, repaymentFrequency"
           }
@@ -1452,7 +1456,7 @@
           "name": "Update Application Status",
           "request": {
             "method": "PUT",
-            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"REJECTED\",\n  \"notes\": \"Application rejected due to incomplete documentation\"\n}"
@@ -1475,8 +1479,8 @@
               "host": ["{{baseUrl}}"],
               "path": ["online-applications", "stats"],
               "query": [
-                {"key": "startDate", "value": "2024-01-01"},
-                {"key": "endDate", "value": "2024-12-31"}
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" }
               ]
             },
             "description": "Get application statistics for the organization"

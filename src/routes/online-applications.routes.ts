@@ -49,7 +49,15 @@ const convertToLoanSchema = z.object({
   branchId: z.string().uuid(), // Required
   interestRate: z.number().positive(),
   term: z.number().int().positive(),
-  repaymentFrequency: z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY', 'SEMI_ANNUAL', 'ANNUAL']),
+  repaymentFrequency: z.enum([
+    'DAILY',
+    'WEEKLY',
+    'BIWEEKLY',
+    'MONTHLY',
+    'QUARTERLY',
+    'SEMI_ANNUAL',
+    'ANNUAL',
+  ]),
   purpose: z.string().optional(),
 });
 
@@ -67,36 +75,35 @@ const bulkStatusSchema = z.object({
  *   post:
  *     summary: Create online application (public endpoint for web forms/webhooks)
  */
-router.post(
-  '/',
-  validateRequest(createApplicationSchema),
-  async (req, res) => {
-    try {
-      const application = await onlineApplicationService.createApplication(req.body);
+router.post('/', validateRequest(createApplicationSchema), async (req, res) => {
+  try {
+    const application = await onlineApplicationService.createApplication(
+      req.body
+    );
 
-      res.status(201).json({
-        success: true,
-        message: 'Application submitted successfully. Please verify with the code sent to your phone.',
-        data: { 
-          application: {
-            id: application.id,
-            status: application.status,
-            verificationExpiry: application.verificationExpiry,
-          }
+    res.status(201).json({
+      success: true,
+      message:
+        'Application submitted successfully. Please verify with the code sent to your phone.',
+      data: {
+        application: {
+          id: application.id,
+          status: application.status,
+          verificationExpiry: application.verificationExpiry,
         },
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error: any) {
-      console.error('Create application error:', error);
-      res.status(500).json({
-        success: false,
-        message: error.message || 'Internal server error',
-        error: 'INTERNAL_ERROR',
-        timestamp: new Date().toISOString(),
-      });
-    }
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('Create application error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
   }
-);
+});
 
 /**
  * @swagger
@@ -110,16 +117,34 @@ router.get(
   authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
   async (req, res) => {
     try {
-      const { 
-        search, source, applicationType, status, productId,
-        startDate, endDate, page, limit 
+      const {
+        search,
+        source,
+        applicationType,
+        status,
+        productId,
+        startDate,
+        endDate,
+        page,
+        limit,
       } = req.query;
 
       const filters = {
         search: search as string | undefined,
-        source: source as 'BRANCH' | 'WEB' | 'WHATSAPP' | 'FACEBOOK' | undefined,
+        source: source as
+          | 'BRANCH'
+          | 'WEB'
+          | 'WHATSAPP'
+          | 'FACEBOOK'
+          | undefined,
         applicationType: applicationType as 'NEW' | 'EXISTING' | undefined,
-        status: status as 'PENDING' | 'VERIFIED' | 'PROCESSED' | 'EXPIRED' | 'REJECTED' | undefined,
+        status: status as
+          | 'PENDING'
+          | 'VERIFIED'
+          | 'PROCESSED'
+          | 'EXPIRED'
+          | 'REJECTED'
+          | undefined,
         productId: productId as string | undefined,
         startDate: startDate ? new Date(startDate as string) : undefined,
         endDate: endDate ? new Date(endDate as string) : undefined,
@@ -196,7 +221,8 @@ router.get(
   authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
   async (req, res) => {
     try {
-      const applications = await onlineApplicationService.getExpiredApplications();
+      const applications =
+        await onlineApplicationService.getExpiredApplications();
 
       res.json({
         success: true,
@@ -305,14 +331,17 @@ router.get('/check-phone/:phone', async (req, res) => {
       });
     }
 
-    const application = await onlineApplicationService.getApplicationByPhone(phone);
+    const application =
+      await onlineApplicationService.getApplicationByPhone(phone);
 
     res.json({
       success: true,
-      message: application ? 'Existing application found' : 'No existing application',
-      data: { 
+      message: application
+        ? 'Existing application found'
+        : 'No existing application',
+      data: {
         hasExisting: !!application,
-        status: application?.status 
+        status: application?.status,
       },
       timestamp: new Date().toISOString(),
     });
@@ -345,7 +374,8 @@ router.get('/:id', authenticate, async (req, res) => {
       });
     }
 
-    const application = await onlineApplicationService.getApplicationById(applicationId);
+    const application =
+      await onlineApplicationService.getApplicationById(applicationId);
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -468,7 +498,10 @@ router.post(
       });
     } catch (error: any) {
       console.error('Verify application error:', error);
-      if (error.message.includes('Invalid verification') || error.message.includes('expired')) {
+      if (
+        error.message.includes('Invalid verification') ||
+        error.message.includes('expired')
+      ) {
         return res.status(400).json({
           success: false,
           message: error.message,
@@ -504,7 +537,8 @@ router.post('/:id/resend-code', async (req, res) => {
       });
     }
 
-    const application = await onlineApplicationService.resendVerificationCode(applicationId);
+    const application =
+      await onlineApplicationService.resendVerificationCode(applicationId);
     if (!application) {
       return res.status(404).json({
         success: false,
@@ -517,7 +551,7 @@ router.post('/:id/resend-code', async (req, res) => {
     res.json({
       success: true,
       message: 'Verification code resent successfully',
-      data: { 
+      data: {
         id: application.id,
         verificationExpiry: application.verificationExpiry,
       },
@@ -698,7 +732,8 @@ router.delete(
         });
       }
 
-      const deleted = await onlineApplicationService.deleteApplication(applicationId);
+      const deleted =
+        await onlineApplicationService.deleteApplication(applicationId);
       if (!deleted) {
         return res.status(404).json({
           success: false,

@@ -181,7 +181,11 @@ router.put(
         });
       }
 
-      const item = await loanItemService.updateLoanItem(organizationId, itemId, req.body);
+      const item = await loanItemService.updateLoanItem(
+        organizationId,
+        itemId,
+        req.body
+      );
       if (!item) {
         return res.status(404).json({
           success: false,
@@ -241,7 +245,10 @@ router.delete(
         });
       }
 
-      const deleted = await loanItemService.deleteLoanItem(organizationId, itemId);
+      const deleted = await loanItemService.deleteLoanItem(
+        organizationId,
+        itemId
+      );
       if (!deleted) {
         return res.status(404).json({
           success: false,

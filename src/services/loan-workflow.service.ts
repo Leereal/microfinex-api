@@ -202,7 +202,12 @@ class LoanVisitService {
             loanNumber: true,
             amount: true,
             client: {
-              select: { firstName: true, lastName: true, phone: true, address: true },
+              select: {
+                firstName: true,
+                lastName: true,
+                phone: true,
+                address: true,
+              },
             },
           },
         },
@@ -238,7 +243,12 @@ class LoanVisitService {
             loanNumber: true,
             amount: true,
             client: {
-              select: { firstName: true, lastName: true, phone: true, address: true },
+              select: {
+                firstName: true,
+                lastName: true,
+                phone: true,
+                address: true,
+              },
             },
           },
         },
@@ -450,7 +460,12 @@ class LoanStatusTransitionService {
 
   private validTransitions: Record<LoanStatus, LoanStatus[]> = {
     DRAFT: ['PENDING', 'CANCELLED'],
-    PENDING: ['PENDING_ASSESSMENT', 'PENDING_VISIT', 'PENDING_APPROVAL', 'CANCELLED'],
+    PENDING: [
+      'PENDING_ASSESSMENT',
+      'PENDING_VISIT',
+      'PENDING_APPROVAL',
+      'CANCELLED',
+    ],
     PENDING_ASSESSMENT: ['PENDING_VISIT', 'PENDING_APPROVAL', 'CANCELLED'],
     PENDING_VISIT: ['PENDING_APPROVAL', 'CANCELLED'],
     PENDING_APPROVAL: ['APPROVED', 'CANCELLED'],

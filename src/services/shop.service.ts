@@ -29,7 +29,10 @@ interface ShopFilters {
 
 export const shopService = {
   // Create shop
-  async createShop(organizationId: string, data: CreateShopData): Promise<Shop> {
+  async createShop(
+    organizationId: string,
+    data: CreateShopData
+  ): Promise<Shop> {
     return prisma.shop.create({
       data: {
         organizationId,
@@ -108,7 +111,11 @@ export const shopService = {
   },
 
   // Update shop
-  async updateShop(organizationId: string, id: string, data: UpdateShopData): Promise<Shop | null> {
+  async updateShop(
+    organizationId: string,
+    id: string,
+    data: UpdateShopData
+  ): Promise<Shop | null> {
     const shop = await prisma.shop.findFirst({ where: { id, organizationId } });
     if (!shop) return null;
 
@@ -118,9 +125,15 @@ export const shopService = {
         ...(data.name && { name: data.name }),
         ...(data.address !== undefined && { address: data.address }),
         ...(data.phone !== undefined && { phone: data.phone }),
-        ...(data.contactPerson !== undefined && { contactPerson: data.contactPerson }),
-        ...(data.bankAccount !== undefined && { bankAccount: data.bankAccount }),
-        ...(data.mobileNumber !== undefined && { mobileNumber: data.mobileNumber }),
+        ...(data.contactPerson !== undefined && {
+          contactPerson: data.contactPerson,
+        }),
+        ...(data.bankAccount !== undefined && {
+          bankAccount: data.bankAccount,
+        }),
+        ...(data.mobileNumber !== undefined && {
+          mobileNumber: data.mobileNumber,
+        }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
       },
     });
@@ -164,7 +177,8 @@ export const shopService = {
       stats: {
         activeProducts: productCount,
         totalLoans: loanCount,
-        totalSalesValue: loanItemStats._sum?.totalPrice || new Prisma.Decimal(0),
+        totalSalesValue:
+          loanItemStats._sum?.totalPrice || new Prisma.Decimal(0),
         totalItemsSold: loanItemStats._sum?.quantity || 0,
       },
     };
@@ -196,9 +210,15 @@ interface ProductFilters {
 
 export const shopProductService = {
   // Create product
-  async createProduct(organizationId: string, shopId: string, data: CreateProductData): Promise<ShopProduct | null> {
+  async createProduct(
+    organizationId: string,
+    shopId: string,
+    data: CreateProductData
+  ): Promise<ShopProduct | null> {
     // Verify shop exists and belongs to organization
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return null;
 
     return prisma.shopProduct.create({
@@ -214,19 +234,36 @@ export const shopProductService = {
   },
 
   // Get products for shop
-  async getProducts(organizationId: string, shopId: string, filters: ProductFilters = {}) {
+  async getProducts(
+    organizationId: string,
+    shopId: string,
+    filters: ProductFilters = {}
+  ) {
     // Verify shop exists and belongs to organization
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return null;
 
-    const { search, isActive, minPrice, maxPrice, page = 1, limit = 20 } = filters;
+    const {
+      search,
+      isActive,
+      minPrice,
+      maxPrice,
+      page = 1,
+      limit = 20,
+    } = filters;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ShopProductWhereInput = {
       shopId,
       ...(isActive !== undefined && { isActive }),
-      ...(minPrice !== undefined && { price: { gte: new Prisma.Decimal(minPrice) } }),
-      ...(maxPrice !== undefined && { price: { lte: new Prisma.Decimal(maxPrice) } }),
+      ...(minPrice !== undefined && {
+        price: { gte: new Prisma.Decimal(minPrice) },
+      }),
+      ...(maxPrice !== undefined && {
+        price: { lte: new Prisma.Decimal(maxPrice) },
+      }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' as const } },
@@ -263,8 +300,14 @@ export const shopProductService = {
   },
 
   // Get product by ID
-  async getProductById(organizationId: string, shopId: string, productId: string): Promise<ShopProduct | null> {
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+  async getProductById(
+    organizationId: string,
+    shopId: string,
+    productId: string
+  ): Promise<ShopProduct | null> {
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return null;
 
     return prisma.shopProduct.findFirst({
@@ -287,18 +330,26 @@ export const shopProductService = {
     productId: string,
     data: UpdateProductData
   ): Promise<ShopProduct | null> {
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return null;
 
-    const product = await prisma.shopProduct.findFirst({ where: { id: productId, shopId } });
+    const product = await prisma.shopProduct.findFirst({
+      where: { id: productId, shopId },
+    });
     if (!product) return null;
 
     return prisma.shopProduct.update({
       where: { id: productId },
       data: {
         ...(data.name && { name: data.name }),
-        ...(data.description !== undefined && { description: data.description }),
-        ...(data.price !== undefined && { price: new Prisma.Decimal(data.price) }),
+        ...(data.description !== undefined && {
+          description: data.description,
+        }),
+        ...(data.price !== undefined && {
+          price: new Prisma.Decimal(data.price),
+        }),
         ...(data.currency && { currency: data.currency }),
         ...(data.sku !== undefined && { sku: data.sku }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
@@ -307,11 +358,19 @@ export const shopProductService = {
   },
 
   // Delete product (soft delete)
-  async deleteProduct(organizationId: string, shopId: string, productId: string): Promise<boolean> {
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+  async deleteProduct(
+    organizationId: string,
+    shopId: string,
+    productId: string
+  ): Promise<boolean> {
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return false;
 
-    const product = await prisma.shopProduct.findFirst({ where: { id: productId, shopId } });
+    const product = await prisma.shopProduct.findFirst({
+      where: { id: productId, shopId },
+    });
     if (!product) return false;
 
     await prisma.shopProduct.update({
@@ -322,8 +381,13 @@ export const shopProductService = {
   },
 
   // Get product categories (from distinct values)
-  async getCategories(organizationId: string, shopId: string): Promise<string[]> {
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+  async getCategories(
+    organizationId: string,
+    shopId: string
+  ): Promise<string[]> {
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return [];
 
     // Since there's no category field, return empty array
@@ -332,8 +396,13 @@ export const shopProductService = {
   },
 
   // Get low stock products (not applicable without quantity field)
-  async getLowStockProducts(organizationId: string, shopId: string): Promise<ShopProduct[]> {
-    const shop = await prisma.shop.findFirst({ where: { id: shopId, organizationId } });
+  async getLowStockProducts(
+    organizationId: string,
+    shopId: string
+  ): Promise<ShopProduct[]> {
+    const shop = await prisma.shop.findFirst({
+      where: { id: shopId, organizationId },
+    });
     if (!shop) return [];
 
     // Since there's no quantity field in ShopProduct, return empty array
@@ -350,7 +419,11 @@ export const shopProductService = {
     type: 'add' | 'subtract' | 'set'
   ): Promise<ShopProduct | null> {
     // Since there's no quantity field, just return the product
-    const product = await this.getProductById(organizationId, shopId, productId);
+    const product = await this.getProductById(
+      organizationId,
+      shopId,
+      productId
+    );
     return product;
   },
 };
@@ -369,7 +442,10 @@ interface UpdateLoanItemData {
 
 export const loanItemService = {
   // Create loan item
-  async createLoanItem(organizationId: string, data: CreateLoanItemData): Promise<LoanItem | null> {
+  async createLoanItem(
+    organizationId: string,
+    data: CreateLoanItemData
+  ): Promise<LoanItem | null> {
     // Verify loan and product exist
     const [loan, product] = await Promise.all([
       prisma.loan.findFirst({ where: { id: data.loanId, organizationId } }),
@@ -398,7 +474,9 @@ export const loanItemService = {
 
   // Get loan items for a loan
   async getLoanItems(organizationId: string, loanId: string) {
-    const loan = await prisma.loan.findFirst({ where: { id: loanId, organizationId } });
+    const loan = await prisma.loan.findFirst({
+      where: { id: loanId, organizationId },
+    });
     if (!loan) return null;
 
     const items = await prisma.loanItem.findMany({
@@ -411,7 +489,10 @@ export const loanItemService = {
       orderBy: { createdAt: 'asc' },
     });
 
-    const total = items.reduce((sum, item) => sum.add(item.totalPrice), new Prisma.Decimal(0));
+    const total = items.reduce(
+      (sum, item) => sum.add(item.totalPrice),
+      new Prisma.Decimal(0)
+    );
 
     return {
       items,
@@ -420,7 +501,10 @@ export const loanItemService = {
   },
 
   // Get loan item by ID
-  async getLoanItemById(organizationId: string, loanItemId: string): Promise<LoanItem | null> {
+  async getLoanItemById(
+    organizationId: string,
+    loanItemId: string
+  ): Promise<LoanItem | null> {
     return prisma.loanItem.findFirst({
       where: {
         id: loanItemId,
@@ -471,7 +555,10 @@ export const loanItemService = {
   },
 
   // Delete loan item
-  async deleteLoanItem(organizationId: string, loanItemId: string): Promise<boolean> {
+  async deleteLoanItem(
+    organizationId: string,
+    loanItemId: string
+  ): Promise<boolean> {
     const item = await prisma.loanItem.findFirst({
       where: {
         id: loanItemId,

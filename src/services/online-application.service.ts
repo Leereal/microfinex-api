@@ -1,5 +1,13 @@
 import { prisma } from '../config/database';
-import { OnlineApplication, ApplicationSource, ApplicationStatus, ApplicationType, DisbursementPreference, LoanStatus, Prisma } from '@prisma/client';
+import {
+  OnlineApplication,
+  ApplicationSource,
+  ApplicationStatus,
+  ApplicationType,
+  DisbursementPreference,
+  LoanStatus,
+  Prisma,
+} from '@prisma/client';
 
 // ===== ONLINE APPLICATION SERVICE =====
 // Based on actual schema:
@@ -49,7 +57,9 @@ interface ApplicationFilters {
 
 export const onlineApplicationService = {
   // Create a new online application (can be called from webhooks or web forms)
-  async createApplication(data: CreateApplicationData): Promise<OnlineApplication> {
+  async createApplication(
+    data: CreateApplicationData
+  ): Promise<OnlineApplication> {
     // Generate verification code
     const verificationCode = Math.random().toString().substring(2, 8);
     const verificationExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
@@ -76,7 +86,17 @@ export const onlineApplicationService = {
 
   // Get all applications with filters
   async getApplications(filters: ApplicationFilters = {}) {
-    const { search, source, applicationType, status, productId, startDate, endDate, page = 1, limit = 20 } = filters;
+    const {
+      search,
+      source,
+      applicationType,
+      status,
+      productId,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+    } = filters;
     const skip = (page - 1) * limit;
 
     const where: Prisma.OnlineApplicationWhereInput = {
@@ -140,7 +160,10 @@ export const onlineApplicationService = {
   },
 
   // Get application by phone (for duplicate checking)
-  async getApplicationByPhone(phone: string, status?: ApplicationStatus): Promise<OnlineApplication | null> {
+  async getApplicationByPhone(
+    phone: string,
+    status?: ApplicationStatus
+  ): Promise<OnlineApplication | null> {
     return prisma.onlineApplication.findFirst({
       where: {
         clientPhone: phone,
@@ -151,8 +174,13 @@ export const onlineApplicationService = {
   },
 
   // Update application
-  async updateApplication(id: string, data: UpdateApplicationData): Promise<OnlineApplication | null> {
-    const application = await prisma.onlineApplication.findUnique({ where: { id } });
+  async updateApplication(
+    id: string,
+    data: UpdateApplicationData
+  ): Promise<OnlineApplication | null> {
+    const application = await prisma.onlineApplication.findUnique({
+      where: { id },
+    });
     if (!application) return null;
 
     return prisma.onlineApplication.update({
@@ -162,17 +190,28 @@ export const onlineApplicationService = {
         ...(data.idNumber && { idNumber: data.idNumber }),
         ...(data.amount && { amount: new Prisma.Decimal(data.amount) }),
         ...(data.productId && { productId: data.productId }),
-        ...(data.disbursementPreference && { disbursementPreference: data.disbursementPreference }),
-        ...(data.bankAccount !== undefined && { bankAccount: data.bankAccount }),
-        ...(data.mobileNumber !== undefined && { mobileNumber: data.mobileNumber }),
+        ...(data.disbursementPreference && {
+          disbursementPreference: data.disbursementPreference,
+        }),
+        ...(data.bankAccount !== undefined && {
+          bankAccount: data.bankAccount,
+        }),
+        ...(data.mobileNumber !== undefined && {
+          mobileNumber: data.mobileNumber,
+        }),
         ...(data.notes !== undefined && { notes: data.notes }),
       },
     });
   },
 
   // Verify application with code
-  async verifyApplication(id: string, code: string): Promise<OnlineApplication | null> {
-    const application = await prisma.onlineApplication.findUnique({ where: { id } });
+  async verifyApplication(
+    id: string,
+    code: string
+  ): Promise<OnlineApplication | null> {
+    const application = await prisma.onlineApplication.findUnique({
+      where: { id },
+    });
     if (!application) return null;
 
     // Check if verification code matches and hasn't expired
@@ -180,7 +219,10 @@ export const onlineApplicationService = {
       throw new Error('Invalid verification code');
     }
 
-    if (application.verificationExpiry && new Date() > application.verificationExpiry) {
+    if (
+      application.verificationExpiry &&
+      new Date() > application.verificationExpiry
+    ) {
       throw new Error('Verification code has expired');
     }
 
@@ -196,7 +238,9 @@ export const onlineApplicationService = {
 
   // Resend verification code
   async resendVerificationCode(id: string): Promise<OnlineApplication | null> {
-    const application = await prisma.onlineApplication.findUnique({ where: { id } });
+    const application = await prisma.onlineApplication.findUnique({
+      where: { id },
+    });
     if (!application) return null;
 
     if (application.status !== ApplicationStatus.PENDING) {
@@ -221,10 +265,15 @@ export const onlineApplicationService = {
     action: 'approve' | 'reject',
     notes?: string
   ): Promise<OnlineApplication | null> {
-    const application = await prisma.onlineApplication.findUnique({ where: { id } });
+    const application = await prisma.onlineApplication.findUnique({
+      where: { id },
+    });
     if (!application) return null;
 
-    const newStatus = action === 'approve' ? ApplicationStatus.PROCESSED : ApplicationStatus.REJECTED;
+    const newStatus =
+      action === 'approve'
+        ? ApplicationStatus.PROCESSED
+        : ApplicationStatus.REJECTED;
 
     return prisma.onlineApplication.update({
       where: { id },
@@ -245,33 +294,49 @@ export const onlineApplicationService = {
       branchId: string; // Required
       interestRate: number;
       term: number;
-      repaymentFrequency: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | 'QUARTERLY' | 'SEMI_ANNUAL' | 'ANNUAL';
+      repaymentFrequency:
+        | 'DAILY'
+        | 'WEEKLY'
+        | 'BIWEEKLY'
+        | 'MONTHLY'
+        | 'QUARTERLY'
+        | 'SEMI_ANNUAL'
+        | 'ANNUAL';
       purpose?: string;
     }
   ): Promise<{ application: OnlineApplication; loanId: string } | null> {
-    const application = await prisma.onlineApplication.findUnique({ where: { id } });
+    const application = await prisma.onlineApplication.findUnique({
+      where: { id },
+    });
     if (!application) return null;
 
-    if (application.status !== ApplicationStatus.VERIFIED && application.status !== ApplicationStatus.PROCESSED) {
-      throw new Error('Application must be verified or processed before converting to loan');
+    if (
+      application.status !== ApplicationStatus.VERIFIED &&
+      application.status !== ApplicationStatus.PROCESSED
+    ) {
+      throw new Error(
+        'Application must be verified or processed before converting to loan'
+      );
     }
 
     // Calculate loan values
     const amount = application.amount;
     const interestRate = new Prisma.Decimal(loanData.interestRate);
     const term = loanData.term;
-    
+
     // Simple interest calculation (can be enhanced)
     const totalInterest = amount.mul(interestRate).mul(term).div(1200); // Monthly rate
     const totalAmount = amount.add(totalInterest);
     const installmentAmount = totalAmount.div(term);
-    
+
     // Generate loan number
-    const loanCount = await prisma.loan.count({ where: { organizationId: loanData.organizationId } });
+    const loanCount = await prisma.loan.count({
+      where: { organizationId: loanData.organizationId },
+    });
     const loanNumber = `LN-${Date.now()}-${(loanCount + 1).toString().padStart(6, '0')}`;
 
     // Create loan in transaction
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async tx => {
       // Create the loan
       const loan = await tx.loan.create({
         data: {
@@ -311,8 +376,14 @@ export const onlineApplicationService = {
   },
 
   // Update status directly
-  async updateStatus(id: string, status: ApplicationStatus, notes?: string): Promise<OnlineApplication | null> {
-    const application = await prisma.onlineApplication.findUnique({ where: { id } });
+  async updateStatus(
+    id: string,
+    status: ApplicationStatus,
+    notes?: string
+  ): Promise<OnlineApplication | null> {
+    const application = await prisma.onlineApplication.findUnique({
+      where: { id },
+    });
     if (!application) return null;
 
     return prisma.onlineApplication.update({
@@ -348,37 +419,32 @@ export const onlineApplicationService = {
       ...(endDate && { createdAt: { lte: endDate } }),
     };
 
-    const [
-      totalApplications,
-      bySource,
-      byStatus,
-      byType,
-      amountStats,
-    ] = await Promise.all([
-      prisma.onlineApplication.count({ where }),
-      prisma.onlineApplication.groupBy({
-        by: ['source'],
-        where,
-        _count: true,
-      }),
-      prisma.onlineApplication.groupBy({
-        by: ['status'],
-        where,
-        _count: true,
-      }),
-      prisma.onlineApplication.groupBy({
-        by: ['applicationType'],
-        where,
-        _count: true,
-      }),
-      prisma.onlineApplication.aggregate({
-        where,
-        _sum: { amount: true },
-        _avg: { amount: true },
-        _min: { amount: true },
-        _max: { amount: true },
-      }),
-    ]);
+    const [totalApplications, bySource, byStatus, byType, amountStats] =
+      await Promise.all([
+        prisma.onlineApplication.count({ where }),
+        prisma.onlineApplication.groupBy({
+          by: ['source'],
+          where,
+          _count: true,
+        }),
+        prisma.onlineApplication.groupBy({
+          by: ['status'],
+          where,
+          _count: true,
+        }),
+        prisma.onlineApplication.groupBy({
+          by: ['applicationType'],
+          where,
+          _count: true,
+        }),
+        prisma.onlineApplication.aggregate({
+          where,
+          _sum: { amount: true },
+          _avg: { amount: true },
+          _min: { amount: true },
+          _max: { amount: true },
+        }),
+      ]);
 
     // Count how many have been converted to loans
     const convertedToLoans = await prisma.loan.count({
@@ -392,9 +458,10 @@ export const onlineApplicationService = {
     return {
       total: totalApplications,
       converted: convertedToLoans,
-      conversionRate: totalApplications > 0 
-        ? ((convertedToLoans / totalApplications) * 100).toFixed(2) 
-        : '0.00',
+      conversionRate:
+        totalApplications > 0
+          ? ((convertedToLoans / totalApplications) * 100).toFixed(2)
+          : '0.00',
       bySource: bySource.map(s => ({
         source: s.source,
         count: s._count,
@@ -419,10 +486,7 @@ export const onlineApplicationService = {
   // Find potential duplicate applications
   async findDuplicates(phone: string, idNumber?: string) {
     const where: Prisma.OnlineApplicationWhereInput = {
-      OR: [
-        { clientPhone: phone },
-        ...(idNumber ? [{ idNumber }] : []),
-      ],
+      OR: [{ clientPhone: phone }, ...(idNumber ? [{ idNumber }] : [])],
     };
 
     return prisma.onlineApplication.findMany({
