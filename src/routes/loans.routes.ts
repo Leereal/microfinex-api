@@ -4,7 +4,8 @@ import { prisma } from '../config/database';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+const Decimal = Prisma.Decimal;
 import {
   loanCalculationService,
   LoanCalculationMethod,

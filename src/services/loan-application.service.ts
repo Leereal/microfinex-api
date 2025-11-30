@@ -1,12 +1,11 @@
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+import { prisma } from '../config/database';
+const Decimal = Prisma.Decimal;
 import {
   loanCalculationService,
   LoanCalculationInput,
 } from './loan-calculations';
-
-const prisma = new PrismaClient();
 
 export interface LoanApplication {
   id: string;

@@ -7,10 +7,8 @@
  * Useful when you prefer SQL or need to bootstrap via database console
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/config/database';
 import * as readline from 'readline';
-
-const prisma = new PrismaClient();
 
 const rl = readline.createInterface({
   input: process.stdin,

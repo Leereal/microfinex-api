@@ -12,13 +12,11 @@
  * npm run bootstrap
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../src/config/database';
 import { supabaseAdmin } from '../src/config/supabase-enhanced';
 import { hashPassword } from '../src/utils/auth';
 import { UserRole } from '../src/types';
 import * as readline from 'readline';
-
-const prisma = new PrismaClient();
 
 // Create readline interface for user input
 const rl = readline.createInterface({

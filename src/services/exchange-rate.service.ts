@@ -1,7 +1,6 @@
-import { PrismaClient, Currency } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
-
-const prisma = new PrismaClient();
+import { Currency, Prisma } from '@prisma/client';
+import { prisma } from '../config/database';
+const Decimal = Prisma.Decimal;
 
 export interface CreateExchangeRateInput {
   fromCurrency: Currency;
@@ -20,9 +19,9 @@ export class ExchangeRateService {
     organizationId: string,
     fromCurrency: Currency,
     toCurrency: Currency
-  ): Promise<Decimal | null> {
+  ): Promise<Prisma.Decimal | null> {
     if (fromCurrency === toCurrency) {
-      return new Decimal(1);
+      return new Prisma.Decimal(1);
     }
 
     const rate = await prisma.exchangeRate.findFirst({

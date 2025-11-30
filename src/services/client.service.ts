@@ -1,8 +1,6 @@
 import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase-enhanced';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../config/database';
 
 export interface ClientProfile {
   id: string;

@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import { PrismaClient } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
-
-const prisma = new PrismaClient();
+import { Prisma } from '@prisma/client';
+import { prisma } from '../config/database';
+const Decimal = Prisma.Decimal;
 
 export interface PaymentRecord {
   id: string;

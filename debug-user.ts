@@ -4,10 +4,8 @@
  * Debug script to check user records
  */
 
-import { PrismaClient } from '@prisma/client';
+import { prisma } from './src/config/database';
 import { supabaseAdmin } from './src/config/supabase-enhanced';
-
-const prisma = new PrismaClient();
 
 async function debugUser() {
   console.log('🔍 Debugging user authentication issue...\n');

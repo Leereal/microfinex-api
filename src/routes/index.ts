@@ -18,6 +18,10 @@ import settingsRoutes from './settings.routes';
 import exchangeRateRoutes from './exchange-rates.routes';
 import loanCategoryRoutes from './loan-categories.routes';
 import loanProductRoutes from './loan-products.routes';
+import loanWorkflowRoutes from './loan-workflow.routes';
+import shopRoutes from './shops.routes';
+import loanItemRoutes from './loan-items.routes';
+import onlineApplicationRoutes from './online-applications.routes';
 
 const router = Router();
 
@@ -39,6 +43,10 @@ router.use(`${apiVersion}/settings`, settingsRoutes);
 router.use(`${apiVersion}/exchange-rates`, exchangeRateRoutes);
 router.use(`${apiVersion}/loan-categories`, loanCategoryRoutes);
 router.use(`${apiVersion}/loan-products`, loanProductRoutes);
+router.use(`${apiVersion}/loan-workflow`, loanWorkflowRoutes);
+router.use(`${apiVersion}/shops`, shopRoutes);
+router.use(`${apiVersion}/loan-items`, loanItemRoutes);
+router.use(`${apiVersion}/online-applications`, onlineApplicationRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

@@ -1,4 +1,7 @@
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+
+// Use Prisma.Decimal for types
+type Decimal = Prisma.Decimal;
 
 // Loan calculation method types
 export enum LoanCalculationMethod {
@@ -160,21 +163,21 @@ export class LoanCalculationUtils {
 
     switch (frequency) {
       case RepaymentFrequency.DAILY:
-        return new Decimal(annualRateNum / 365);
+        return new Prisma.Decimal(annualRateNum / 365);
       case RepaymentFrequency.WEEKLY:
-        return new Decimal(annualRateNum / 52);
+        return new Prisma.Decimal(annualRateNum / 52);
       case RepaymentFrequency.BIWEEKLY:
-        return new Decimal(annualRateNum / 26);
+        return new Prisma.Decimal(annualRateNum / 26);
       case RepaymentFrequency.MONTHLY:
-        return new Decimal(annualRateNum / 12);
+        return new Prisma.Decimal(annualRateNum / 12);
       case RepaymentFrequency.QUARTERLY:
-        return new Decimal(annualRateNum / 4);
+        return new Prisma.Decimal(annualRateNum / 4);
       case RepaymentFrequency.SEMI_ANNUAL:
-        return new Decimal(annualRateNum / 2);
+        return new Prisma.Decimal(annualRateNum / 2);
       case RepaymentFrequency.ANNUAL:
-        return new Decimal(annualRateNum);
+        return new Prisma.Decimal(annualRateNum);
       default:
-        return new Decimal(annualRateNum / 12);
+        return new Prisma.Decimal(annualRateNum / 12);
     }
   }
 
@@ -270,7 +273,7 @@ export class LoanCalculationUtils {
         1 + rateDecimal / compoundingFrequency,
         compoundingFrequency * time
       );
-    return new Decimal(amount);
+    return new Prisma.Decimal(amount);
   }
 
   /**
@@ -289,7 +292,7 @@ export class LoanCalculationUtils {
     const pv =
       (parseFloat(payment.toString()) * (1 - Math.pow(1 + rateNum, -periods))) /
       rateNum;
-    return new Decimal(pv);
+    return new Prisma.Decimal(pv);
   }
 
   /**
@@ -309,7 +312,7 @@ export class LoanCalculationUtils {
       (parseFloat(principal.toString()) *
         (rateNum * Math.pow(1 + rateNum, periods))) /
       (Math.pow(1 + rateNum, periods) - 1);
-    return new Decimal(payment);
+    return new Prisma.Decimal(payment);
   }
 }
 

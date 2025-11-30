@@ -60,6 +60,46 @@
       "key": "employerId",
       "value": "",
       "description": "Last created/retrieved employer ID"
+    },
+    {
+      "key": "shopId",
+      "value": "",
+      "description": "Last created/retrieved shop ID"
+    },
+    {
+      "key": "shopProductId",
+      "value": "",
+      "description": "Last created/retrieved shop product ID"
+    },
+    {
+      "key": "loanItemId",
+      "value": "",
+      "description": "Last created/retrieved loan item ID"
+    },
+    {
+      "key": "applicationId",
+      "value": "",
+      "description": "Last created/retrieved online application ID"
+    },
+    {
+      "key": "visitId",
+      "value": "",
+      "description": "Last created/retrieved visit ID"
+    },
+    {
+      "key": "pledgeId",
+      "value": "",
+      "description": "Last created/retrieved pledge ID"
+    },
+    {
+      "key": "branchId",
+      "value": "",
+      "description": "Current branch ID"
+    },
+    {
+      "key": "productId",
+      "value": "",
+      "description": "Loan product ID"
     }
   ],
   "auth": {
@@ -800,7 +840,652 @@
       ]
     },
     {
-      "name": "�🔧 System & Health",
+      "name": "📋 Loan Workflow",
+      "description": "Loan assessment, visits, pledges, and status management endpoints",
+      "item": [
+        {
+          "name": "Get Loan Assessment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/assessment",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "assessment"]
+            },
+            "description": "Get assessment details for a specific loan"
+          }
+        },
+        {
+          "name": "Create/Update Assessment",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientCharacter\": \"GOOD\",\n  \"clientCapacity\": \"ADEQUATE\",\n  \"collateralQuality\": \"SATISFACTORY\",\n  \"conditions\": \"FAVORABLE\",\n  \"capitalAdequacy\": \"ADEQUATE\",\n  \"recommendedAmount\": 5000,\n  \"notes\": \"Client has good repayment history\",\n  \"recommendation\": \"APPROVED\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/assessment",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "assessment"]
+            },
+            "description": "Create or update assessment for a loan"
+          }
+        },
+        {
+          "name": "List Loan Visits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/visits",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "visits"]
+            },
+            "description": "Get all visits for a specific loan"
+          }
+        },
+        {
+          "name": "Create Visit",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitType\": \"HOME\",\n  \"scheduledDate\": \"2024-12-01T10:00:00Z\",\n  \"purpose\": \"Initial assessment visit\",\n  \"address\": \"123 Main Street\",\n  \"notes\": \"Client requested morning visit\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/visits",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "visits"]
+            },
+            "description": "Schedule a new visit for a loan"
+          }
+        },
+        {
+          "name": "Update Visit",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"actualDate\": \"2024-12-01T11:00:00Z\",\n  \"findings\": \"Client resides at stated address, property verified\",\n  \"outcome\": \"POSITIVE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/visits/{{visitId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "visits", "{{visitId}}"]
+            },
+            "description": "Update visit details and status"
+          }
+        },
+        {
+          "name": "List Loan Pledges",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/pledges",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "pledges"]
+            },
+            "description": "Get all pledges/collateral for a loan"
+          }
+        },
+        {
+          "name": "Create Pledge",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pledgeType\": \"VEHICLE\",\n  \"description\": \"2020 Toyota Corolla\",\n  \"estimatedValue\": 15000,\n  \"location\": \"Client premises\",\n  \"registrationNumber\": \"ABC 123 GP\",\n  \"notes\": \"Vehicle in good condition\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/pledges",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "pledges"]
+            },
+            "description": "Add a pledge/collateral to a loan"
+          }
+        },
+        {
+          "name": "Update Pledge",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"VERIFIED\",\n  \"verifiedValue\": 14500,\n  \"verificationNotes\": \"Value confirmed by independent assessor\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/pledges/{{pledgeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "pledges", "{{pledgeId}}"]
+            },
+            "description": "Update pledge details and verification status"
+          }
+        },
+        {
+          "name": "Get Loan Status History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/status-history",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "status-history"]
+            },
+            "description": "Get complete status transition history for a loan"
+          }
+        },
+        {
+          "name": "Transition Loan Status",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newStatus\": \"APPROVED\",\n  \"notes\": \"All requirements verified, loan approved for disbursement\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/transition",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "transition"]
+            },
+            "description": "Transition a loan to a new status (PENDING → UNDER_REVIEW → APPROVED → DISBURSED → ACTIVE, etc.)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏪 Shops & Products",
+      "description": "Shop management and product catalog endpoints",
+      "item": [
+        {
+          "name": "List Shops",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.shops && response.data.shops.length > 0) {",
+                  "        pm.collectionVariables.set('shopId', response.data.shops[0].id);",
+                  "        console.log('✅ Shop ID set: ' + response.data.shops[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shops",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops"]
+            },
+            "description": "Get all shops for the organization"
+          }
+        },
+        {
+          "name": "Create Shop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.shop) {",
+                  "        pm.collectionVariables.set('shopId', response.data.shop.id);",
+                  "        console.log('✅ New Shop ID set: ' + response.data.shop.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Downtown Electronics\",\n  \"address\": \"123 Main Street, City Center\",\n  \"phone\": \"+1234567890\",\n  \"contactPerson\": \"John Smith\",\n  \"bankAccount\": \"1234567890\",\n  \"mobileNumber\": \"+1234567891\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shops",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops"]
+            },
+            "description": "Create a new shop in the organization"
+          }
+        },
+        {
+          "name": "Get Shop by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shops/{{shopId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "{{shopId}}"]
+            },
+            "description": "Get details of a specific shop"
+          }
+        },
+        {
+          "name": "Update Shop",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Downtown Electronics Plus\",\n  \"phone\": \"+1234567899\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shops/{{shopId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "{{shopId}}"]
+            },
+            "description": "Update shop details"
+          }
+        },
+        {
+          "name": "Delete Shop",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shops/{{shopId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "{{shopId}}"]
+            },
+            "description": "Delete a shop (soft delete)"
+          }
+        },
+        {
+          "name": "Get Shop Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shops/{{shopId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "{{shopId}}", "stats"]
+            },
+            "description": "Get statistics for a specific shop"
+          }
+        },
+        {
+          "name": "List Shop Products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.products && response.data.products.length > 0) {",
+                  "        pm.collectionVariables.set('shopProductId', response.data.products[0].id);",
+                  "        console.log('✅ Shop Product ID set: ' + response.data.products[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shops/{{shopId}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "{{shopId}}", "products"]
+            },
+            "description": "Get all products for a specific shop"
+          }
+        },
+        {
+          "name": "Create Shop Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.product) {",
+                  "        pm.collectionVariables.set('shopProductId', response.data.product.id);",
+                  "        console.log('✅ New Shop Product ID set: ' + response.data.product.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Samsung Galaxy S24\",\n  \"description\": \"Latest Samsung flagship smartphone\",\n  \"price\": 999.99,\n  \"currency\": \"USD\",\n  \"sku\": \"SAM-S24-001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shops/{{shopId}}/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "{{shopId}}", "products"]
+            },
+            "description": "Add a new product to a shop"
+          }
+        },
+        {
+          "name": "Update Shop Product",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 949.99,\n  \"description\": \"Samsung Galaxy S24 - Sale Price\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/shops/products/{{shopProductId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "products", "{{shopProductId}}"]
+            },
+            "description": "Update product details"
+          }
+        },
+        {
+          "name": "Delete Shop Product",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/shops/products/{{shopProductId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["shops", "products", "{{shopProductId}}"]
+            },
+            "description": "Delete a product from a shop"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛒 Loan Items",
+      "description": "Loan items management - products associated with loans",
+      "item": [
+        {
+          "name": "Add Item to Loan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.loanItem) {",
+                  "        pm.collectionVariables.set('loanItemId', response.data.loanItem.id);",
+                  "        console.log('✅ Loan Item ID set: ' + response.data.loanItem.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shopProductId\": \"{{shopProductId}}\",\n  \"quantity\": 1,\n  \"unitPrice\": 999.99\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-items/loans/{{loanId}}/items",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-items", "loans", "{{loanId}}", "items"]
+            },
+            "description": "Add a product item to a loan"
+          }
+        },
+        {
+          "name": "Get Loan Items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-items/loans/{{loanId}}/items",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-items", "loans", "{{loanId}}", "items"]
+            },
+            "description": "Get all items for a specific loan"
+          }
+        },
+        {
+          "name": "Remove Item from Loan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-items/items/{{loanItemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-items", "items", "{{loanItemId}}"]
+            },
+            "description": "Remove an item from a loan"
+          }
+        },
+        {
+          "name": "Get Loan Total Value",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-items/loans/{{loanId}}/total",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-items", "loans", "{{loanId}}", "total"]
+            },
+            "description": "Get the total value of all items on a loan"
+          }
+        },
+        {
+          "name": "Get Shop Sales Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-items/shops/{{shopId}}/sales-stats?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-items", "shops", "{{shopId}}", "sales-stats"],
+              "query": [
+                {"key": "startDate", "value": "2024-01-01"},
+                {"key": "endDate", "value": "2024-12-31"}
+              ]
+            },
+            "description": "Get sales statistics for a shop"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📱 Online Applications",
+      "description": "Online loan application management endpoints",
+      "item": [
+        {
+          "name": "List Applications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.applications && response.data.applications.length > 0) {",
+                  "        pm.collectionVariables.set('applicationId', response.data.applications[0].id);",
+                  "        console.log('✅ Application ID set: ' + response.data.applications[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications?status=PENDING",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications"],
+              "query": [{"key": "status", "value": "PENDING"}]
+            },
+            "description": "Get all online applications with optional filters"
+          }
+        },
+        {
+          "name": "Create Application",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.application) {",
+                  "        pm.collectionVariables.set('applicationId', response.data.application.id);",
+                  "        console.log('✅ New Application ID set: ' + response.data.application.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": \"WEB\",\n  \"applicationType\": \"NEW\",\n  \"clientPhone\": \"+263771234567\",\n  \"clientName\": \"Jane Doe\",\n  \"idNumber\": \"63-123456A78\",\n  \"amount\": 5000,\n  \"productId\": \"{{productId}}\",\n  \"disbursementPreference\": \"CASH\",\n  \"notes\": \"Urgent loan request for business expansion\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications"]
+            },
+            "description": "Submit a new online loan application"
+          }
+        },
+        {
+          "name": "Get Application by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}"]
+            },
+            "description": "Get details of a specific application"
+          }
+        },
+        {
+          "name": "Update Application",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 6000,\n  \"notes\": \"Amount adjusted based on client request\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}"]
+            },
+            "description": "Update application details"
+          }
+        },
+        {
+          "name": "Verify Application",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Identity verified, documents confirmed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}", "verify"]
+            },
+            "description": "Mark an application as verified"
+          }
+        },
+        {
+          "name": "Convert Application to Loan",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"loanOfficerId\": \"{{userId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"interestRate\": 15,\n  \"term\": 12,\n  \"repaymentFrequency\": \"MONTHLY\",\n  \"purpose\": \"Business expansion\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}/convert-to-loan",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}", "convert-to-loan"]
+            },
+            "description": "Convert a verified application into a loan. Required: clientId, loanOfficerId, branchId, interestRate, term, repaymentFrequency"
+          }
+        },
+        {
+          "name": "Update Application Status",
+          "request": {
+            "method": "PUT",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REJECTED\",\n  \"notes\": \"Application rejected due to incomplete documentation\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}", "status"]
+            },
+            "description": "Update application status (PENDING, VERIFIED, PROCESSED, EXPIRED, REJECTED)"
+          }
+        },
+        {
+          "name": "Get Application Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/stats?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "stats"],
+              "query": [
+                {"key": "startDate", "value": "2024-01-01"},
+                {"key": "endDate", "value": "2024-12-31"}
+              ]
+            },
+            "description": "Get application statistics for the organization"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 System & Health",
       "description": "System health and information endpoints",
       "item": [
         {

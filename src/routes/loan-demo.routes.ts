@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Prisma } from '@prisma/client';
+const Decimal = Prisma.Decimal;
 import {
   loanCalculationService,
   LoanCalculationMethod,

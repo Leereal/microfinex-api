@@ -4,9 +4,7 @@
  * Fix the lastName field that got corrupted with password
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from './src/config/database';
 
 async function fixUserName() {
   console.log('🔧 Fixing user lastName field...\n');
