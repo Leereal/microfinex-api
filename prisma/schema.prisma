@@ -39,6 +39,8 @@ model Organization {
   auditLogs         AuditLog[]
   settings          OrganizationSettings[]
   exchangeRates     ExchangeRate[]
+  loanCategories    LoanCategory[]
+  shops             Shop[]
 
   @@map("organizations")
 }
@@ -104,7 +106,10 @@ model Branch {
   manager        User?        @relation("BranchManager", fields: [managerId], references: [id])
   users          User[]       @relation("BranchUsers")
   clients        Client[]
+  homeClients    Client[]     @relation("ClientHomeBranch")
   loans          Loan[]
+  disbursedLoans Loan[]       @relation("LoanDisbursementBranch")
+  processedPayments Payment[] @relation("PaymentProcessedBranch")
 
   @@map("branches")
 }
@@ -137,6 +142,9 @@ model User {
   payments       Payment[]
   auditLogs      AuditLog[]
   refreshTokens  RefreshToken[]
+  assessments    LoanAssessment[]
+  visits         LoanVisit[]
+  workflowChanges LoanWorkflowHistory[]
 
   @@map("users")
 }
@@ -178,8 +186,12 @@ model Client {
   isActive          Boolean            @default(true)
   kycStatus         String             @default("PENDING") // PENDING, VERIFIED, REJECTED
   kycDocuments      Json?
+  profileImage      String?
+  thumbprintImage   String?
+  signatureImage    String?
   organizationId    String
   branchId          String
+  homeBranchId      String?
   createdBy         String
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
@@ -187,6 +199,7 @@ model Client {
   // Relations
   organization      Organization       @relation(fields: [organizationId], references: [id])
   branch            Branch             @relation(fields: [branchId], references: [id])
+  homeBranch        Branch?            @relation("ClientHomeBranch", fields: [homeBranchId], references: [id])
   creator           User               @relation("ClientCreatedBy", fields: [createdBy], references: [id])
   loans             Loan[]
   groupMemberships  GroupMember[]
@@ -253,12 +266,15 @@ model LoanProduct {
   isActive              Boolean              @default(true)
   requiresCollateral    Boolean              @default(false)
   requiresGuarantor     Boolean              @default(false)
+  categoryId            String?
+  isOnlineEligible      Boolean              @default(false)
   organizationId        String
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
   // Relations
   organization          Organization         @relation(fields: [organizationId], references: [id])
+  category              LoanCategory?        @relation(fields: [categoryId], references: [id])
   loans                 Loan[]
   productCharges        ProductCharge[]
 
@@ -298,6 +314,10 @@ model Loan {
   collateralDescription String?
   guarantorInfo         Json?
   notes                 String?
+  shopId                String?
+  applicationSource     ApplicationSource    @default(BRANCH)
+  onlineApplicationId   String?
+  disbursementBranchId  String?
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -308,9 +328,17 @@ model Loan {
   organization          Organization         @relation(fields: [organizationId], references: [id])
   branch                Branch               @relation(fields: [branchId], references: [id])
   loanOfficer           User                 @relation("LoanOfficer", fields: [loanOfficerId], references: [id])
+  shop                  Shop?                @relation(fields: [shopId], references: [id])
+  onlineApplication     OnlineApplication?   @relation(fields: [onlineApplicationId], references: [id])
+  disbursementBranch    Branch?              @relation("LoanDisbursementBranch", fields: [disbursementBranchId], references: [id])
   payments              Payment[]
   repaymentSchedule     RepaymentSchedule[]
   loanCharges           LoanCharge[]
+  loanItems             LoanItem[]
+  assessments           LoanAssessment[]
+  visits                LoanVisit[]
+  pledges               SecurityPledge[]
+  workflowHistory       LoanWorkflowHistory[]
 
   @@map("loans")
 }
@@ -354,6 +382,8 @@ model Payment {
   paymentDate       DateTime         @default(now())
   receivedBy        String
   notes             String?
+  processedBranchId String?
+  processedBranch   Branch?          @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -529,6 +559,184 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model LoanCategory {
+  id                    String               @id @default(uuid())
+  name                  String
+  code                  String
+  description           String?
+  isLongTerm            Boolean              @default(false)
+  requiresBusinessVisit Boolean              @default(false)
+  requiresHomeVisit     Boolean              @default(false)
+  requiresSecurityPledge Boolean             @default(false)
+  requiresCollateral    Boolean              @default(false)
+  organizationId        String
+  isActive              Boolean              @default(true)
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  // Relations
+  organization          Organization         @relation(fields: [organizationId], references: [id])
+  products              LoanProduct[]
+
+  @@unique([organizationId, code])
+  @@map("loan_categories")
+}
+
+model LoanAssessment {
+  id                String    @id @default(uuid())
+  loanId            String
+  assessorId        String
+  status            String    // PENDING, APPROVED, REJECTED
+  documentChecklist Json?
+  notes             String?
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  loan              Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  assessor          User      @relation(fields: [assessorId], references: [id])
+
+  @@map("loan_assessments")
+}
+
+model LoanVisit {
+  id          String    @id @default(uuid())
+  loanId      String
+  visitType   VisitType
+  address     String?
+  gpsLat      Decimal?  @db.Decimal(10, 8)
+  gpsLng      Decimal?  @db.Decimal(11, 8)
+  visitedBy   String
+  visitedAt   DateTime?
+  images      String[]
+  notes       String?
+  syncedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  loan        Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  visitor     User      @relation(fields: [visitedBy], references: [id])
+
+  @@map("loan_visits")
+}
+
+model SecurityPledge {
+  id              String   @id @default(uuid())
+  loanId          String
+  itemDescription String
+  serialNumber    String?
+  estimatedValue  Decimal  @db.Decimal(15, 2)
+  currency        Currency @default(USD)
+  images          String[]
+  status          String   // PENDING, VERIFIED, RELEASED, SEIZED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@map("security_pledges")
+}
+
+model LoanWorkflowHistory {
+  id         String     @id @default(uuid())
+  loanId     String
+  fromStatus LoanStatus
+  toStatus   LoanStatus
+  changedBy  String
+  changedAt  DateTime   @default(now())
+  notes      String?
+
+  // Relations
+  loan       Loan       @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  changer    User       @relation(fields: [changedBy], references: [id])
+
+  @@map("loan_workflow_history")
+}
+
+model Shop {
+  id             String   @id @default(uuid())
+  name           String
+  address        String?
+  phone          String?
+  contactPerson  String?
+  bankAccount    String?
+  mobileNumber   String?
+  organizationId String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  products       ShopProduct[]
+  loans          Loan[]
+
+  @@map("shops")
+}
+
+model ShopProduct {
+  id          String   @id @default(uuid())
+  shopId      String
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(15, 2)
+  currency    Currency @default(USD)
+  sku         String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  loanItems   LoanItem[]
+
+  @@map("shop_products")
+}
+
+model LoanItem {
+  id            String      @id @default(uuid())
+  loanId        String
+  shopProductId String
+  quantity      Int
+  unitPrice     Decimal     @db.Decimal(15, 2)
+  totalPrice    Decimal     @db.Decimal(15, 2)
+  createdAt     DateTime    @default(now())
+
+  // Relations
+  loan          Loan        @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  shopProduct   ShopProduct @relation(fields: [shopProductId], references: [id])
+
+  @@map("loan_items")
+}
+
+model OnlineApplication {
+  id                    String                 @id @default(uuid())
+  source                ApplicationSource
+  applicationType       ApplicationType
+  clientPhone           String
+  clientName            String?
+  idNumber              String?
+  amount                Decimal                @db.Decimal(15, 2)
+  productId             String
+  disbursementPreference DisbursementPreference
+  bankAccount           String?
+  mobileNumber          String?
+  verificationCode      String?
+  verificationExpiry    DateTime?
+  status                ApplicationStatus      @default(PENDING)
+  notes                 String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  // Relations
+  loans                 Loan[]
+
+  @@map("online_applications")
+}
+
 // Enums
 enum OrganizationType {
   MICROFINANCE
@@ -560,13 +768,49 @@ enum LoanType {
 }
 
 enum LoanStatus {
+  DRAFT
   PENDING
+  PENDING_ASSESSMENT
+  PENDING_VISIT
+  PENDING_APPROVAL
   APPROVED
+  PENDING_DISBURSEMENT
   ACTIVE
   OVERDUE
   COMPLETED
   CANCELLED
   DEFAULTED
+  WRITTEN_OFF
+}
+
+enum VisitType {
+  BUSINESS
+  HOME
+}
+
+enum ApplicationSource {
+  BRANCH
+  WEB
+  WHATSAPP
+  FACEBOOK
+}
+
+enum ApplicationType {
+  NEW
+  EXISTING
+}
+
+enum DisbursementPreference {
+  CASH
+  TRANSFER
+}
+
+enum ApplicationStatus {
+  PENDING
+  VERIFIED
+  PROCESSED
+  EXPIRED
+  REJECTED
 }
 
 enum PaymentStatus {

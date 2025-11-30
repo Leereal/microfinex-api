@@ -16,6 +16,8 @@ import employerRoutes from './employers.routes';
 import reportRoutes from './reports.routes';
 import settingsRoutes from './settings.routes';
 import exchangeRateRoutes from './exchange-rates.routes';
+import loanCategoryRoutes from './loan-categories.routes';
+import loanProductRoutes from './loan-products.routes';
 
 const router = Router();
 
@@ -35,6 +37,8 @@ router.use(`${apiVersion}/employers`, employerRoutes);
 router.use(`${apiVersion}/reports`, reportRoutes);
 router.use(`${apiVersion}/settings`, settingsRoutes);
 router.use(`${apiVersion}/exchange-rates`, exchangeRateRoutes);
+router.use(`${apiVersion}/loan-categories`, loanCategoryRoutes);
+router.use(`${apiVersion}/loan-products`, loanProductRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {
