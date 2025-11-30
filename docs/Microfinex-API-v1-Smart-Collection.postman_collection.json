@@ -1,0 +1,895 @@
+{
+  "info": {
+    "name": "Microfinex API v1 - Smart Collection",
+    "description": "Modern Microfinance Management System API with automatic variable population and JWT token handling. This collection automatically extracts and stores IDs, tokens, and other data from responses for seamless API testing.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "microfinex-api-v1",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api/v1",
+      "description": "Base URL for the API"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "description": "JWT access token (auto-populated from login)"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "description": "JWT refresh token (auto-populated from login)"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "description": "Current user ID (auto-populated from login)"
+    },
+    {
+      "key": "organizationId",
+      "value": "",
+      "description": "Current organization ID (auto-populated from login)"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "description": "Last created/retrieved client ID"
+    },
+    {
+      "key": "loanId",
+      "value": "",
+      "description": "Last created/retrieved loan ID"
+    },
+    {
+      "key": "paymentId",
+      "value": "",
+      "description": "Last created/retrieved payment ID"
+    },
+    {
+      "key": "groupId",
+      "value": "",
+      "description": "Last created/retrieved group ID"
+    },
+    {
+      "key": "employerId",
+      "value": "",
+      "description": "Last created/retrieved employer ID"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global pre-request script with enhanced token management",
+          "console.log('🚀 Making request to: ' + pm.request.url);",
+          "",
+          "// Auto-check and warn about missing auth token",
+          "const authToken = pm.collectionVariables.get('authToken');",
+          "const requestUrl = pm.request.url.toString();",
+          "const isAuthEndpoint = requestUrl.includes('/auth/') || requestUrl.includes('/health');",
+          "",
+          "if (!authToken && !isAuthEndpoint) {",
+          "    console.log('⚠️ No auth token found. Please login first using the Login request.');",
+          "    console.log('💡 Tip: The Login request will automatically populate the authToken variable.');",
+          "}",
+          "",
+          "// Add request timestamp",
+          "const timestamp = new Date().toISOString();",
+          "console.log('⏰ Request timestamp: ' + timestamp);",
+          "",
+          "// Auto-refresh token if it's about to expire (optional feature)",
+          "if (authToken) {",
+          "    try {",
+          "        const tokenPayload = JSON.parse(atob(authToken.split('.')[1]));",
+          "        const expirationTime = tokenPayload.exp * 1000;",
+          "        const currentTime = Date.now();",
+          "        const timeUntilExpiry = expirationTime - currentTime;",
+          "        ",
+          "        if (timeUntilExpiry < 300000) { // Less than 5 minutes",
+          "            console.log('⚠️ Token expires in less than 5 minutes. Consider refreshing.');",
+          "        }",
+          "    } catch (e) {",
+          "        // Ignore token parsing errors",
+          "    }",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Global test script with enhanced logging",
+          "const responseTime = pm.response.responseTime;",
+          "console.log('⏱️ Response time: ' + responseTime + 'ms');",
+          "",
+          "// Enhanced error handling and logging",
+          "if (pm.response.code >= 400) {",
+          "    console.log('❌ Error response (' + pm.response.code + '):');",
+          "    try {",
+          "        const errorBody = pm.response.json();",
+          "        console.log('   Message: ' + (errorBody.message || 'Unknown error'));",
+          "        console.log('   Error: ' + (errorBody.error || 'No error code'));",
+          "        ",
+          "        // Special handling for auth errors",
+          "        if (pm.response.code === 401) {",
+          "            console.log('🔐 Authentication required. Please login first.');",
+          "        }",
+          "    } catch (e) {",
+          "        console.log('   Raw response: ' + pm.response.text());",
+          "    }",
+          "} else {",
+          "    console.log('✅ Request successful (' + pm.response.code + ')');",
+          "    ",
+          "    // Log response data for successful requests",
+          "    try {",
+          "        const responseBody = pm.response.json();",
+          "        if (responseBody.message) {",
+          "            console.log('📝 Response: ' + responseBody.message);",
+          "        }",
+          "    } catch (e) {",
+          "        // Ignore JSON parsing errors",
+          "    }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "description": "Authentication endpoints with automatic token management",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Enhanced login response handler with automatic token population",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    try {",
+                  "        const response = pm.response.json();",
+                  "        ",
+                  "        if (response.success && response.data) {",
+                  "            // 🔑 AUTOMATIC TOKEN POPULATION",
+                  "            if (response.data.token) {",
+                  "                pm.collectionVariables.set('authToken', response.data.token);",
+                  "                console.log('🔐 ✅ Auth token automatically updated!');",
+                  "                console.log('🔐 📋 Token length: ' + response.data.token.length + ' characters');",
+                  "                ",
+                  "                // Decode and show token info",
+                  "                try {",
+                  "                    const tokenPayload = JSON.parse(atob(response.data.token.split('.')[1]));",
+                  "                    const expirationDate = new Date(tokenPayload.exp * 1000);",
+                  "                    console.log('🔐 ⏰ Token expires: ' + expirationDate.toLocaleString());",
+                  "                    console.log('🔐 👤 Token user: ' + tokenPayload.email);",
+                  "                } catch (e) {",
+                  "                    console.log('🔐 ⚠️ Could not decode token payload');",
+                  "                }",
+                  "            }",
+                  "            ",
+                  "            // Handle legacy token format (tokens.access)",
+                  "            if (response.data.tokens && response.data.tokens.access) {",
+                  "                pm.collectionVariables.set('authToken', response.data.tokens.access);",
+                  "                pm.collectionVariables.set('refreshToken', response.data.tokens.refresh);",
+                  "                console.log('🔐 ✅ Auth tokens updated (legacy format)');",
+                  "            }",
+                  "            ",
+                  "            // Set user information",
+                  "            if (response.data.user) {",
+                  "                pm.collectionVariables.set('userId', response.data.user.id);",
+                  "                if (response.data.user.organization && response.data.user.organization.id) {",
+                  "                    pm.collectionVariables.set('organizationId', response.data.user.organization.id);",
+                  "                    console.log('🏢 Organization ID set: ' + response.data.user.organization.id);",
+                  "                } else {",
+                  "                    // Super admin case (organizationId is null)",
+                  "                    pm.collectionVariables.set('organizationId', '');",
+                  "                    console.log('👑 Super Admin detected - no organization restriction');",
+                  "                }",
+                  "                console.log('👤 User info updated: ' + response.data.user.firstName + ' ' + response.data.user.lastName);",
+                  "                console.log('🎭 User role: ' + response.data.user.role);",
+                  "            }",
+                  "            ",
+                  "            // Success notification",
+                  "            console.log('');",
+                  "            console.log('🎉 LOGIN SUCCESSFUL!');",
+                  "            console.log('✨ All subsequent requests will now use the auth token automatically.');",
+                  "            console.log('🚀 You can now use any protected endpoint without manually setting tokens.');",
+                  "            console.log('');",
+                  "            ",
+                  "        } else {",
+                  "            console.log('⚠️ Login response missing expected data structure');",
+                  "        }",
+                  "    } catch (error) {",
+                  "        console.log('❌ Error processing login response: ' + error.message);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Response has success true', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Response contains user data', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data).to.have.property('user');",
+                  "    pm.expect(jsonData.data).to.have.property('token');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"leereal08@ymail.com\",\n  \"password\": \"Mutabvuri$8\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "🔐 **AUTOMATIC TOKEN MANAGEMENT**\\n\\nThis request automatically handles all authentication for you:\\n\\n**What it does:**\\n✅ Logs you into the system\\n✅ Automatically populates the `authToken` variable\\n✅ Sets user ID and organization ID\\n✅ Enables all subsequent requests to work without manual token setup\\n\\n**How to use:**\\n1. Click Send\\n2. That's it! All other requests will now work automatically\\n\\n**Token Features:**\\n- Auto-population of JWT token\\n- Token expiration tracking\\n- User role and organization detection\\n- Super Admin detection\\n\\n**Default Credentials:**\\n- Email: leereal08@ymail.com\\n- Password: Mutabvuri$8\\n- Role: SUPER_ADMIN"
+          }
+        },
+        {
+          "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-populate user info from registration response",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    ",
+                  "    if (response.success && response.data) {",
+                  "        // Set user information",
+                  "        if (response.data.user) {",
+                  "            pm.collectionVariables.set('userId', response.data.user.id);",
+                  "            pm.collectionVariables.set('organizationId', response.data.user.organizationId);",
+                  "            console.log('✅ New user info updated');",
+                  "        }",
+                  "        ",
+                  "        // Set tokens if provided",
+                  "        if (response.data.tokens) {",
+                  "            pm.collectionVariables.set('authToken', response.data.tokens.access);",
+                  "            pm.collectionVariables.set('refreshToken', response.data.tokens.refresh);",
+                  "            console.log('✅ Auth tokens updated from registration');",
+                  "        }",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('User created successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@microfinex.com\",\n  \"password\": \"password123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"role\": \"STAFF\",\n  \"organizationId\": \"{{organizationId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user. Automatically populates user variables and tokens if returned."
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-update tokens from refresh response",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    ",
+                  "    if (response.success && response.data) {",
+                  "        if (response.data.tokens) {",
+                  "            pm.collectionVariables.set('authToken', response.data.tokens.access);",
+                  "            pm.collectionVariables.set('refreshToken', response.data.tokens.refresh);",
+                  "            console.log('✅ Tokens refreshed successfully');",
+                  "        }",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Tokens refreshed', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Refresh JWT tokens using the refresh token. Automatically updates both access and refresh tokens."
+          }
+        },
+        {
+          "name": "Logout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Clear tokens on successful logout",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('🔐 Logging out - clearing all tokens...');",
+                  "    pm.collectionVariables.set('authToken', '');",
+                  "    pm.collectionVariables.set('refreshToken', '');",
+                  "    pm.collectionVariables.set('userId', '');",
+                  "    pm.collectionVariables.set('organizationId', '');",
+                  "    console.log('✅ All authentication tokens cleared');",
+                  "    console.log('ℹ️ You will need to login again to access protected endpoints');",
+                  "}",
+                  "",
+                  "pm.test('Logout successful', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout and clear all authentication tokens. You'll need to login again after this."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Organizations",
+      "description": "Organization management endpoints with automatic ID population",
+      "item": [
+        {
+          "name": "Create Organization (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-populate organization ID from creation response",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    ",
+                  "    if (response.success && response.data && response.data.organization) {",
+                  "        pm.collectionVariables.set('organizationId', response.data.organization.id);",
+                  "        console.log('✅ Organization ID updated: ' + response.data.organization.id);",
+                  "        console.log('🏢 Organization created: ' + response.data.organization.name);",
+                  "        console.log('📊 Type: ' + response.data.organization.type);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Organization created successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.organization).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Microfinance\",\n  \"type\": \"MICROFINANCE\",\n  \"address\": \"123 Business District, City, Country\",\n  \"phone\": \"+1234567890\",\n  \"email\": \"info@acmemicrofinance.com\",\n  \"website\": \"https://acmemicrofinance.com\",\n  \"registrationNumber\": \"REG123456\",\n  \"licenseNumber\": \"LIC789012\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"]
+            },
+            "description": "Create a new organization (Super Admin only). Automatically populates organizationId variable."
+          }
+        },
+        {
+          "name": "List Organizations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Organizations retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "// Auto-populate first organization ID if available",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.organizations && response.data.organizations.length > 0) {",
+                  "        const firstOrg = response.data.organizations[0];",
+                  "        pm.collectionVariables.set('organizationId', firstOrg.id);",
+                  "        console.log('✅ First organization ID set: ' + firstOrg.id);",
+                  "        console.log('🏢 Organization: ' + firstOrg.name);",
+                  "        console.log('📊 Total organizations: ' + response.data.organizations.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/organizations?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "List all organizations. Automatically sets organizationId to the first organization."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👥 Client Management",
+      "description": "Client management endpoints with automatic ID population",
+      "item": [
+        {
+          "name": "Create Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Auto-populate client ID from creation response",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    ",
+                  "    if (response.success && response.data && response.data.client) {",
+                  "        pm.collectionVariables.set('clientId', response.data.client.id);",
+                  "        console.log('✅ Client ID updated: ' + response.data.client.id);",
+                  "        console.log('✅ Client created: ' + response.data.client.firstName + ' ' + response.data.client.lastName);",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Client created successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.client).to.have.property('id');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"email\": \"jane.smith@example.com\",\n  \"phoneNumber\": \"+1234567890\",\n  \"dateOfBirth\": \"1990-05-15\",\n  \"nationalId\": \"ID123456789\",\n  \"address\": \"123 Main Street, City, Country\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clients",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients"]
+            },
+            "description": "Create a new client. Automatically populates clientId variable with the created client's ID.\\n\\n⚠️ **Multi-Tenant Note**: This endpoint requires an organization context. If you're logged in as a Super Admin, you'll need to:\\n1. First create or select an organization\\n2. The system will automatically scope clients to your organization\\n\\nFor regular users, clients are automatically created within their organization."
+          }
+        },
+        {
+          "name": "List Clients",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Clients list retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "// Auto-populate first client ID if available",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.clients && response.data.clients.length > 0) {",
+                  "        const firstClient = response.data.clients[0];",
+                  "        pm.collectionVariables.set('clientId', firstClient.id);",
+                  "        console.log('✅ First client ID set: ' + firstClient.id);",
+                  "        console.log('📊 Total clients found: ' + response.data.clients.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clients?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "List clients with pagination. Automatically sets clientId to the first client in the list."
+          }
+        }
+      ]
+    },
+    {
+      "name": "� Loans & Payments",
+      "description": "Loan and payment management endpoints",
+      "item": [
+        {
+          "name": "List Loans",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Auto-populate first loan ID if available",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.loans && response.data.loans.length > 0) {",
+                  "        const firstLoan = response.data.loans[0];",
+                  "        pm.collectionVariables.set('loanId', firstLoan.id);",
+                  "        console.log('✅ First loan ID set: ' + firstLoan.id);",
+                  "        console.log('💰 Loan amount: ' + firstLoan.amount);",
+                  "        console.log('📊 Total loans: ' + response.data.loans.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loans?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "List loans with pagination. Automatically sets loanId to the first loan."
+          }
+        },
+        {
+          "name": "List Payments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "// Auto-populate first payment ID if available",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.payments && response.data.payments.length > 0) {",
+                  "        const firstPayment = response.data.payments[0];",
+                  "        pm.collectionVariables.set('paymentId', firstPayment.id);",
+                  "        console.log('✅ First payment ID set: ' + firstPayment.id);",
+                  "        console.log('💳 Payment amount: ' + firstPayment.amount);",
+                  "        console.log('📊 Total payments: ' + response.data.payments.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "List payments with pagination. Automatically sets paymentId to the first payment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "👤 User Management",
+      "description": "User management endpoints",
+      "item": [
+        {
+          "name": "Get Current User Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User profile retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.user).to.have.property('id');",
+                  "});",
+                  "",
+                  "// Log user profile info",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        const user = response.data.user;",
+                  "        console.log('👤 Current user: ' + user.firstName + ' ' + user.lastName);",
+                  "        console.log('📧 Email: ' + user.email);",
+                  "        console.log('🎭 Role: ' + user.role);",
+                  "        if (user.organization) {",
+                  "            console.log('🏢 Organization: ' + user.organization.name);",
+                  "        } else {",
+                  "            console.log('👑 Super Admin - No organization restriction');",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            },
+            "description": "Get the current user's profile information including role and organization."
+          }
+        }
+      ]
+    },
+    {
+      "name": "�🔧 System & Health",
+      "description": "System health and information endpoints",
+      "item": [
+        {
+          "name": "API Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('API is healthy', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('OK');",
+                  "});",
+                  "",
+                  "// Log system info",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('🏥 API Status: ' + response.status);",
+                  "    console.log('🌍 Environment: ' + response.environment);",
+                  "    console.log('⏰ Uptime: ' + Math.round(response.uptime) + 's');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status - no authentication required"
+          }
+        },
+        {
+          "name": "API Information",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('API info retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('name');",
+                  "    pm.expect(jsonData).to.have.property('version');",
+                  "});",
+                  "",
+                  "// Log API info",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📋 API: ' + response.name);",
+                  "    console.log('🏷️ Version: ' + response.version);",
+                  "    if (response.endpoints) {",
+                  "        console.log('📚 Available endpoints: ' + Object.keys(response.endpoints).length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "Get API information and available endpoints - no authentication required"
+          }
+        }
+      ]
+    }
+  ]
+}

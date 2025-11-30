@@ -1,0 +1,212 @@
+import { Router } from 'express';
+import {
+  getVersionPrefix,
+  getVersionInfo,
+  CURRENT_VERSION,
+} from '../utils/version';
+import authRoutes from './auth.routes';
+import organizationRoutes from './organizations.routes';
+import userRoutes from './users.routes';
+import clientRoutes from './clients.routes';
+import loanRoutes from './loans.routes';
+import loanDemoRoutes from './loan-demo.routes';
+import paymentRoutes from './payments.routes';
+import groupRoutes from './groups.routes';
+import employerRoutes from './employers.routes';
+import reportRoutes from './reports.routes';
+import settingsRoutes from './settings.routes';
+import exchangeRateRoutes from './exchange-rates.routes';
+
+const router = Router();
+
+// API Version prefix
+const apiVersion = getVersionPrefix(CURRENT_VERSION);
+
+// Route definitions - All endpoints will be accessible at /api/v1/...
+router.use(`${apiVersion}/auth`, authRoutes);
+router.use(`${apiVersion}/organizations`, organizationRoutes);
+router.use(`${apiVersion}/users`, userRoutes);
+router.use(`${apiVersion}/clients`, clientRoutes);
+router.use(`${apiVersion}/loans`, loanRoutes);
+router.use(`${apiVersion}/loan-demos`, loanDemoRoutes);
+router.use(`${apiVersion}/payments`, paymentRoutes);
+router.use(`${apiVersion}/groups`, groupRoutes);
+router.use(`${apiVersion}/employers`, employerRoutes);
+router.use(`${apiVersion}/reports`, reportRoutes);
+router.use(`${apiVersion}/settings`, settingsRoutes);
+router.use(`${apiVersion}/exchange-rates`, exchangeRateRoutes);
+
+// Unversioned health check endpoint (for load balancers, etc.)
+router.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: process.env.API_VERSION || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    api_version: 'v1',
+  });
+});
+
+// Versioned health check endpoint
+router.get(`${apiVersion}/health`, (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    version: process.env.API_VERSION || '1.0.0',
+    environment: process.env.NODE_ENV || 'development',
+    api_version: 'v1',
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+  });
+});
+
+// API information endpoint
+router.get(`${apiVersion}`, (req, res) => {
+  const versionInfo = getVersionInfo();
+  res.json({
+    name: 'Microfinex API',
+    version: CURRENT_VERSION,
+    description: 'Modern Microfinance Management System API',
+    ...versionInfo,
+    endpoints: {
+      auth: `/api${apiVersion}/auth`,
+      organizations: `/api${apiVersion}/organizations`,
+      users: `/api${apiVersion}/users`,
+      clients: `/api${apiVersion}/clients`,
+      loans: `/api${apiVersion}/loans`,
+      payments: `/api${apiVersion}/payments`,
+      groups: `/api${apiVersion}/groups`,
+      employers: `/api${apiVersion}/employers`,
+      reports: `/api${apiVersion}/reports`,
+      health: `/api${apiVersion}/health`,
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// API documentation routes
+router.get('/docs', (req, res) => {
+  res.redirect(`/api${apiVersion}`);
+});
+
+// Legacy API docs route (for backward compatibility) - removed since we now have Swagger at /api-docs
+
+router.get(`${apiVersion}/docs`, (req, res) => {
+  const versionInfo = getVersionInfo();
+  res.json({
+    name: 'Microfinex API Documentation',
+    version: CURRENT_VERSION,
+    description: 'Modern Microfinance Management System API',
+    ...versionInfo,
+    base_url: `/api${apiVersion}`,
+    endpoints: {
+      // Authentication Endpoints
+      auth: {
+        login: `POST /api${apiVersion}/auth/login`,
+        register: `POST /api${apiVersion}/auth/register`,
+        refresh: `POST /api${apiVersion}/auth/refresh`,
+        logout: `POST /api${apiVersion}/auth/logout`,
+      },
+      // Organization Management
+      organizations: {
+        list: `GET /api${apiVersion}/organizations`,
+        create: `POST /api${apiVersion}/organizations`,
+        get: `GET /api${apiVersion}/organizations/:id`,
+        update: `PUT /api${apiVersion}/organizations/:id`,
+      },
+      // User Management
+      users: {
+        list: `GET /api${apiVersion}/users`,
+        create: `POST /api${apiVersion}/users`,
+        get: `GET /api${apiVersion}/users/:id`,
+        update: `PUT /api${apiVersion}/users/:id`,
+      },
+      // Client Management
+      clients: {
+        list: `GET /api${apiVersion}/clients`,
+        create: `POST /api${apiVersion}/clients`,
+        get: `GET /api${apiVersion}/clients/:id`,
+        update: `PUT /api${apiVersion}/clients/:id`,
+        kyc_status: `PUT /api${apiVersion}/clients/:id/kyc-status`,
+        kyc_documents: `POST /api${apiVersion}/clients/:id/kyc-documents`,
+      },
+      // Loan Management
+      loans: {
+        list: `GET /api${apiVersion}/loans`,
+        create: `POST /api${apiVersion}/loans`,
+        get: `GET /api${apiVersion}/loans/:id`,
+        approve: `POST /api${apiVersion}/loans/:id/approve`,
+        reject: `POST /api${apiVersion}/loans/:id/reject`,
+        disburse: `POST /api${apiVersion}/loans/:id/disburse`,
+        calculate: `POST /api${apiVersion}/loans/calculate`,
+      },
+      // Payment Processing
+      payments: {
+        list: `GET /api${apiVersion}/payments`,
+        create: `POST /api${apiVersion}/payments`,
+        reverse: `PUT /api${apiVersion}/payments/:id/reverse`,
+        history: `GET /api${apiVersion}/payments/history/:loanId`,
+        schedule: `GET /api${apiVersion}/payments/schedule/:loanId`,
+        overdue: `GET /api${apiVersion}/payments/overdue/:loanId`,
+      },
+      // Group Management
+      groups: {
+        list: `GET /api${apiVersion}/groups`,
+        create: `POST /api${apiVersion}/groups`,
+        get: `GET /api${apiVersion}/groups/:id`,
+        update: `PUT /api${apiVersion}/groups/:id`,
+      },
+      // Employer Management
+      employers: {
+        list: `GET /api${apiVersion}/employers`,
+        create: `POST /api${apiVersion}/employers`,
+        get: `GET /api${apiVersion}/employers/:id`,
+        update: `PUT /api${apiVersion}/employers/:id`,
+      },
+      // Reporting
+      reports: {
+        portfolio: `GET /api${apiVersion}/reports/portfolio`,
+        financial: `GET /api${apiVersion}/reports/financial`,
+        client_summary: `GET /api${apiVersion}/reports/clients`,
+        loan_summary: `GET /api${apiVersion}/reports/loans`,
+      },
+      // System Endpoints
+      system: {
+        health: `GET /api${apiVersion}/health`,
+        version: `GET /api${apiVersion}`,
+      },
+    },
+    authentication: {
+      type: 'Bearer Token',
+      header: 'Authorization: Bearer YOUR_TOKEN',
+      note: 'Most endpoints require authentication. Get token from /auth/login',
+    },
+    examples: {
+      login: {
+        url: `/api${apiVersion}/auth/login`,
+        method: 'POST',
+        body: {
+          email: 'user@example.com',
+          password: 'your_password',
+        },
+      },
+      create_client: {
+        url: `/api${apiVersion}/clients`,
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer YOUR_TOKEN',
+          'Content-Type': 'application/json',
+        },
+        body: {
+          firstName: 'John',
+          lastName: 'Doe',
+          email: 'john.doe@example.com',
+          phoneNumber: '+1234567890',
+        },
+      },
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
+export default router;
