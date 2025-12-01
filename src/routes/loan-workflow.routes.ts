@@ -9,6 +9,7 @@ import {
   securityPledgeService,
   loanWorkflowHistoryService,
   loanStatusTransitionService,
+  categoryAwareWorkflowEngine,
 } from '../services/loan-workflow.service';
 
 const router = Router();
@@ -951,5 +952,631 @@ router.get('/loans/:loanId/history', authenticate, async (req, res) => {
 
 // Need prisma for next-statuses endpoint
 import { prisma } from '../config/database';
+
+// ============================================
+// CATEGORY-AWARE WORKFLOW ROUTES
+// ============================================
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/loans/{loanId}/workflow-status:
+ *   get:
+ *     summary: Get complete workflow status including requirements and completion
+ */
+router.get('/loans/:loanId/workflow-status', authenticate, async (req, res) => {
+  try {
+    const loanId = req.params.loanId;
+    if (!loanId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Loan ID is required',
+        error: 'BAD_REQUEST',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const status = await categoryAwareWorkflowEngine.getWorkflowStatus(loanId);
+
+    res.json({
+      success: true,
+      message: 'Workflow status retrieved successfully',
+      data: status,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('Get workflow status error:', error);
+    res.status(error.message.includes('not found') ? 404 : 500).json({
+      success: false,
+      message: error.message || 'Internal server error',
+      error: error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+const submitForAssessmentSchema = z.object({
+  assessorId: z.string().uuid(),
+  notes: z.string().optional(),
+});
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/loans/{loanId}/submit-assessment:
+ *   post:
+ *     summary: Submit loan for assessment
+ */
+router.post(
+  '/loans/:loanId/submit-assessment',
+  authenticate,
+  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(submitForAssessmentSchema),
+  async (req, res) => {
+    try {
+      const loanId = req.params.loanId;
+      const userId = req.user?.userId;
+
+      if (!loanId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Loan ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.submitForAssessment(
+        loanId,
+        req.body.assessorId,
+        userId,
+        req.body.notes
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Loan submitted for assessment successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Submit for assessment error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+const completeAssessmentSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
+  notes: z.string().optional(),
+});
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/assessments/{id}/complete:
+ *   post:
+ *     summary: Complete assessment and advance workflow
+ */
+router.post(
+  '/assessments/:id/complete',
+  authenticate,
+  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(completeAssessmentSchema),
+  async (req, res) => {
+    try {
+      const assessmentId = req.params.id;
+      const userId = req.user?.userId;
+
+      if (!assessmentId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Assessment ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.completeAssessment(
+        assessmentId,
+        req.body.status,
+        userId,
+        req.body.notes
+      );
+
+      res.json({
+        success: true,
+        message: `Assessment ${req.body.status.toLowerCase()} successfully`,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Complete assessment error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+const completeVisitSchema = z.object({
+  address: z.string().optional(),
+  gpsLat: z.number().optional(),
+  gpsLng: z.number().optional(),
+  images: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/visits/{id}/complete:
+ *   post:
+ *     summary: Complete visit and advance workflow
+ */
+router.post(
+  '/visits/:id/complete',
+  authenticate,
+  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(completeVisitSchema),
+  async (req, res) => {
+    try {
+      const visitId = req.params.id;
+      const userId = req.user?.userId;
+
+      if (!visitId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Visit ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.completeVisit(
+        visitId,
+        req.body,
+        userId
+      );
+
+      res.json({
+        success: true,
+        message: 'Visit completed successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Complete visit error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/pledges/{id}/verify-and-check:
+ *   post:
+ *     summary: Verify pledge and check if loan can advance
+ */
+router.post(
+  '/pledges/:id/verify-and-check',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  async (req, res) => {
+    try {
+      const pledgeId = req.params.id;
+      const userId = req.user?.userId;
+
+      if (!pledgeId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Pledge ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.verifyPledge(
+        pledgeId,
+        userId,
+        req.body?.notes
+      );
+
+      res.json({
+        success: true,
+        message: 'Pledge verified successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Verify pledge error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+const approveRejectSchema = z.object({
+  notes: z.string().optional(),
+});
+
+const rejectSchema = z.object({
+  reason: z.string().min(1, 'Rejection reason is required'),
+});
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/loans/{loanId}/approve:
+ *   post:
+ *     summary: Approve loan with category-aware validation
+ */
+router.post(
+  '/loans/:loanId/approve',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(approveRejectSchema),
+  async (req, res) => {
+    try {
+      const loanId = req.params.loanId;
+      const userId = req.user?.userId;
+
+      if (!loanId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Loan ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.approveLoan(
+        loanId,
+        userId,
+        req.body?.notes
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          error: 'VALIDATION_ERROR',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Loan approved successfully',
+        data: { loan: result.loan },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Approve loan error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/loans/{loanId}/reject:
+ *   post:
+ *     summary: Reject loan
+ */
+router.post(
+  '/loans/:loanId/reject',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(rejectSchema),
+  async (req, res) => {
+    try {
+      const loanId = req.params.loanId;
+      const userId = req.user?.userId;
+
+      if (!loanId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Loan ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.rejectLoan(
+        loanId,
+        userId,
+        req.body.reason
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          error: 'VALIDATION_ERROR',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Loan rejected successfully',
+        data: { loan: result.loan },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Reject loan error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/loans/{loanId}/mark-for-disbursement:
+ *   post:
+ *     summary: Mark approved loan for disbursement
+ */
+router.post(
+  '/loans/:loanId/mark-for-disbursement',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(approveRejectSchema),
+  async (req, res) => {
+    try {
+      const loanId = req.params.loanId;
+      const userId = req.user?.userId;
+
+      if (!loanId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Loan ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.markForDisbursement(
+        loanId,
+        userId,
+        req.body?.notes
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          error: 'VALIDATION_ERROR',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Loan marked for disbursement successfully',
+        data: { loan: result.loan },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Mark for disbursement error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// ============================================
+// DISBURSEMENT QUEUE ROUTES
+// ============================================
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/disbursements/pending:
+ *   get:
+ *     summary: Get pending disbursements
+ */
+router.get(
+  '/disbursements/pending',
+  authenticate,
+  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      const branchId = req.query.branchId as string | undefined;
+
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Organization context required',
+          error: 'FORBIDDEN',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const loans = await categoryAwareWorkflowEngine.getPendingDisbursements(
+        organizationId,
+        branchId
+      );
+
+      res.json({
+        success: true,
+        message: 'Pending disbursements retrieved successfully',
+        data: {
+          loans,
+          count: loans.length,
+          totalAmount: loans.reduce((sum, l) => sum + Number(l.amount), 0),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Get pending disbursements error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+const disburseSchema = z.object({
+  disbursementDate: z.string().datetime().optional(),
+  disbursementMethod: z.enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK']).optional(),
+  reference: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/loans/{loanId}/disburse:
+ *   post:
+ *     summary: Disburse a loan
+ */
+router.post(
+  '/loans/:loanId/disburse',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(disburseSchema),
+  async (req, res) => {
+    try {
+      const loanId = req.params.loanId;
+      const userId = req.user?.userId;
+
+      if (!loanId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Loan ID and user authentication required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.disburseLoan(
+        loanId,
+        userId,
+        {
+          disbursementDate: req.body.disbursementDate
+            ? new Date(req.body.disbursementDate)
+            : undefined,
+          disbursementMethod: req.body.disbursementMethod,
+          reference: req.body.reference,
+          notes: req.body.notes,
+        }
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          error: 'VALIDATION_ERROR',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Loan disbursed successfully',
+        data: { loan: result.loan },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Disburse loan error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+const batchDisburseSchema = z.object({
+  loanIds: z.array(z.string().uuid()).min(1),
+  disbursementDate: z.string().datetime().optional(),
+  disbursementMethod: z.enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK']).optional(),
+  notes: z.string().optional(),
+});
+
+/**
+ * @swagger
+ * /api/v1/loan-workflow/disbursements/batch:
+ *   post:
+ *     summary: Batch disburse multiple loans
+ */
+router.post(
+  '/disbursements/batch',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(batchDisburseSchema),
+  async (req, res) => {
+    try {
+      const userId = req.user?.userId;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User not authenticated',
+          error: 'UNAUTHORIZED',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await categoryAwareWorkflowEngine.batchDisburse(
+        req.body.loanIds,
+        userId,
+        {
+          disbursementDate: req.body.disbursementDate
+            ? new Date(req.body.disbursementDate)
+            : undefined,
+          disbursementMethod: req.body.disbursementMethod,
+          notes: req.body.notes,
+        }
+      );
+
+      res.json({
+        success: true,
+        message: `Batch disbursement completed: ${result.success.length} succeeded, ${result.failed.length} failed`,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Batch disburse error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
 
 export default router;

@@ -40,6 +40,7 @@ model Organization {
   exchangeRates     ExchangeRate[]
   loanCategories    LoanCategory[]
   shops             Shop[]
+  roles             Role[]
 
   @@map("organizations")
 }
@@ -144,6 +145,8 @@ model User {
   assessments    LoanAssessment[]
   visits         LoanVisit[]
   workflowChanges LoanWorkflowHistory[]
+  userRoles      UserRoleAssignment[]
+  userPermissions UserPermission[]
 
   @@map("users")
 }
@@ -541,21 +544,127 @@ model ApiKey {
 
 model AuditLog {
   id             String       @id @default(uuid())
-  userId         String
-  organizationId String
+  userId         String?
+  organizationId String?
   action         String
   resource       String
-  resourceId     String
+  resourceId     String?
+  previousValue  Json?
+  newValue       Json?
   changes        Json?
+  status         AuditStatus  @default(SUCCESS)
+  duration       Int?         // Duration in milliseconds
+  requestId      String?
+  sessionId      String?
+  branchId       String?
   ipAddress      String?
   userAgent      String?
+  errorMessage   String?
   timestamp      DateTime     @default(now())
 
   // Relations
-  user           User         @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
+  @@index([organizationId])
+  @@index([resource])
+  @@index([action])
+  @@index([timestamp])
+  @@index([requestId])
+  @@index([resourceId])
   @@map("audit_logs")
+}
+
+// ==================== RBAC (Role-Based Access Control) ====================
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  name        String
+  description String?
+  module      String           // clients, loans, payments, reports, settings, users, audit, etc.
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@index([module])
+  @@index([code])
+  @@map("permissions")
+}
+
+model Role {
+  id             String           @id @default(uuid())
+  name           String
+  description    String?
+  organizationId String?          // null for system roles
+  isSystem       Boolean          @default(false) // System roles cannot be deleted
+  isDefault      Boolean          @default(false) // Auto-assigned to new users
+  isActive       Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  // Relations
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userRoles       UserRoleAssignment[]
+
+  @@unique([name, organizationId])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model RolePermission {
+  id           String     @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime   @default(now())
+
+  // Relations
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRoleAssignment {
+  id        String   @id @default(uuid())
+  userId    String
+  roleId    String
+  assignedBy String?
+  assignedAt DateTime @default(now())
+  expiresAt DateTime?
+  isActive  Boolean  @default(true)
+
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_role_assignments")
+}
+
+model UserPermission {
+  id           String   @id @default(uuid())
+  userId       String
+  permissionCode String
+  grantedBy    String?
+  grantedAt    DateTime @default(now())
+  expiresAt    DateTime?
+  isActive     Boolean  @default(true)
+
+  // Relations
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionCode])
+  @@index([userId])
+  @@map("user_permissions")
 }
 
 model LoanCategory {
@@ -867,4 +976,10 @@ enum Currency {
   ZWG
   USD
   ZAR
+}
+
+enum AuditStatus {
+  SUCCESS
+  FAILURE
+  PARTIAL
 }

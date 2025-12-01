@@ -31,7 +31,11 @@ export interface PaginatedResponse<T> {
 export enum UserRole {
   SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
+  ORG_ADMIN = 'ORG_ADMIN',
   MANAGER = 'MANAGER',
+  LOAN_OFFICER = 'LOAN_OFFICER',
+  ACCOUNTANT = 'ACCOUNTANT',
+  TELLER = 'TELLER',
   STAFF = 'STAFF',
   CLIENT = 'CLIENT',
   API_CLIENT = 'API_CLIENT',

@@ -100,6 +100,36 @@
       "key": "productId",
       "value": "",
       "description": "Loan product ID"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "description": "Loan category ID"
+    },
+    {
+      "key": "targetUserId",
+      "value": "",
+      "description": "Target user ID for user management operations"
+    },
+    {
+      "key": "roleId",
+      "value": "",
+      "description": "Last created/retrieved role ID for RBAC operations"
+    },
+    {
+      "key": "auditLogId",
+      "value": "",
+      "description": "Last retrieved audit log ID"
+    },
+    {
+      "key": "assessmentId",
+      "value": "",
+      "description": "Last created/retrieved loan assessment ID"
+    },
+    {
+      "key": "verificationCode",
+      "value": "",
+      "description": "OTP verification code for online applications (dev mode only)"
     }
   ],
   "auth": {
@@ -458,6 +488,100 @@
             },
             "description": "Logout and clear all authentication tokens. You'll need to login again after this."
           }
+        },
+        {
+          "name": "Change Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Password changed successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Password changed successfully');",
+                  "    console.log('ℹ️ Use your new password for future logins');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"YourCurrentPassword\",\n  \"newPassword\": \"YourNewSecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "change-password"]
+            },
+            "description": "Change your own password. Requires current password for verification."
+          }
+        },
+        {
+          "name": "Generate API Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('API key generated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.apiKey) {",
+                  "        console.log('✅ API Key generated successfully');",
+                  "        console.log('🔑 API Key: ' + response.data.apiKey);",
+                  "        console.log('⚠️ Store this key securely - it will not be shown again!');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"My API Key\",\n  \"expiresInDays\": 365\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/api-key",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "api-key"]
+            },
+            "description": "Generate an API key for programmatic access (Admin only). Store the key securely as it will not be shown again."
+          }
         }
       ]
     },
@@ -570,6 +694,186 @@
             },
             "description": "List all organizations. Automatically sets organizationId to the first organization."
           }
+        },
+        {
+          "name": "Get Organization by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Organization retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.organization).to.have.property('id');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.organization) {",
+                  "        console.log('🏢 Organization: ' + response.data.organization.name);",
+                  "        console.log('📊 Type: ' + response.data.organization.type);",
+                  "        console.log('✅ Active: ' + response.data.organization.isActive);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}"]
+            },
+            "description": "Get a specific organization by ID"
+          }
+        },
+        {
+          "name": "Update Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Organization updated successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.organization) {",
+                  "        console.log('✅ Organization updated: ' + response.data.organization.name);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Microfinance Updated\",\n  \"address\": \"456 Business District, New City\",\n  \"phone\": \"+1234567899\",\n  \"email\": \"contact@acmemicrofinance.com\",\n  \"website\": \"https://acmemicrofinance.org\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}"]
+            },
+            "description": "Update an existing organization (Super Admin or Admin only)"
+          }
+        },
+        {
+          "name": "Update Organization Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Organization status updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.organization) {",
+                  "        console.log('✅ Organization status updated');",
+                  "        console.log('🏢 Organization: ' + response.data.organization.name);",
+                  "        console.log('📊 Active: ' + response.data.organization.isActive);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}", "status"]
+            },
+            "description": "Activate or deactivate an organization (Super Admin only)"
+          }
+        },
+        {
+          "name": "Get Organization Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Statistics retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.statistics) {",
+                  "        const stats = response.data.statistics;",
+                  "        console.log('📊 Organization Statistics:');",
+                  "        console.log('👥 Total Users: ' + (stats.totalUsers || 0));",
+                  "        console.log('🏢 Total Branches: ' + (stats.totalBranches || 0));",
+                  "        console.log('👤 Total Clients: ' + (stats.totalClients || 0));",
+                  "        console.log('💰 Total Loans: ' + (stats.totalLoans || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}", "statistics"]
+            },
+            "description": "Get statistics for a specific organization including user counts, branch counts, client counts, and loan counts"
+          }
         }
       ]
     },
@@ -680,11 +984,235 @@
             },
             "description": "List clients with pagination. Automatically sets clientId to the first client in the list."
           }
+        },
+        {
+          "name": "Get Client by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Client retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.client).to.have.property('id');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.client) {",
+                  "        const client = response.data.client;",
+                  "        console.log('👤 Client: ' + client.firstName + ' ' + client.lastName);",
+                  "        console.log('📧 Email: ' + (client.email || 'N/A'));",
+                  "        console.log('📊 KYC Status: ' + (client.kycStatus || 'PENDING'));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clients/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "{{clientId}}"]
+            },
+            "description": "Get a specific client by ID"
+          }
+        },
+        {
+          "name": "Update Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Client updated successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.client) {",
+                  "        console.log('✅ Client updated: ' + response.data.client.firstName + ' ' + response.data.client.lastName);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith-Updated\",\n  \"phoneNumber\": \"+1987654321\",\n  \"address\": \"456 New Street, City, Country\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clients/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "{{clientId}}"]
+            },
+            "description": "Update an existing client's information"
+          }
+        },
+        {
+          "name": "Update Client KYC Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('KYC status updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.client) {",
+                  "        console.log('✅ KYC Status updated');",
+                  "        console.log('👤 Client: ' + response.data.client.firstName + ' ' + response.data.client.lastName);",
+                  "        console.log('📊 New Status: ' + response.data.client.kycStatus);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"VERIFIED\",\n  \"notes\": \"All documents verified successfully\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clients/{{clientId}}/kyc-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "{{clientId}}", "kyc-status"]
+            },
+            "description": "Update client KYC status (Manager or Admin only). Valid statuses: PENDING, VERIFIED, REJECTED"
+          }
+        },
+        {
+          "name": "Add KYC Document",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('KYC document added', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    console.log('✅ KYC document added successfully');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documentType\": \"NATIONAL_ID\",\n  \"documentNumber\": \"ID123456789\",\n  \"issuedDate\": \"2020-01-15\",\n  \"expiryDate\": \"2030-01-15\",\n  \"documentUrl\": \"https://storage.example.com/docs/id-front.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clients/{{clientId}}/kyc-documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "{{clientId}}", "kyc-documents"]
+            },
+            "description": "Add a KYC document to a client's profile. Document types: NATIONAL_ID, PASSPORT, DRIVER_LICENSE, UTILITY_BILL, etc."
+          }
+        },
+        {
+          "name": "Get Client Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Statistics retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.statistics) {",
+                  "        const stats = response.data.statistics;",
+                  "        console.log('📊 Client Statistics:');",
+                  "        console.log('👥 Total Clients: ' + (stats.totalClients || 0));",
+                  "        console.log('✅ Active Clients: ' + (stats.activeClients || 0));",
+                  "        console.log('📋 KYC Verified: ' + (stats.verifiedClients || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clients/statistics/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "statistics", "summary"]
+            },
+            "description": "Get client statistics for the organization including total counts, active counts, and KYC status breakdown"
+          }
         }
       ]
     },
     {
-      "name": "� Loans & Payments",
+      "name": "💰 Loans & Payments",
       "description": "Loan and payment management endpoints",
       "item": [
         {
@@ -787,8 +1315,435 @@
     },
     {
       "name": "👤 User Management",
-      "description": "User management endpoints",
+      "description": "User management endpoints with CRUD operations",
       "item": [
+        {
+          "name": "List Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Users list retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.users && response.data.users.length > 0) {",
+                  "        const firstUser = response.data.users[0];",
+                  "        pm.collectionVariables.set('targetUserId', firstUser.id);",
+                  "        console.log('✅ First user ID set as targetUserId: ' + firstUser.id);",
+                  "        console.log('📊 Total users found: ' + response.data.users.length);",
+                  "        console.log('📄 Pagination: Page ' + (response.data.pagination?.page || 1) + ' of ' + (response.data.pagination?.pages || 1));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "List all users with pagination and filtering options. Enable optional query params to filter by role, active status, or search term."
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.user).to.have.property('id');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        const user = response.data.user;",
+                  "        console.log('👤 User: ' + user.firstName + ' ' + user.lastName);",
+                  "        console.log('📧 Email: ' + user.email);",
+                  "        console.log('🎭 Role: ' + user.role);",
+                  "        console.log('✅ Active: ' + user.isActive);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}"]
+            },
+            "description": "Get a specific user by ID"
+          }
+        },
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('User created successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data.user).to.have.property('id');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        pm.collectionVariables.set('targetUserId', response.data.user.id);",
+                  "        console.log('✅ New user created: ' + response.data.user.firstName + ' ' + response.data.user.lastName);",
+                  "        console.log('🆔 User ID set as targetUserId: ' + response.data.user.id);",
+                  "        console.log('🎭 Role: ' + response.data.user.role);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newstaff@microfinex.com\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"New\",\n  \"lastName\": \"Staff\",\n  \"role\": \"STAFF\",\n  \"organizationId\": \"{{organizationId}}\",\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            },
+            "description": "Create a new user (Admin, Manager, or Super Admin only). Available roles: SUPER_ADMIN, ADMIN, ORG_ADMIN, MANAGER, LOAN_OFFICER, ACCOUNTANT, TELLER, STAFF"
+          }
+        },
+        {
+          "name": "Update User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User updated successfully', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        console.log('✅ User updated: ' + response.data.user.firstName + ' ' + response.data.user.lastName);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"Updated\",\n  \"lastName\": \"User\",\n  \"phone\": \"+1987654321\",\n  \"role\": \"LOAN_OFFICER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}"]
+            },
+            "description": "Update an existing user's information"
+          }
+        },
+        {
+          "name": "Update User Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User status updated', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        console.log('✅ User status updated');",
+                  "        console.log('👤 User: ' + response.data.user.firstName + ' ' + response.data.user.lastName);",
+                  "        console.log('📊 Active: ' + response.data.user.isActive);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}", "status"]
+            },
+            "description": "Activate or deactivate a user (Admin only)"
+          }
+        },
+        {
+          "name": "Assign User to Branch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('User assigned to branch', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        console.log('✅ User assigned to branch');",
+                  "        console.log('👤 User: ' + response.data.user.firstName + ' ' + response.data.user.lastName);",
+                  "        console.log('🏢 Branch ID: ' + (response.data.user.branchId || 'None'));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": \"{{branchId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}/branch",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}", "branch"]
+            },
+            "description": "Assign or reassign a user to a specific branch. Set branchId to null to remove from branch."
+          }
+        },
+        {
+          "name": "Reset User Password",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Password reset successful', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ User password has been reset');",
+                  "    console.log('ℹ️ User will need to use the new password to login');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newPassword\": \"NewSecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}", "reset-password"]
+            },
+            "description": "Reset a user's password (Admin action). The user will need to use the new password to login."
+          }
+        },
+        {
+          "name": "Get User Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Statistics retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.statistics) {",
+                  "        const stats = response.data.statistics;",
+                  "        console.log('📊 User Statistics:');",
+                  "        console.log('👥 Total Users: ' + (stats.totalUsers || 0));",
+                  "        console.log('✅ Active Users: ' + (stats.activeUsers || 0));",
+                  "        console.log('❌ Inactive Users: ' + (stats.inactiveUsers || 0));",
+                  "        if (stats.byRole) {",
+                  "            console.log('👔 By Role: ' + JSON.stringify(stats.byRole));",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "statistics"]
+            },
+            "description": "Get user statistics including total counts, active/inactive counts, and counts by role (Admin or Manager only)"
+          }
+        },
+        {
+          "name": "Delete User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 204', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 204]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200 || pm.response.code === 204) {",
+                  "    console.log('✅ User deleted successfully');",
+                  "    pm.collectionVariables.set('targetUserId', '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}"]
+            },
+            "description": "Delete a user (Admin only). This is typically a soft delete."
+          }
+        },
         {
           "name": "Get Current User Profile",
           "event": [
@@ -835,6 +1790,542 @@
               "path": ["auth", "me"]
             },
             "description": "Get the current user's profile information including role and organization."
+          }
+        },
+        {
+          "name": "Get Users Pending Verification",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📋 Users pending verification: ' + response.data.count);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/pending-verification",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "pending-verification"]
+            },
+            "description": "Get all users who have not yet verified their email. Super Admin sees all users, Admins see only their organization's users."
+          }
+        },
+        {
+          "name": "Verify User Email (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        console.log('✅ Email verified for: ' + response.data.user.email);",
+                  "        console.log('🔐 isEmailVerified: ' + response.data.user.isEmailVerified);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}/verify-email",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}", "verify-email"]
+            },
+            "description": "Manually verify a user's email address (Super Admin only). This bypasses email verification and allows the user to access the system immediately."
+          }
+        },
+        {
+          "name": "Unverify User Email (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.user) {",
+                  "        console.log('❌ Email verification revoked for: ' + response.data.user.email);",
+                  "        console.log('🔐 isEmailVerified: ' + response.data.user.isEmailVerified);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{targetUserId}}/unverify-email",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{targetUserId}}", "unverify-email"]
+            },
+            "description": "Revoke a user's email verification (Super Admin only). This will require the user to verify their email again."
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Settings",
+      "description": "Organization settings management endpoints",
+      "item": [
+        {
+          "name": "Get All Settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings"]
+            },
+            "description": "Get all settings for the organization"
+          }
+        },
+        {
+          "name": "Get Single Setting",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings/:key",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", ":key"],
+              "variable": [
+                {
+                  "key": "key",
+                  "value": "default_currency"
+                }
+              ]
+            },
+            "description": "Get a specific setting by key"
+          }
+        },
+        {
+          "name": "Update Setting",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settingValue\": \"USD\",\n  \"description\": \"Default currency for the organization\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/:key",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", ":key"],
+              "variable": [
+                {
+                  "key": "key",
+                  "value": "default_currency"
+                }
+              ]
+            },
+            "description": "Update a setting value"
+          }
+        },
+        {
+          "name": "Reset Setting",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings/reset/:key",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "reset", ":key"],
+              "variable": [
+                {
+                  "key": "key",
+                  "value": "default_currency"
+                }
+              ]
+            },
+            "description": "Reset a setting to its default value"
+          }
+        }
+      ]
+    },
+    {
+      "name": "💱 Exchange Rates",
+      "description": "Currency exchange rate management endpoints",
+      "item": [
+        {
+          "name": "Get Current Rates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/exchange-rates",
+              "host": ["{{baseUrl}}"],
+              "path": ["exchange-rates"]
+            },
+            "description": "Get all current exchange rates for the organization"
+          }
+        },
+        {
+          "name": "Set Exchange Rate",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromCurrency\": \"USD\",\n  \"toCurrency\": \"ZWG\",\n  \"rate\": 15.5,\n  \"effectiveDate\": \"2024-01-01T00:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/exchange-rates",
+              "host": ["{{baseUrl}}"],
+              "path": ["exchange-rates"]
+            },
+            "description": "Set a new exchange rate between two currencies"
+          }
+        },
+        {
+          "name": "Get Rate History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/exchange-rates/history?from=USD&to=ZWG",
+              "host": ["{{baseUrl}}"],
+              "path": ["exchange-rates", "history"],
+              "query": [
+                { "key": "from", "value": "USD" },
+                { "key": "to", "value": "ZWG" }
+              ]
+            },
+            "description": "Get historical exchange rates between two currencies"
+          }
+        },
+        {
+          "name": "Convert Currency",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/exchange-rates/convert?amount=100&from=USD&to=ZWG",
+              "host": ["{{baseUrl}}"],
+              "path": ["exchange-rates", "convert"],
+              "query": [
+                { "key": "amount", "value": "100" },
+                { "key": "from", "value": "USD" },
+                { "key": "to", "value": "ZWG" }
+              ]
+            },
+            "description": "Convert an amount between two currencies using current rate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📂 Loan Categories",
+      "description": "Loan category management endpoints",
+      "item": [
+        {
+          "name": "Get All Loan Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.categories && response.data.categories.length > 0) {",
+                  "        pm.collectionVariables.set('categoryId', response.data.categories[0].id);",
+                  "        console.log('✅ Category ID set: ' + response.data.categories[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-categories"]
+            },
+            "description": "Get all loan categories for the organization"
+          }
+        },
+        {
+          "name": "Get Single Loan Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-categories", "{{categoryId}}"]
+            },
+            "description": "Get a specific loan category by ID"
+          }
+        },
+        {
+          "name": "Create Loan Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.category) {",
+                  "        pm.collectionVariables.set('categoryId', response.data.category.id);",
+                  "        console.log('✅ New Category ID set: ' + response.data.category.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Personal Loans\",\n  \"code\": \"PERSONAL\",\n  \"description\": \"Standard personal loans for individual clients\",\n  \"isLongTerm\": false,\n  \"requiresBusinessVisit\": false,\n  \"requiresHomeVisit\": true,\n  \"requiresSecurityPledge\": false,\n  \"requiresCollateral\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-categories"]
+            },
+            "description": "Create a new loan category"
+          }
+        },
+        {
+          "name": "Update Loan Category",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Personal Loans Updated\",\n  \"description\": \"Updated description for personal loans\",\n  \"requiresHomeVisit\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-categories", "{{categoryId}}"]
+            },
+            "description": "Update an existing loan category"
+          }
+        },
+        {
+          "name": "Delete Loan Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-categories", "{{categoryId}}"]
+            },
+            "description": "Delete a loan category (soft delete)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📦 Loan Products",
+      "description": "Loan product management endpoints",
+      "item": [
+        {
+          "name": "Get All Loan Products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.products && response.data.products.length > 0) {",
+                  "        pm.collectionVariables.set('productId', response.data.products[0].id);",
+                  "        console.log('✅ Product ID set: ' + response.data.products[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-products",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products"]
+            },
+            "description": "Get all loan products for the organization"
+          }
+        },
+        {
+          "name": "Get Loan Products by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-products?categoryId={{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products"],
+              "query": [{ "key": "categoryId", "value": "{{categoryId}}" }]
+            },
+            "description": "Get loan products filtered by category"
+          }
+        },
+        {
+          "name": "Get Active Loan Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-products?isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products"],
+              "query": [{ "key": "isActive", "value": "true" }]
+            },
+            "description": "Get all active loan products"
+          }
+        },
+        {
+          "name": "Get Products for Calculator",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-products/calculator",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products", "calculator"]
+            },
+            "description": "Get loan products formatted for loan calculator"
+          }
+        },
+        {
+          "name": "Get Single Loan Product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products", "{{productId}}"]
+            },
+            "description": "Get a specific loan product by ID"
+          }
+        },
+        {
+          "name": "Create Loan Product",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.product) {",
+                  "        pm.collectionVariables.set('productId', response.data.product.id);",
+                  "        console.log('✅ New Product ID set: ' + response.data.product.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Quick Personal Loan\",\n  \"description\": \"Short-term personal loan with quick approval\",\n  \"type\": \"PERSONAL\",\n  \"categoryId\": \"{{categoryId}}\",\n  \"minAmount\": 100,\n  \"maxAmount\": 5000,\n  \"currency\": \"USD\",\n  \"interestRate\": 0.15,\n  \"calculationMethod\": \"REDUCING_BALANCE\",\n  \"minTerm\": 1,\n  \"maxTerm\": 12,\n  \"repaymentFrequency\": \"MONTHLY\",\n  \"gracePeriod\": 0,\n  \"penaltyRate\": 0.05,\n  \"requiresCollateral\": false,\n  \"requiresGuarantor\": false,\n  \"isOnlineEligible\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-products",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products"]
+            },
+            "description": "Create a new loan product"
+          }
+        },
+        {
+          "name": "Update Loan Product",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Quick Personal Loan - Updated\",\n  \"maxAmount\": 10000,\n  \"interestRate\": 0.12,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products", "{{productId}}"]
+            },
+            "description": "Update an existing loan product"
+          }
+        },
+        {
+          "name": "Duplicate Loan Product",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Quick Personal Loan - Copy\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-products/{{productId}}/duplicate",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products", "{{productId}}", "duplicate"]
+            },
+            "description": "Duplicate an existing loan product with a new name"
+          }
+        },
+        {
+          "name": "Delete Loan Product",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-products", "{{productId}}"]
+            },
+            "description": "Delete a loan product (soft delete)"
           }
         }
       ]
@@ -1484,6 +2975,1289 @@
               ]
             },
             "description": "Get application statistics for the organization"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 Roles & Permissions (RBAC)",
+      "description": "Role-Based Access Control management endpoints for permissions, roles, and user assignments",
+      "item": [
+        {
+          "name": "Get All Permissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.permissions) {",
+                  "        console.log('📋 Total permissions: ' + response.data.permissions.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "permissions"]
+            },
+            "description": "Get all available permissions in the system"
+          }
+        },
+        {
+          "name": "Seed Permissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    console.log('✅ Permissions seeded successfully');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/permissions/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "permissions", "seed"]
+            },
+            "description": "Seed all default permissions (Super Admin only). Creates 120+ granular permissions across 22 modules."
+          }
+        },
+        {
+          "name": "Get Permissions by Module",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/permissions?module=clients",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "permissions"],
+              "query": [{ "key": "module", "value": "clients" }]
+            },
+            "description": "Get permissions filtered by module. Available modules: users, clients, loans, payments, organizations, branches, roles, audit, settings, reports, etc."
+          }
+        },
+        {
+          "name": "Create Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.role) {",
+                  "        pm.collectionVariables.set('roleId', response.data.role.id);",
+                  "        console.log('✅ Role created: ' + response.data.role.name);",
+                  "        console.log('🆔 Role ID set: ' + response.data.role.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Custom Loan Officer\",\n  \"description\": \"Custom role with specific loan management permissions\",\n  \"permissions\": [\n    \"clients.view\",\n    \"clients.create\",\n    \"loans.view\",\n    \"loans.create\",\n    \"loans.approve\",\n    \"payments.view\",\n    \"payments.create\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/organization/{{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "organization", "{{organizationId}}"]
+            },
+            "description": "Create a new custom role for the organization with specified permissions"
+          }
+        },
+        {
+          "name": "Get Roles by Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.roles && response.data.roles.length > 0) {",
+                  "        pm.collectionVariables.set('roleId', response.data.roles[0].id);",
+                  "        console.log('📋 Total roles: ' + response.data.roles.length);",
+                  "        console.log('✅ First role ID set: ' + response.data.roles[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/organization/{{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "organization", "{{organizationId}}"]
+            },
+            "description": "Get all roles for an organization including system and custom roles"
+          }
+        },
+        {
+          "name": "Get Role by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}"]
+            },
+            "description": "Get detailed information about a specific role including its permissions"
+          }
+        },
+        {
+          "name": "Update Role",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Senior Loan Officer\",\n  \"description\": \"Updated role with additional permissions\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}"]
+            },
+            "description": "Update a custom role's name, description, or status"
+          }
+        },
+        {
+          "name": "Delete Role",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}"]
+            },
+            "description": "Delete a custom role (cannot delete system roles)"
+          }
+        },
+        {
+          "name": "Update Role Permissions",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\n    \"clients.view\",\n    \"clients.create\",\n    \"clients.update\",\n    \"loans.view\",\n    \"loans.create\",\n    \"loans.update\",\n    \"loans.approve\",\n    \"loans.disburse\",\n    \"payments.view\",\n    \"payments.create\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}", "permissions"]
+            },
+            "description": "Replace all permissions for a role with a new set of permissions"
+          }
+        },
+        {
+          "name": "Get Role Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/{{roleId}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "{{roleId}}", "users"]
+            },
+            "description": "Get all users assigned to a specific role"
+          }
+        },
+        {
+          "name": "Get User Roles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "roles"]
+            },
+            "description": "Get all roles assigned to a specific user"
+          }
+        },
+        {
+          "name": "Assign Role to User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleId\": \"{{roleId}}\",\n  \"expiresAt\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/assign",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "assign"]
+            },
+            "description": "Assign a role to a user. Optionally set an expiration date for temporary assignments."
+          }
+        },
+        {
+          "name": "Remove Role from User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/role/{{roleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "role", "{{roleId}}"]
+            },
+            "description": "Remove a role assignment from a user"
+          }
+        },
+        {
+          "name": "Get User Direct Permissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "permissions"]
+            },
+            "description": "Get permissions directly assigned to a user (not from roles)"
+          }
+        },
+        {
+          "name": "Set User Direct Permission",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissionCode\": \"reports.financial.view\",\n  \"expiresAt\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "permissions"]
+            },
+            "description": "Grant a specific permission directly to a user (independent of roles)"
+          }
+        },
+        {
+          "name": "Remove User Direct Permission",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/permissions/reports.financial.view",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "permissions", "reports.financial.view"]
+            },
+            "description": "Remove a directly assigned permission from a user"
+          }
+        },
+        {
+          "name": "Get User Effective Permissions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.permissions) {",
+                  "        console.log('🔐 Total effective permissions: ' + response.data.permissions.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/permissions/effective",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "user", "{{targetUserId}}", "permissions", "effective"]
+            },
+            "description": "Get all effective permissions for a user (combined from roles + direct assignments)"
+          }
+        },
+        {
+          "name": "Seed Default Roles",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/roles/organization/{{organizationId}}/seed-defaults",
+              "host": ["{{baseUrl}}"],
+              "path": ["roles", "organization", "{{organizationId}}", "seed-defaults"]
+            },
+            "description": "Seed default roles for an organization (ORG_ADMIN, MANAGER, LOAN_OFFICER, TELLER, etc.)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📜 Audit Trail",
+      "description": "Advanced audit logging and compliance tracking endpoints",
+      "item": [
+        {
+          "name": "Search Audit Logs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📋 Audit logs found: ' + (response.data.logs?.length || 0));",
+                  "        console.log('📄 Total records: ' + (response.data.total || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/logs?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "logs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "action", "value": "", "disabled": true },
+                { "key": "resource", "value": "", "disabled": true },
+                { "key": "userId", "value": "", "disabled": true },
+                { "key": "status", "value": "", "disabled": true },
+                { "key": "startDate", "value": "", "disabled": true },
+                { "key": "endDate", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Search and filter audit logs with pagination. Filter by action (CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT), resource type, user, status, and date range."
+          }
+        },
+        {
+          "name": "Get Audit Log by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/logs/:logId",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "logs", ":logId"],
+              "variable": [{ "key": "logId", "value": "" }]
+            },
+            "description": "Get detailed information about a specific audit log entry including changes diff"
+          }
+        },
+        {
+          "name": "Get My Activity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.activities) {",
+                  "        console.log('📋 Your recent activities: ' + response.data.activities.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/me/activity?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "me", "activity"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Get your own activity history"
+          }
+        },
+        {
+          "name": "Get User Activity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/users/{{targetUserId}}/activity?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "users", "{{targetUserId}}", "activity"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Get activity history for a specific user (Admin only)"
+          }
+        },
+        {
+          "name": "Get Entity History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.history) {",
+                  "        console.log('📋 Entity history entries: ' + response.data.history.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/history/Client/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "history", "Client", "{{clientId}}"]
+            },
+            "description": "Get complete change history for a specific entity. Resource types: Client, Loan, Payment, User, Organization, etc."
+          }
+        },
+        {
+          "name": "Get Audit Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.stats) {",
+                  "        const stats = response.data.stats;",
+                  "        console.log('📊 Audit Statistics:');",
+                  "        console.log('📝 Total logs: ' + (stats.totalLogs || 0));",
+                  "        console.log('✅ Successful: ' + (stats.successCount || 0));",
+                  "        console.log('❌ Failed: ' + (stats.failureCount || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/stats?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "stats"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" }
+              ]
+            },
+            "description": "Get audit statistics including counts by action, resource, user, and status"
+          }
+        },
+        {
+          "name": "Export Audit Logs (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/export/csv?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "export", "csv"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" },
+                { "key": "action", "value": "", "disabled": true },
+                { "key": "resource", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Export audit logs to CSV format for compliance reporting. Filter by date range, action, and resource type."
+          }
+        },
+        {
+          "name": "Export Audit Logs (JSON)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/export/json?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "export", "json"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" }
+              ]
+            },
+            "description": "Export audit logs to JSON format for data analysis and backup"
+          }
+        },
+        {
+          "name": "Get Archive Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/audit/archive/count?olderThanDays=90",
+              "host": ["{{baseUrl}}"],
+              "path": ["audit", "archive", "count"],
+              "query": [{ "key": "olderThanDays", "value": "90" }]
+            },
+            "description": "Get count of logs that can be archived (older than specified days). Useful before running archive operation."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔄 Loan Workflow Engine",
+      "description": "Category-aware loan workflow management with assessments, visits, pledges, and disbursements",
+      "item": [
+        {
+          "name": "Get Workflow Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📊 Current Status: ' + response.data.currentStatus);",
+                  "        console.log('✅ Can Advance: ' + response.data.canAdvance);",
+                  "        console.log('📋 Missing: ' + (response.data.missingRequirements?.join(', ') || 'None'));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/workflow-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "workflow-status"]
+            },
+            "description": "Get complete workflow status including category requirements, completed steps, and next allowed transitions"
+          }
+        },
+        {
+          "name": "Submit for Assessment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.assessment) {",
+                  "        pm.collectionVariables.set('assessmentId', response.data.assessment.id);",
+                  "        console.log('✅ Assessment created: ' + response.data.assessment.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assessorId\": \"{{targetUserId}}\",\n  \"notes\": \"Initial assessment request\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/submit-assessment",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "submit-assessment"]
+            },
+            "description": "Submit a loan for assessment, creating an assessment record and transitioning to PENDING_ASSESSMENT"
+          }
+        },
+        {
+          "name": "Complete Assessment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\",\n  \"notes\": \"Assessment completed successfully. All documents verified.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/assessments/{{assessmentId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "assessments", "{{assessmentId}}", "complete"]
+            },
+            "description": "Complete an assessment with APPROVED or REJECTED status. Automatically advances loan to next workflow stage based on category requirements."
+          }
+        },
+        {
+          "name": "Create Visit",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.visit) {",
+                  "        pm.collectionVariables.set('visitId', response.data.visit.id);",
+                  "        console.log('✅ Visit created: ' + response.data.visit.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanId\": \"{{loanId}}\",\n  \"visitType\": \"BUSINESS\",\n  \"address\": \"123 Business Street, City\",\n  \"notes\": \"Scheduled business verification visit\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/visits",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "visits"]
+            },
+            "description": "Schedule a new visit for loan verification. Visit types: BUSINESS, HOME"
+          }
+        },
+        {
+          "name": "Complete Visit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"123 Business Street, City\",\n  \"gpsLat\": -17.8292,\n  \"gpsLng\": 31.0522,\n  \"images\": [\"https://storage.example.com/visit-photos/img1.jpg\"],\n  \"notes\": \"Business verified. Location confirmed.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/visits/{{visitId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "visits", "{{visitId}}", "complete"]
+            },
+            "description": "Mark a visit as completed with GPS coordinates, photos, and notes. Automatically advances workflow if all required visits are done."
+          }
+        },
+        {
+          "name": "Create Security Pledge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.pledge) {",
+                  "        pm.collectionVariables.set('pledgeId', response.data.pledge.id);",
+                  "        console.log('✅ Pledge created: ' + response.data.pledge.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanId\": \"{{loanId}}\",\n  \"itemDescription\": \"Samsung 55-inch Smart TV\",\n  \"serialNumber\": \"SN-123456789\",\n  \"estimatedValue\": 500,\n  \"currency\": \"USD\",\n  \"images\": [\"https://storage.example.com/pledge-photos/tv.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/pledges",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "pledges"]
+            },
+            "description": "Register a security pledge for a loan. Required for loans where category.requiresSecurityPledge is true."
+          }
+        },
+        {
+          "name": "Verify Pledge and Check Status",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/pledges/{{pledgeId}}/verify-and-check",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "pledges", "{{pledgeId}}", "verify-and-check"]
+            },
+            "description": "Verify a security pledge and check if the loan can now advance in the workflow"
+          }
+        },
+        {
+          "name": "Approve Loan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"All requirements met. Loan approved for disbursement.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "approve"]
+            },
+            "description": "Approve a loan with category-aware validation. Will fail if required steps (assessment, visits, pledges) are not completed."
+          }
+        },
+        {
+          "name": "Reject Loan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Insufficient income documentation provided\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "reject"]
+            },
+            "description": "Reject a loan application with a reason"
+          }
+        },
+        {
+          "name": "Mark for Disbursement",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Ready for disbursement\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/mark-for-disbursement",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "mark-for-disbursement"]
+            },
+            "description": "Mark an approved loan as ready for disbursement"
+          }
+        },
+        {
+          "name": "Get Pending Disbursements",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📋 Pending: ' + response.data.count + ' loans');",
+                  "        console.log('💰 Total: ' + response.data.totalAmount);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/disbursements/pending?branchId={{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "disbursements", "pending"],
+              "query": [{ "key": "branchId", "value": "{{branchId}}", "disabled": true }]
+            },
+            "description": "Get all loans pending disbursement. Optionally filter by branch."
+          }
+        },
+        {
+          "name": "Disburse Loan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disbursementMethod\": \"BANK_TRANSFER\",\n  \"reference\": \"TRF-2024-001\",\n  \"notes\": \"Disbursed via bank transfer\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/disburse",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "disburse"]
+            },
+            "description": "Disburse a loan. Methods: CASH, BANK_TRANSFER, MOBILE_MONEY, CHECK"
+          }
+        },
+        {
+          "name": "Batch Disburse Loans",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanIds\": [\"loan-id-1\", \"loan-id-2\", \"loan-id-3\"],\n  \"disbursementMethod\": \"MOBILE_MONEY\",\n  \"notes\": \"Batch disbursement for approved loans\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/disbursements/batch",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "disbursements", "batch"]
+            },
+            "description": "Disburse multiple loans at once. Returns success and failure counts."
+          }
+        },
+        {
+          "name": "Get Loan Workflow History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "history"]
+            },
+            "description": "Get complete workflow history for a loan showing all status transitions"
+          }
+        },
+        {
+          "name": "Get Next Statuses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/next-statuses",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "loans", "{{loanId}}", "next-statuses"]
+            },
+            "description": "Get valid next status transitions for a loan based on current status"
+          }
+        },
+        {
+          "name": "Get Pending Assessments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/assessments/pending?mine=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "assessments", "pending"],
+              "query": [{ "key": "mine", "value": "true", "disabled": true }]
+            },
+            "description": "Get pending assessments. Set mine=true to see only your assignments."
+          }
+        },
+        {
+          "name": "Get Pending Visits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-workflow/visits/pending?mine=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-workflow", "visits", "pending"],
+              "query": [{ "key": "mine", "value": "true", "disabled": true }]
+            },
+            "description": "Get scheduled visits that haven't been completed yet"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🌐 Public API (No Auth)",
+      "description": "Public endpoints for online applications - no authentication required",
+      "item": [
+        {
+          "name": "Get Available Products",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.products) {",
+                  "        console.log('📋 Products available: ' + response.data.products.length);",
+                  "        if (response.data.products.length > 0) {",
+                  "            pm.collectionVariables.set('productId', response.data.products[0].id);",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/products",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "products"]
+            },
+            "description": "Get list of available loan products for online applications (no auth required)"
+          }
+        },
+        {
+          "name": "Get Product Details",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/products/{{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "products", "{{productId}}"]
+            },
+            "description": "Get detailed information about a specific loan product including category requirements"
+          }
+        },
+        {
+          "name": "Apply - New Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.applicationId) {",
+                  "        pm.collectionVariables.set('applicationId', response.data.applicationId);",
+                  "        console.log('✅ Application ID: ' + response.data.applicationId);",
+                  "        if (response.data.verificationCode) {",
+                  "            console.log('🔐 Verification Code (dev only): ' + response.data.verificationCode);",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": \"WEB\",\n  \"clientPhone\": \"+263771234567\",\n  \"clientName\": \"John Doe\",\n  \"idNumber\": \"63-123456-A-78\",\n  \"amount\": 500,\n  \"productId\": \"{{productId}}\",\n  \"disbursementPreference\": \"TRANSFER\",\n  \"mobileNumber\": \"+263771234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/public/apply/new",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "apply", "new"]
+            },
+            "description": "Submit a new client loan application. Verification code will be sent via SMS (or shown in response in dev mode)."
+          }
+        },
+        {
+          "name": "Apply - Existing Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.applicationId) {",
+                  "        pm.collectionVariables.set('applicationId', response.data.applicationId);",
+                  "        console.log('✅ Application ID: ' + response.data.applicationId);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": \"WEB\",\n  \"clientPhone\": \"+263771234567\",\n  \"amount\": 1000,\n  \"productId\": \"{{productId}}\",\n  \"disbursementPreference\": \"CASH\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/public/apply/existing",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "apply", "existing"]
+            },
+            "description": "Submit an application for an existing client. Phone must match an existing client record."
+          }
+        },
+        {
+          "name": "Verify Application",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationId\": \"{{applicationId}}\",\n  \"code\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/public/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "verify"]
+            },
+            "description": "Verify an application using the OTP code sent via SMS"
+          }
+        },
+        {
+          "name": "Check Application Status",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/application/{{applicationId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "application", "{{applicationId}}", "status"]
+            },
+            "description": "Check the status of an online application"
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/public/application/{{applicationId}}/resend-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "application", "{{applicationId}}", "resend-otp"]
+            },
+            "description": "Resend the verification OTP code for a pending application"
+          }
+        },
+        {
+          "name": "Calculate Loan Repayments",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000,\n  \"term\": 12,\n  \"productId\": \"{{productId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/public/calculate",
+              "host": ["{{baseUrl}}"],
+              "path": ["public", "calculate"]
+            },
+            "description": "Calculate loan repayments without authentication. Can use productId for rate or provide interestRate directly."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Online Applications (Admin)",
+      "description": "Admin endpoints for managing online applications",
+      "item": [
+        {
+          "name": "List Applications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.length > 0) {",
+                  "        pm.collectionVariables.set('applicationId', response.data[0].id);",
+                  "        console.log('📋 Applications: ' + response.data.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "PENDING", "disabled": true },
+                { "key": "source", "value": "WEB", "disabled": true }
+              ]
+            },
+            "description": "List all online applications with optional filtering by status, source, etc."
+          }
+        },
+        {
+          "name": "Get Application by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}"]
+            },
+            "description": "Get detailed information about a specific application"
+          }
+        },
+        {
+          "name": "Get Application Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "stats"]
+            },
+            "description": "Get statistics on online applications including counts by source, status, and conversion rates"
+          }
+        },
+        {
+          "name": "Process Application (Approve/Reject)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"approve\",\n  \"notes\": \"Application verified and approved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}/process",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}", "process"]
+            },
+            "description": "Approve or reject an online application. Actions: approve, reject"
+          }
+        },
+        {
+          "name": "Convert to Loan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"loanOfficerId\": \"{{userId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"interestRate\": 15,\n  \"term\": 12,\n  \"repaymentFrequency\": \"MONTHLY\",\n  \"purpose\": \"Business expansion\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/{{applicationId}}/convert-to-loan",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "{{applicationId}}", "convert-to-loan"]
+            },
+            "description": "Convert a verified/processed application into an actual loan"
+          }
+        },
+        {
+          "name": "Bulk Update Status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"applicationIds\": [\"app-id-1\", \"app-id-2\"],\n  \"status\": \"PROCESSED\",\n  \"notes\": \"Bulk processed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/bulk-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "bulk-status"]
+            },
+            "description": "Bulk update status for multiple applications"
+          }
+        },
+        {
+          "name": "Get Expired Applications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/expired",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "expired"]
+            },
+            "description": "Get applications with expired verification codes"
+          }
+        },
+        {
+          "name": "Expire Pending Applications",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/online-applications/expire-pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["online-applications", "expire-pending"]
+            },
+            "description": "Bulk expire all pending applications with expired verification codes"
           }
         }
       ]

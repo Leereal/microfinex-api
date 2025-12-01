@@ -22,6 +22,9 @@ import loanWorkflowRoutes from './loan-workflow.routes';
 import shopRoutes from './shops.routes';
 import loanItemRoutes from './loan-items.routes';
 import onlineApplicationRoutes from './online-applications.routes';
+import roleRoutes from './roles.routes';
+import auditRoutes from './audit.routes';
+import publicRoutes from './public.routes';
 
 const router = Router();
 
@@ -47,6 +50,9 @@ router.use(`${apiVersion}/loan-workflow`, loanWorkflowRoutes);
 router.use(`${apiVersion}/shops`, shopRoutes);
 router.use(`${apiVersion}/loan-items`, loanItemRoutes);
 router.use(`${apiVersion}/online-applications`, onlineApplicationRoutes);
+router.use(`${apiVersion}/roles`, roleRoutes);
+router.use(`${apiVersion}/audit`, auditRoutes);
+router.use(`${apiVersion}/public`, publicRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {
