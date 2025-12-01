@@ -3237,7 +3237,13 @@
             "url": {
               "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/role/{{roleId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["roles", "user", "{{targetUserId}}", "role", "{{roleId}}"]
+              "path": [
+                "roles",
+                "user",
+                "{{targetUserId}}",
+                "role",
+                "{{roleId}}"
+              ]
             },
             "description": "Remove a role assignment from a user"
           }
@@ -3280,7 +3286,13 @@
             "url": {
               "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/permissions/reports.financial.view",
               "host": ["{{baseUrl}}"],
-              "path": ["roles", "user", "{{targetUserId}}", "permissions", "reports.financial.view"]
+              "path": [
+                "roles",
+                "user",
+                "{{targetUserId}}",
+                "permissions",
+                "reports.financial.view"
+              ]
             },
             "description": "Remove a directly assigned permission from a user"
           }
@@ -3309,7 +3321,13 @@
             "url": {
               "raw": "{{baseUrl}}/roles/user/{{targetUserId}}/permissions/effective",
               "host": ["{{baseUrl}}"],
-              "path": ["roles", "user", "{{targetUserId}}", "permissions", "effective"]
+              "path": [
+                "roles",
+                "user",
+                "{{targetUserId}}",
+                "permissions",
+                "effective"
+              ]
             },
             "description": "Get all effective permissions for a user (combined from roles + direct assignments)"
           }
@@ -3322,7 +3340,12 @@
             "url": {
               "raw": "{{baseUrl}}/roles/organization/{{organizationId}}/seed-defaults",
               "host": ["{{baseUrl}}"],
-              "path": ["roles", "organization", "{{organizationId}}", "seed-defaults"]
+              "path": [
+                "roles",
+                "organization",
+                "{{organizationId}}",
+                "seed-defaults"
+              ]
             },
             "description": "Seed default roles for an organization (ORG_ADMIN, MANAGER, LOAN_OFFICER, TELLER, etc.)"
           }
@@ -3593,7 +3616,12 @@
             "url": {
               "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/workflow-status",
               "host": ["{{baseUrl}}"],
-              "path": ["loan-workflow", "loans", "{{loanId}}", "workflow-status"]
+              "path": [
+                "loan-workflow",
+                "loans",
+                "{{loanId}}",
+                "workflow-status"
+              ]
             },
             "description": "Get complete workflow status including category requirements, completed steps, and next allowed transitions"
           }
@@ -3631,7 +3659,12 @@
             "url": {
               "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/submit-assessment",
               "host": ["{{baseUrl}}"],
-              "path": ["loan-workflow", "loans", "{{loanId}}", "submit-assessment"]
+              "path": [
+                "loan-workflow",
+                "loans",
+                "{{loanId}}",
+                "submit-assessment"
+              ]
             },
             "description": "Submit a loan for assessment, creating an assessment record and transitioning to PENDING_ASSESSMENT"
           }
@@ -3648,7 +3681,12 @@
             "url": {
               "raw": "{{baseUrl}}/loan-workflow/assessments/{{assessmentId}}/complete",
               "host": ["{{baseUrl}}"],
-              "path": ["loan-workflow", "assessments", "{{assessmentId}}", "complete"]
+              "path": [
+                "loan-workflow",
+                "assessments",
+                "{{assessmentId}}",
+                "complete"
+              ]
             },
             "description": "Complete an assessment with APPROVED or REJECTED status. Automatically advances loan to next workflow stage based on category requirements."
           }
@@ -3746,7 +3784,12 @@
             "url": {
               "raw": "{{baseUrl}}/loan-workflow/pledges/{{pledgeId}}/verify-and-check",
               "host": ["{{baseUrl}}"],
-              "path": ["loan-workflow", "pledges", "{{pledgeId}}", "verify-and-check"]
+              "path": [
+                "loan-workflow",
+                "pledges",
+                "{{pledgeId}}",
+                "verify-and-check"
+              ]
             },
             "description": "Verify a security pledge and check if the loan can now advance in the workflow"
           }
@@ -3797,7 +3840,12 @@
             "url": {
               "raw": "{{baseUrl}}/loan-workflow/loans/{{loanId}}/mark-for-disbursement",
               "host": ["{{baseUrl}}"],
-              "path": ["loan-workflow", "loans", "{{loanId}}", "mark-for-disbursement"]
+              "path": [
+                "loan-workflow",
+                "loans",
+                "{{loanId}}",
+                "mark-for-disbursement"
+              ]
             },
             "description": "Mark an approved loan as ready for disbursement"
           }
@@ -3828,7 +3876,9 @@
               "raw": "{{baseUrl}}/loan-workflow/disbursements/pending?branchId={{branchId}}",
               "host": ["{{baseUrl}}"],
               "path": ["loan-workflow", "disbursements", "pending"],
-              "query": [{ "key": "branchId", "value": "{{branchId}}", "disabled": true }]
+              "query": [
+                { "key": "branchId", "value": "{{branchId}}", "disabled": true }
+              ]
             },
             "description": "Get all loans pending disbursement. Optionally filter by branch."
           }
@@ -4092,7 +4142,12 @@
             "url": {
               "raw": "{{baseUrl}}/public/application/{{applicationId}}/resend-otp",
               "host": ["{{baseUrl}}"],
-              "path": ["public", "application", "{{applicationId}}", "resend-otp"]
+              "path": [
+                "public",
+                "application",
+                "{{applicationId}}",
+                "resend-otp"
+              ]
             },
             "description": "Resend the verification OTP code for a pending application"
           }
@@ -4212,7 +4267,11 @@
             "url": {
               "raw": "{{baseUrl}}/online-applications/{{applicationId}}/convert-to-loan",
               "host": ["{{baseUrl}}"],
-              "path": ["online-applications", "{{applicationId}}", "convert-to-loan"]
+              "path": [
+                "online-applications",
+                "{{applicationId}}",
+                "convert-to-loan"
+              ]
             },
             "description": "Convert a verified/processed application into an actual loan"
           }

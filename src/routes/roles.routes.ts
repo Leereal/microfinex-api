@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import roleController from '../controllers/role.controller';
 import { authenticate } from '../middleware/auth';
-import { requirePermission, requireAnyPermission } from '../middleware/permissions';
+import {
+  requirePermission,
+  requireAnyPermission,
+} from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
@@ -180,7 +183,10 @@ router.delete(
  */
 router.get(
   '/user/:userId/permissions',
-  requireAnyPermission(PERMISSIONS.USERS_PERMISSIONS_VIEW, PERMISSIONS.ROLES_VIEW),
+  requireAnyPermission(
+    PERMISSIONS.USERS_PERMISSIONS_VIEW,
+    PERMISSIONS.ROLES_VIEW
+  ),
   roleController.getUserDirectPermissions
 );
 
@@ -191,7 +197,10 @@ router.get(
  */
 router.get(
   '/user/:userId/permissions/effective',
-  requireAnyPermission(PERMISSIONS.USERS_PERMISSIONS_VIEW, PERMISSIONS.ROLES_VIEW),
+  requireAnyPermission(
+    PERMISSIONS.USERS_PERMISSIONS_VIEW,
+    PERMISSIONS.ROLES_VIEW
+  ),
   roleController.getUserEffectivePermissions
 );
 

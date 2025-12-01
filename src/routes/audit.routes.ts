@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
-import { requirePermission, requireAnyPermission } from '../middleware/permissions';
+import {
+  requirePermission,
+  requireAnyPermission,
+} from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
 import auditController from '../controllers/audit.controller';
 
@@ -36,10 +39,7 @@ router.get(
  * @desc    Get current user's activity log
  * @access  Private (authenticated users only)
  */
-router.get(
-  '/me/activity',
-  auditController.getMyActivity
-);
+router.get('/me/activity', auditController.getMyActivity);
 
 /**
  * @route   GET /api/v1/audit/users/:userId/activity

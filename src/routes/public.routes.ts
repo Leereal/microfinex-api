@@ -174,57 +174,65 @@ const newApplicationSchema = z.object({
  *     summary: Submit new client application
  *     tags: [Public]
  */
-router.post('/apply/new', validateRequest(newApplicationSchema), async (req, res) => {
-  try {
-    // Check for duplicate pending applications
-    const existing = await onlineApplicationService.getApplicationByPhone(
-      req.body.clientPhone,
-      'PENDING'
-    );
+router.post(
+  '/apply/new',
+  validateRequest(newApplicationSchema),
+  async (req, res) => {
+    try {
+      // Check for duplicate pending applications
+      const existing = await onlineApplicationService.getApplicationByPhone(
+        req.body.clientPhone,
+        'PENDING'
+      );
 
-    if (existing) {
-      return res.status(400).json({
-        success: false,
-        message: 'You already have a pending application. Please verify it or wait for processing.',
-        error: 'DUPLICATE_APPLICATION',
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'You already have a pending application. Please verify it or wait for processing.',
+          error: 'DUPLICATE_APPLICATION',
+          data: {
+            applicationId: existing.id,
+            status: existing.status,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const application = await onlineApplicationService.createApplication({
+        ...req.body,
+        applicationType: 'NEW',
+      });
+
+      // TODO: Send OTP via SMS (integrate with SMS gateway)
+      // await smsService.sendOTP(req.body.clientPhone, application.verificationCode);
+
+      res.status(201).json({
+        success: true,
+        message:
+          'Application submitted successfully. Please verify with the code sent to your phone.',
         data: {
-          applicationId: existing.id,
-          status: existing.status,
+          applicationId: application.id,
+          status: application.status,
+          verificationExpiry: application.verificationExpiry,
+          // Don't expose the code in production - only for testing
+          ...(process.env.NODE_ENV === 'development' && {
+            verificationCode: application.verificationCode,
+          }),
         },
         timestamp: new Date().toISOString(),
       });
+    } catch (error: any) {
+      console.error('New application error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
     }
-
-    const application = await onlineApplicationService.createApplication({
-      ...req.body,
-      applicationType: 'NEW',
-    });
-
-    // TODO: Send OTP via SMS (integrate with SMS gateway)
-    // await smsService.sendOTP(req.body.clientPhone, application.verificationCode);
-
-    res.status(201).json({
-      success: true,
-      message: 'Application submitted successfully. Please verify with the code sent to your phone.',
-      data: {
-        applicationId: application.id,
-        status: application.status,
-        verificationExpiry: application.verificationExpiry,
-        // Don't expose the code in production - only for testing
-        ...(process.env.NODE_ENV === 'development' && { verificationCode: application.verificationCode }),
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    console.error('New application error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Internal server error',
-      error: 'INTERNAL_ERROR',
-      timestamp: new Date().toISOString(),
-    });
   }
-});
+);
 
 const existingApplicationSchema = z.object({
   source: z.enum(['WEB', 'WHATSAPP', 'FACEBOOK']).default('WEB'),
@@ -244,81 +252,91 @@ const existingApplicationSchema = z.object({
  *     summary: Submit existing client application (requires phone verification)
  *     tags: [Public]
  */
-router.post('/apply/existing', validateRequest(existingApplicationSchema), async (req, res) => {
-  try {
-    // Check if this phone number belongs to an existing client
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        phone: req.body.clientPhone,
-        isActive: true,
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-      },
-    });
-
-    if (!existingClient) {
-      return res.status(400).json({
-        success: false,
-        message: 'No client found with this phone number. Please apply as a new client.',
-        error: 'CLIENT_NOT_FOUND',
-        timestamp: new Date().toISOString(),
+router.post(
+  '/apply/existing',
+  validateRequest(existingApplicationSchema),
+  async (req, res) => {
+    try {
+      // Check if this phone number belongs to an existing client
+      const existingClient = await prisma.client.findFirst({
+        where: {
+          phone: req.body.clientPhone,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+        },
       });
-    }
 
-    // Check for pending applications
-    const pendingApplication = await onlineApplicationService.getApplicationByPhone(
-      req.body.clientPhone,
-      'PENDING'
-    );
+      if (!existingClient) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'No client found with this phone number. Please apply as a new client.',
+          error: 'CLIENT_NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
 
-    if (pendingApplication) {
-      return res.status(400).json({
-        success: false,
-        message: 'You already have a pending application. Please verify it first.',
-        error: 'DUPLICATE_APPLICATION',
+      // Check for pending applications
+      const pendingApplication =
+        await onlineApplicationService.getApplicationByPhone(
+          req.body.clientPhone,
+          'PENDING'
+        );
+
+      if (pendingApplication) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'You already have a pending application. Please verify it first.',
+          error: 'DUPLICATE_APPLICATION',
+          data: {
+            applicationId: pendingApplication.id,
+            status: pendingApplication.status,
+          },
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const application = await onlineApplicationService.createApplication({
+        ...req.body,
+        applicationType: 'EXISTING',
+        clientName: `${existingClient.firstName} ${existingClient.lastName}`,
+      });
+
+      // TODO: Send OTP via SMS
+      // await smsService.sendOTP(req.body.clientPhone, application.verificationCode);
+
+      res.status(201).json({
+        success: true,
+        message:
+          'Application submitted successfully. Please verify with the code sent to your phone.',
         data: {
-          applicationId: pendingApplication.id,
-          status: pendingApplication.status,
+          applicationId: application.id,
+          clientName: application.clientName,
+          status: application.status,
+          verificationExpiry: application.verificationExpiry,
+          ...(process.env.NODE_ENV === 'development' && {
+            verificationCode: application.verificationCode,
+          }),
         },
         timestamp: new Date().toISOString(),
       });
+    } catch (error: any) {
+      console.error('Existing application error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
     }
-
-    const application = await onlineApplicationService.createApplication({
-      ...req.body,
-      applicationType: 'EXISTING',
-      clientName: `${existingClient.firstName} ${existingClient.lastName}`,
-    });
-
-    // TODO: Send OTP via SMS
-    // await smsService.sendOTP(req.body.clientPhone, application.verificationCode);
-
-    res.status(201).json({
-      success: true,
-      message: 'Application submitted successfully. Please verify with the code sent to your phone.',
-      data: {
-        applicationId: application.id,
-        clientName: application.clientName,
-        status: application.status,
-        verificationExpiry: application.verificationExpiry,
-        ...(process.env.NODE_ENV === 'development' && { verificationCode: application.verificationCode }),
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    console.error('Existing application error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Internal server error',
-      error: 'INTERNAL_ERROR',
-      timestamp: new Date().toISOString(),
-    });
   }
-});
+);
 
 const verifySchema = z.object({
   applicationId: z.string().uuid(),
@@ -350,7 +368,8 @@ router.post('/verify', validateRequest(verifySchema), async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Application verified successfully. Our team will contact you shortly.',
+      message:
+        'Application verified successfully. Our team will contact you shortly.',
       data: {
         applicationId: application.id,
         status: application.status,
@@ -359,8 +378,11 @@ router.post('/verify', validateRequest(verifySchema), async (req, res) => {
     });
   } catch (error: any) {
     console.error('Verify application error:', error);
-    
-    if (error.message.includes('Invalid') || error.message.includes('expired')) {
+
+    if (
+      error.message.includes('Invalid') ||
+      error.message.includes('expired')
+    ) {
       return res.status(400).json({
         success: false,
         message: error.message,
@@ -452,7 +474,8 @@ router.post('/application/:id/resend-otp', async (req, res) => {
   try {
     const applicationId = req.params.id;
 
-    const application = await onlineApplicationService.resendVerificationCode(applicationId);
+    const application =
+      await onlineApplicationService.resendVerificationCode(applicationId);
 
     if (!application) {
       return res.status(404).json({
@@ -472,13 +495,15 @@ router.post('/application/:id/resend-otp', async (req, res) => {
       data: {
         applicationId: application.id,
         verificationExpiry: application.verificationExpiry,
-        ...(process.env.NODE_ENV === 'development' && { verificationCode: application.verificationCode }),
+        ...(process.env.NODE_ENV === 'development' && {
+          verificationCode: application.verificationCode,
+        }),
       },
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {
     console.error('Resend OTP error:', error);
-    
+
     if (error.message.includes('not in pending')) {
       return res.status(400).json({
         success: false,
@@ -515,69 +540,74 @@ const calculatorSchema = z.object({
  *     summary: Calculate loan repayments
  *     tags: [Public]
  */
-router.post('/calculate', validateRequest(calculatorSchema), async (req, res) => {
-  try {
-    const { amount, term, productId, interestRate: providedRate } = req.body;
+router.post(
+  '/calculate',
+  validateRequest(calculatorSchema),
+  async (req, res) => {
+    try {
+      const { amount, term, productId, interestRate: providedRate } = req.body;
 
-    let interestRate = providedRate;
-    let product = null;
+      let interestRate = providedRate;
+      let product = null;
 
-    // If productId provided, get rate from product
-    if (productId) {
-      product = await prisma.loanProduct.findUnique({
-        where: { id: productId },
-        select: {
-          id: true,
-          name: true,
-          interestRate: true,
-          calculationMethod: true,
-          repaymentFrequency: true,
-        },
-      });
+      // If productId provided, get rate from product
+      if (productId) {
+        product = await prisma.loanProduct.findUnique({
+          where: { id: productId },
+          select: {
+            id: true,
+            name: true,
+            interestRate: true,
+            calculationMethod: true,
+            repaymentFrequency: true,
+          },
+        });
 
-      if (product) {
-        interestRate = Number(product.interestRate);
+        if (product) {
+          interestRate = Number(product.interestRate);
+        }
       }
-    }
 
-    if (interestRate === undefined) {
-      return res.status(400).json({
+      if (interestRate === undefined) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Interest rate is required (either via productId or directly)',
+          error: 'VALIDATION_ERROR',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Simple interest calculation
+      const monthlyRate = interestRate / 100 / 12;
+      const totalInterest = amount * monthlyRate * term;
+      const totalAmount = amount + totalInterest;
+      const monthlyPayment = totalAmount / term;
+
+      res.json({
+        success: true,
+        message: 'Calculation completed successfully',
+        data: {
+          principal: amount,
+          term,
+          interestRate,
+          monthlyPayment: Math.round(monthlyPayment * 100) / 100,
+          totalInterest: Math.round(totalInterest * 100) / 100,
+          totalAmount: Math.round(totalAmount * 100) / 100,
+          product: product ? { id: product.id, name: product.name } : null,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Calculate loan error:', error);
+      res.status(500).json({
         success: false,
-        message: 'Interest rate is required (either via productId or directly)',
-        error: 'VALIDATION_ERROR',
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
         timestamp: new Date().toISOString(),
       });
     }
-
-    // Simple interest calculation
-    const monthlyRate = interestRate / 100 / 12;
-    const totalInterest = amount * monthlyRate * term;
-    const totalAmount = amount + totalInterest;
-    const monthlyPayment = totalAmount / term;
-
-    res.json({
-      success: true,
-      message: 'Calculation completed successfully',
-      data: {
-        principal: amount,
-        term,
-        interestRate,
-        monthlyPayment: Math.round(monthlyPayment * 100) / 100,
-        totalInterest: Math.round(totalInterest * 100) / 100,
-        totalAmount: Math.round(totalAmount * 100) / 100,
-        product: product ? { id: product.id, name: product.name } : null,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error: any) {
-    console.error('Calculate loan error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Internal server error',
-      error: 'INTERNAL_ERROR',
-      timestamp: new Date().toISOString(),
-    });
   }
-});
+);
 
 export default router;

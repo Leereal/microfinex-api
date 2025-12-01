@@ -524,7 +524,10 @@ class UserService {
   /**
    * Get users pending email verification
    */
-  async getPendingVerification(organizationId?: string, isSuperAdmin: boolean = false) {
+  async getPendingVerification(
+    organizationId?: string,
+    isSuperAdmin: boolean = false
+  ) {
     const where: Prisma.UserWhereInput = {
       isEmailVerified: false,
     };

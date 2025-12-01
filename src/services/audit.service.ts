@@ -8,8 +8,8 @@ export type AuditStatus = 'SUCCESS' | 'FAILURE' | 'PARTIAL';
 // Types
 export interface AuditLogEntry {
   action: string;
-  resource: string;       // Entity type (CLIENT, LOAN, etc.)
-  resourceId: string;     // Entity ID
+  resource: string; // Entity type (CLIENT, LOAN, etc.)
+  resourceId: string; // Entity ID
   userId: string;
   organizationId?: string;
   branchId?: string;
@@ -102,8 +102,8 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<AuditLog> {
       sessionId: entry.sessionId || null,
       ipAddress: entry.ipAddress || null,
       userAgent: entry.userAgent || null,
-      errorMessage: entry.errorMessage || null
-    }
+      errorMessage: entry.errorMessage || null,
+    },
   });
 }
 
@@ -123,7 +123,7 @@ export async function logCreate(
     newValue,
     previousValue: null,
     ...context,
-    userId: context.userId || 'system'
+    userId: context.userId || 'system',
   });
 }
 
@@ -140,7 +140,7 @@ export async function logRead(
     resource,
     resourceId,
     ...context,
-    userId: context.userId || 'system'
+    userId: context.userId || 'system',
   });
 }
 
@@ -156,7 +156,7 @@ export async function logUpdate(
 ): Promise<AuditLog> {
   // Calculate diff and store in changes
   const changes = calculateDiff(previousValue, newValue);
-  
+
   return createAuditLog({
     action: 'UPDATE',
     resource,
@@ -165,7 +165,7 @@ export async function logUpdate(
     newValue,
     changes: { fieldChanges: changes },
     ...context,
-    userId: context.userId || 'system'
+    userId: context.userId || 'system',
   });
 }
 
@@ -185,7 +185,7 @@ export async function logDelete(
     previousValue,
     newValue: null,
     ...context,
-    userId: context.userId || 'system'
+    userId: context.userId || 'system',
   });
 }
 
@@ -193,7 +193,13 @@ export async function logDelete(
  * Log an authentication action
  */
 export async function logAuth(
-  action: 'LOGIN' | 'LOGOUT' | 'LOGIN_FAILED' | 'PASSWORD_CHANGE' | 'PASSWORD_RESET' | 'TOKEN_REFRESH',
+  action:
+    | 'LOGIN'
+    | 'LOGOUT'
+    | 'LOGIN_FAILED'
+    | 'PASSWORD_CHANGE'
+    | 'PASSWORD_RESET'
+    | 'TOKEN_REFRESH',
   userId: string,
   context: Partial<AuditLogEntry>,
   status: AuditStatus = 'SUCCESS'
@@ -204,7 +210,7 @@ export async function logAuth(
     resourceId: userId,
     status,
     ...context,
-    userId
+    userId,
   });
 }
 
@@ -225,7 +231,7 @@ export async function logFailure(
     status: 'FAILURE',
     errorMessage: error,
     ...context,
-    userId: context.userId || 'system'
+    userId: context.userId || 'system',
   });
 }
 
@@ -236,7 +242,7 @@ export async function logFailure(
  */
 export function calculateDiff(oldObj: any, newObj: any): FieldChange[] {
   const changes: FieldChange[] = [];
-  
+
   if (!oldObj || !newObj) {
     return changes;
   }
@@ -244,7 +250,7 @@ export function calculateDiff(oldObj: any, newObj: any): FieldChange[] {
   // Get all keys from both objects
   const allKeys = new Set([
     ...Object.keys(oldObj || {}),
-    ...Object.keys(newObj || {})
+    ...Object.keys(newObj || {}),
   ]);
 
   for (const key of allKeys) {
@@ -261,7 +267,7 @@ export function calculateDiff(oldObj: any, newObj: any): FieldChange[] {
       changes.push({
         field: key,
         oldValue: sanitizeValue(oldValue),
-        newValue: sanitizeValue(newValue)
+        newValue: sanitizeValue(newValue),
       });
     }
   }
@@ -276,18 +282,18 @@ function deepEqual(a: any, b: any): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
   if (typeof a !== typeof b) return false;
-  
+
   if (a instanceof Date && b instanceof Date) {
     return a.getTime() === b.getTime();
   }
-  
+
   if (typeof a === 'object') {
     const keysA = Object.keys(a);
     const keysB = Object.keys(b);
     if (keysA.length !== keysB.length) return false;
     return keysA.every(key => deepEqual(a[key], b[key]));
   }
-  
+
   return false;
 }
 
@@ -301,7 +307,9 @@ function sanitizeValue(value: any): any {
     const sanitized: any = {};
     for (const [key, val] of Object.entries(value)) {
       // Skip sensitive fields
-      if (['password', 'passwordHash', 'token', 'secret', 'apiKey'].includes(key)) {
+      if (
+        ['password', 'passwordHash', 'token', 'secret', 'apiKey'].includes(key)
+      ) {
         sanitized[key] = '[REDACTED]';
       } else {
         sanitized[key] = sanitizeValue(val);
@@ -317,7 +325,9 @@ function sanitizeValue(value: any): any {
 /**
  * Search audit logs with filters
  */
-export async function searchAuditLogs(params: AuditSearchParams): Promise<AuditSearchResult> {
+export async function searchAuditLogs(
+  params: AuditSearchParams
+): Promise<AuditSearchResult> {
   const {
     organizationId,
     userId,
@@ -332,7 +342,7 @@ export async function searchAuditLogs(params: AuditSearchParams): Promise<AuditS
     page = 1,
     limit = 50,
     sortBy = 'timestamp',
-    sortOrder = 'desc'
+    sortOrder = 'desc',
   } = params;
 
   // Build where clause
@@ -361,7 +371,7 @@ export async function searchAuditLogs(params: AuditSearchParams): Promise<AuditS
     where,
     orderBy: { [sortBy]: sortOrder },
     skip: (page - 1) * limit,
-    take: limit
+    take: limit,
   });
 
   return {
@@ -369,17 +379,20 @@ export async function searchAuditLogs(params: AuditSearchParams): Promise<AuditS
     total,
     page,
     limit,
-    totalPages: Math.ceil(total / limit)
+    totalPages: Math.ceil(total / limit),
   };
 }
 
 /**
  * Get entity history (all changes to a specific entity)
  */
-export async function getEntityHistory(resource: string, resourceId: string): Promise<EntityHistory> {
+export async function getEntityHistory(
+  resource: string,
+  resourceId: string
+): Promise<EntityHistory> {
   const logs = await prisma.auditLog.findMany({
     where: { resource, resourceId },
-    orderBy: { timestamp: 'desc' }
+    orderBy: { timestamp: 'desc' },
   });
 
   // Get current state from the most recent CREATE or UPDATE
@@ -397,14 +410,16 @@ export async function getEntityHistory(resource: string, resourceId: string): Pr
     userId: log.userId || 'system',
     previousValue: log.previousValue,
     newValue: log.newValue,
-    changes: (log.changes as any)?.fieldChanges || calculateDiff(log.previousValue, log.newValue)
+    changes:
+      (log.changes as any)?.fieldChanges ||
+      calculateDiff(log.previousValue, log.newValue),
   }));
 
   return {
     resource,
     resourceId,
     currentState,
-    history
+    history,
   };
 }
 
@@ -428,7 +443,7 @@ export async function getUserActivity(
   return prisma.auditLog.findMany({
     where,
     orderBy: { timestamp: 'desc' },
-    take: limit
+    take: limit,
   });
 }
 
@@ -458,21 +473,21 @@ export async function getAuditStats(
   const byAction = await prisma.auditLog.groupBy({
     by: ['action'],
     where,
-    _count: { action: true }
+    _count: { action: true },
   });
 
   // Group by resource
   const byResource = await prisma.auditLog.groupBy({
     by: ['resource'],
     where,
-    _count: { resource: true }
+    _count: { resource: true },
   });
 
   // Group by status
   const byStatus = await prisma.auditLog.groupBy({
     by: ['status'],
     where,
-    _count: { status: true }
+    _count: { status: true },
   });
 
   // Top users
@@ -481,23 +496,32 @@ export async function getAuditStats(
     where,
     _count: { userId: true },
     orderBy: { _count: { userId: 'desc' } },
-    take: 10
+    take: 10,
   });
 
   // Recent activity
   const recentActivity = await prisma.auditLog.findMany({
     where,
     orderBy: { timestamp: 'desc' },
-    take: 10
+    take: 10,
   });
 
   return {
     totalLogs,
     byAction: byAction.map(a => ({ action: a.action, count: a._count.action })),
-    byResource: byResource.map(e => ({ resource: e.resource, count: e._count.resource })),
-    byStatus: byStatus.map(s => ({ status: s.status as AuditStatus, count: s._count.status })),
-    byUser: byUser.map(u => ({ userId: u.userId || 'system', count: u._count.userId })),
-    recentActivity
+    byResource: byResource.map(e => ({
+      resource: e.resource,
+      count: e._count.resource,
+    })),
+    byStatus: byStatus.map(s => ({
+      status: s.status as AuditStatus,
+      count: s._count.status,
+    })),
+    byUser: byUser.map(u => ({
+      userId: u.userId || 'system',
+      count: u._count.userId,
+    })),
+    recentActivity,
   };
 }
 
@@ -506,7 +530,9 @@ export async function getAuditStats(
 /**
  * Export audit logs to CSV format
  */
-export async function exportAuditLogs(params: AuditSearchParams): Promise<string> {
+export async function exportAuditLogs(
+  params: AuditSearchParams
+): Promise<string> {
   // Get all logs matching the criteria (with a high limit)
   const result = await searchAuditLogs({ ...params, limit: 10000 });
   const logs = result.logs;
@@ -524,7 +550,7 @@ export async function exportAuditLogs(params: AuditSearchParams): Promise<string
     'Status',
     'Duration (ms)',
     'IP Address',
-    'Request ID'
+    'Request ID',
   ];
 
   // Convert logs to CSV rows
@@ -540,13 +566,15 @@ export async function exportAuditLogs(params: AuditSearchParams): Promise<string
     log.status,
     log.duration || '',
     log.ipAddress || '',
-    log.requestId || ''
+    log.requestId || '',
   ]);
 
   // Build CSV string
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ...rows.map(row =>
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ),
   ].join('\n');
 
   return csvContent;
@@ -555,7 +583,9 @@ export async function exportAuditLogs(params: AuditSearchParams): Promise<string
 /**
  * Export audit logs to JSON format
  */
-export async function exportAuditLogsJson(params: AuditSearchParams): Promise<AuditLog[]> {
+export async function exportAuditLogsJson(
+  params: AuditSearchParams
+): Promise<AuditLog[]> {
   const result = await searchAuditLogs({ ...params, limit: 10000 });
   return result.logs;
 }
@@ -570,7 +600,7 @@ export async function archiveOldLogs(
   organizationId?: string
 ): Promise<{ count: number }> {
   const where: Prisma.AuditLogWhereInput = {
-    timestamp: { lt: olderThan }
+    timestamp: { lt: olderThan },
   };
 
   if (organizationId) {
@@ -604,25 +634,25 @@ export const auditService = {
   logDelete,
   logAuth,
   logFailure,
-  
+
   // Diff calculation
   calculateDiff,
-  
+
   // Search & Query
   searchAuditLogs,
   getEntityHistory,
   getUserActivity,
-  
+
   // Statistics
   getAuditStats,
-  
+
   // Export
   exportAuditLogs,
   exportAuditLogsJson,
-  
+
   // Utilities
   archiveOldLogs,
-  generateRequestId
+  generateRequestId,
 };
 
 export default auditService;

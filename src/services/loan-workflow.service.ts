@@ -607,7 +607,9 @@ class CategoryAwareWorkflowEngine {
   /**
    * Get completed workflow steps for a loan
    */
-  async getCompletedSteps(loanId: string): Promise<WorkflowStatus['completedSteps']> {
+  async getCompletedSteps(
+    loanId: string
+  ): Promise<WorkflowStatus['completedSteps']> {
     const [assessments, visits, pledges] = await Promise.all([
       prisma.loanAssessment.findMany({
         where: { loanId },
@@ -623,8 +625,12 @@ class CategoryAwareWorkflowEngine {
       }),
     ]);
 
-    const hasApprovedAssessment = assessments.some(a => a.status === 'APPROVED');
-    const hasCompletedBusinessVisit = visits.some(v => v.visitType === 'BUSINESS');
+    const hasApprovedAssessment = assessments.some(
+      a => a.status === 'APPROVED'
+    );
+    const hasCompletedBusinessVisit = visits.some(
+      v => v.visitType === 'BUSINESS'
+    );
     const hasCompletedHomeVisit = visits.some(v => v.visitType === 'HOME');
     const hasVerifiedPledge = pledges.some(p => p.status === 'VERIFIED');
 
@@ -655,7 +661,7 @@ class CategoryAwareWorkflowEngine {
 
     // Determine missing requirements
     const missingRequirements: string[] = [];
-    
+
     if (requirements.requiresAssessment && !completedSteps.assessment) {
       missingRequirements.push('Approved assessment required');
     }
@@ -683,7 +689,8 @@ class CategoryAwareWorkflowEngine {
       completedSteps,
       nextAllowedStatuses,
       missingRequirements,
-      canAdvance: missingRequirements.length === 0 && nextAllowedStatuses.length > 0,
+      canAdvance:
+        missingRequirements.length === 0 && nextAllowedStatuses.length > 0,
     };
   }
 
@@ -695,28 +702,42 @@ class CategoryAwareWorkflowEngine {
     requirements: WorkflowRequirements,
     completedSteps: WorkflowStatus['completedSteps']
   ): LoanStatus[] {
-    const baseTransitions = this.statusTransition.getNextStatuses(currentStatus);
-    
+    const baseTransitions =
+      this.statusTransition.getNextStatuses(currentStatus);
+
     // Filter based on requirements
     return baseTransitions.filter(status => {
       switch (status) {
         case 'PENDING_APPROVAL':
           // Can only go to PENDING_APPROVAL if all requirements are met
-          if (requirements.requiresAssessment && !completedSteps.assessment) return false;
-          if (requirements.requiresBusinessVisit && !completedSteps.businessVisit) return false;
-          if (requirements.requiresHomeVisit && !completedSteps.homeVisit) return false;
-          if (requirements.requiresSecurityPledge && !completedSteps.securityPledge) return false;
+          if (requirements.requiresAssessment && !completedSteps.assessment)
+            return false;
+          if (
+            requirements.requiresBusinessVisit &&
+            !completedSteps.businessVisit
+          )
+            return false;
+          if (requirements.requiresHomeVisit && !completedSteps.homeVisit)
+            return false;
+          if (
+            requirements.requiresSecurityPledge &&
+            !completedSteps.securityPledge
+          )
+            return false;
           return true;
-        
+
         case 'PENDING_VISIT':
           // Can only go to PENDING_VISIT if assessment is done (when required)
-          if (requirements.requiresAssessment && !completedSteps.assessment) return false;
-          return requirements.requiresBusinessVisit || requirements.requiresHomeVisit;
-        
+          if (requirements.requiresAssessment && !completedSteps.assessment)
+            return false;
+          return (
+            requirements.requiresBusinessVisit || requirements.requiresHomeVisit
+          );
+
         case 'PENDING_ASSESSMENT':
           // Can always go to assessment if it's a valid base transition
           return true;
-        
+
         default:
           return true;
       }
@@ -738,15 +759,17 @@ class CategoryAwareWorkflowEngine {
       // Validate the transition
       if (!status.nextAllowedStatuses.includes(toStatus)) {
         // Check if it's a base transition issue or requirements issue
-        const baseTransitions = this.statusTransition.getNextStatuses(status.currentStatus);
-        
+        const baseTransitions = this.statusTransition.getNextStatuses(
+          status.currentStatus
+        );
+
         if (!baseTransitions.includes(toStatus)) {
           return {
             success: false,
             error: `Invalid status transition from ${status.currentStatus} to ${toStatus}`,
           };
         }
-        
+
         // It's a requirements issue
         return {
           success: false,
@@ -823,10 +846,13 @@ class CategoryAwareWorkflowEngine {
 
     // Determine next status based on requirements
     let nextStatus: LoanStatus;
-    
+
     if (status === 'REJECTED') {
       nextStatus = LoanStatus.CANCELLED;
-    } else if (requirements.requiresBusinessVisit || requirements.requiresHomeVisit) {
+    } else if (
+      requirements.requiresBusinessVisit ||
+      requirements.requiresHomeVisit
+    ) {
       nextStatus = LoanStatus.PENDING_VISIT;
     } else if (requirements.requiresSecurityPledge) {
       nextStatus = LoanStatus.PENDING_APPROVAL; // Will be blocked until pledge is verified
@@ -874,7 +900,7 @@ class CategoryAwareWorkflowEngine {
     const completedSteps = await this.getCompletedSteps(loanId);
 
     // Check if all required visits are complete
-    const allVisitsComplete = 
+    const allVisitsComplete =
       (!requirements.requiresBusinessVisit || completedSteps.businessVisit) &&
       (!requirements.requiresHomeVisit || completedSteps.homeVisit);
 
@@ -901,7 +927,7 @@ class CategoryAwareWorkflowEngine {
     notes?: string
   ): Promise<{ pledge: any; canAdvance: boolean; status: WorkflowStatus }> {
     const pledge = await securityPledgeService.verifyPledge(pledgeId);
-    
+
     const fullPledge = await securityPledgeService.get(pledgeId);
     if (!fullPledge) {
       throw new Error('Pledge not found');
@@ -933,7 +959,12 @@ class CategoryAwareWorkflowEngine {
       };
     }
 
-    return this.advanceLoan(loanId, LoanStatus.APPROVED, approvedBy, notes || 'Loan approved');
+    return this.advanceLoan(
+      loanId,
+      LoanStatus.APPROVED,
+      approvedBy,
+      notes || 'Loan approved'
+    );
   }
 
   /**
@@ -944,7 +975,12 @@ class CategoryAwareWorkflowEngine {
     rejectedBy: string,
     reason: string
   ): Promise<{ success: boolean; loan?: any; error?: string }> {
-    return this.advanceLoan(loanId, LoanStatus.CANCELLED, rejectedBy, `Rejected: ${reason}`);
+    return this.advanceLoan(
+      loanId,
+      LoanStatus.CANCELLED,
+      rejectedBy,
+      `Rejected: ${reason}`
+    );
   }
 
   /**
@@ -985,7 +1021,10 @@ class CategoryAwareWorkflowEngine {
       return { success: false, error: 'Loan not found' };
     }
 
-    if (loan.status !== LoanStatus.PENDING_DISBURSEMENT && loan.status !== LoanStatus.APPROVED) {
+    if (
+      loan.status !== LoanStatus.PENDING_DISBURSEMENT &&
+      loan.status !== LoanStatus.APPROVED
+    ) {
       return {
         success: false,
         error: `Loan must be in APPROVED or PENDING_DISBURSEMENT status to disburse. Current status: ${loan.status}`,
@@ -1007,7 +1046,9 @@ class CategoryAwareWorkflowEngine {
       fromStatus: loan.status,
       toStatus: LoanStatus.ACTIVE,
       changedBy: disbursedBy,
-      notes: disbursementDetails?.notes || `Disbursed via ${disbursementDetails?.disbursementMethod || 'default'}`,
+      notes:
+        disbursementDetails?.notes ||
+        `Disbursed via ${disbursementDetails?.disbursementMethod || 'default'}`,
     });
 
     return { success: true, loan: updatedLoan };
@@ -1067,15 +1108,22 @@ class CategoryAwareWorkflowEngine {
       disbursementMethod?: string;
       notes?: string;
     }
-  ): Promise<{ success: string[]; failed: { loanId: string; error: string }[] }> {
+  ): Promise<{
+    success: string[];
+    failed: { loanId: string; error: string }[];
+  }> {
     const results = {
       success: [] as string[],
       failed: [] as { loanId: string; error: string }[],
     };
 
     for (const loanId of loanIds) {
-      const result = await this.disburseLoan(loanId, disbursedBy, disbursementDetails);
-      
+      const result = await this.disburseLoan(
+        loanId,
+        disbursedBy,
+        disbursementDetails
+      );
+
       if (result.success) {
         results.success.push(loanId);
       } else {

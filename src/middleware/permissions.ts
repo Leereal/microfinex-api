@@ -3,13 +3,18 @@ import { prisma } from '../config/database';
 import { PERMISSIONS, isValidPermission } from '../constants/permissions';
 
 // Cache for user permissions (with TTL)
-const permissionCache = new Map<string, { permissions: Set<string>; timestamp: number }>();
+const permissionCache = new Map<
+  string,
+  { permissions: Set<string>; timestamp: number }
+>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Load all permissions for a user from their roles and direct assignments
  */
-export async function loadUserPermissions(userId: string): Promise<Set<string>> {
+export async function loadUserPermissions(
+  userId: string
+): Promise<Set<string>> {
   // Check cache first
   const cached = permissionCache.get(userId);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -24,10 +29,7 @@ export async function loadUserPermissions(userId: string): Promise<Set<string>> 
       where: {
         userId,
         isActive: true,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
       include: {
         role: {
@@ -58,10 +60,7 @@ export async function loadUserPermissions(userId: string): Promise<Set<string>> 
       where: {
         userId,
         isActive: true,
-        OR: [
-          { expiresAt: null },
-          { expiresAt: { gt: new Date() } },
-        ],
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
     });
 
@@ -121,7 +120,10 @@ export function clearPermissionCache(userId?: string): void {
 /**
  * Check if user has a specific permission
  */
-export async function hasPermission(userId: string, permissionCode: string): Promise<boolean> {
+export async function hasPermission(
+  userId: string,
+  permissionCode: string
+): Promise<boolean> {
   const permissions = await loadUserPermissions(userId);
   return permissions.has(permissionCode);
 }
@@ -129,7 +131,10 @@ export async function hasPermission(userId: string, permissionCode: string): Pro
 /**
  * Check if user has all of the specified permissions
  */
-export async function hasAllPermissions(userId: string, permissionCodes: string[]): Promise<boolean> {
+export async function hasAllPermissions(
+  userId: string,
+  permissionCodes: string[]
+): Promise<boolean> {
   const permissions = await loadUserPermissions(userId);
   return permissionCodes.every(code => permissions.has(code));
 }
@@ -137,7 +142,10 @@ export async function hasAllPermissions(userId: string, permissionCodes: string[
 /**
  * Check if user has any of the specified permissions
  */
-export async function hasAnyPermission(userId: string, permissionCodes: string[]): Promise<boolean> {
+export async function hasAnyPermission(
+  userId: string,
+  permissionCodes: string[]
+): Promise<boolean> {
   const permissions = await loadUserPermissions(userId);
   return permissionCodes.some(code => permissions.has(code));
 }
@@ -150,14 +158,16 @@ export function requirePermission(...permissionCodes: string[]) {
   // Validate permission codes at registration time
   for (const code of permissionCodes) {
     if (!isValidPermission(code)) {
-      console.warn(`Warning: Invalid permission code used in requirePermission: ${code}`);
+      console.warn(
+        `Warning: Invalid permission code used in requirePermission: ${code}`
+      );
     }
   }
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.userContext?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -171,7 +181,9 @@ export function requirePermission(...permissionCodes: string[]) {
       const hasAll = permissionCodes.every(code => userPermissions.has(code));
 
       if (!hasAll) {
-        const missing = permissionCodes.filter(code => !userPermissions.has(code));
+        const missing = permissionCodes.filter(
+          code => !userPermissions.has(code)
+        );
         return res.status(403).json({
           success: false,
           message: 'Insufficient permissions',
@@ -207,14 +219,16 @@ export function requireAnyPermission(...permissionCodes: string[]) {
   // Validate permission codes at registration time
   for (const code of permissionCodes) {
     if (!isValidPermission(code)) {
-      console.warn(`Warning: Invalid permission code used in requireAnyPermission: ${code}`);
+      console.warn(
+        `Warning: Invalid permission code used in requireAnyPermission: ${code}`
+      );
     }
   }
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.userContext?.id;
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -262,20 +276,22 @@ export function checkPermissions() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = req.userContext?.id;
-      
+
       if (userId) {
         const permissions = await loadUserPermissions(userId);
         req.userPermissions = permissions;
         req.checkPermission = (code: string) => permissions.has(code);
-        req.checkAnyPermission = (...codes: string[]) => codes.some(c => permissions.has(c));
-        req.checkAllPermissions = (...codes: string[]) => codes.every(c => permissions.has(c));
+        req.checkAnyPermission = (...codes: string[]) =>
+          codes.some(c => permissions.has(c));
+        req.checkAllPermissions = (...codes: string[]) =>
+          codes.every(c => permissions.has(c));
       } else {
         req.userPermissions = new Set();
         req.checkPermission = () => false;
         req.checkAnyPermission = () => false;
         req.checkAllPermissions = () => false;
       }
-      
+
       next();
     } catch (error) {
       console.error('Permission loading error:', error);
@@ -297,7 +313,7 @@ export function requireResourcePermission(
     try {
       const userId = req.userContext?.id;
       const resourceId = req.params[resourceIdParam];
-      
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -308,7 +324,7 @@ export function requireResourcePermission(
       }
 
       const userPermissions = await loadUserPermissions(userId);
-      
+
       // If user has the permission, allow access
       if (userPermissions.has(permissionCode)) {
         req.userPermissions = userPermissions;

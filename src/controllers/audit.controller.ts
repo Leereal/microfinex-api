@@ -5,7 +5,11 @@ import auditService from '../services/audit.service';
  * Search audit logs
  * GET /api/v1/audit/logs
  */
-export async function searchAuditLogs(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function searchAuditLogs(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const {
       organizationId,
@@ -21,11 +25,11 @@ export async function searchAuditLogs(req: Request, res: Response, next: NextFun
       page = 1,
       limit = 50,
       sortBy = 'timestamp',
-      sortOrder = 'desc'
+      sortOrder = 'desc',
     } = req.query;
 
     // Use user's organizationId if not provided (for non-admin users)
-    const orgId = organizationId as string || req.userContext?.organizationId;
+    const orgId = (organizationId as string) || req.userContext?.organizationId;
 
     const result = await auditService.searchAuditLogs({
       organizationId: orgId,
@@ -41,7 +45,7 @@ export async function searchAuditLogs(req: Request, res: Response, next: NextFun
       page: parseInt(page as string) || 1,
       limit: parseInt(limit as string) || 50,
       sortBy: sortBy as string,
-      sortOrder: sortOrder as 'asc' | 'desc'
+      sortOrder: sortOrder as 'asc' | 'desc',
     });
 
     res.status(200).json({
@@ -51,8 +55,8 @@ export async function searchAuditLogs(req: Request, res: Response, next: NextFun
         page: result.page,
         limit: result.limit,
         total: result.total,
-        totalPages: result.totalPages
-      }
+        totalPages: result.totalPages,
+      },
     });
   } catch (error) {
     next(error);
@@ -63,13 +67,17 @@ export async function searchAuditLogs(req: Request, res: Response, next: NextFun
  * Get audit log by ID
  * GET /api/v1/audit/logs/:id
  */
-export async function getAuditLogById(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getAuditLogById(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const { id } = req.params;
 
     const log = await auditService.searchAuditLogs({
       page: 1,
-      limit: 1
+      limit: 1,
     });
 
     // Find the specific log
@@ -78,14 +86,14 @@ export async function getAuditLogById(req: Request, res: Response, next: NextFun
     if (!result) {
       res.status(404).json({
         success: false,
-        message: 'Audit log not found'
+        message: 'Audit log not found',
       });
       return;
     }
 
     res.status(200).json({
       success: true,
-      data: result
+      data: result,
     });
   } catch (error) {
     next(error);
@@ -96,14 +104,18 @@ export async function getAuditLogById(req: Request, res: Response, next: NextFun
  * Get entity history
  * GET /api/v1/audit/history/:resource/:resourceId
  */
-export async function getEntityHistory(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getEntityHistory(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const { resource, resourceId } = req.params;
 
     if (!resource || !resourceId) {
       res.status(400).json({
         success: false,
-        message: 'Resource and resourceId are required'
+        message: 'Resource and resourceId are required',
       });
       return;
     }
@@ -112,7 +124,7 @@ export async function getEntityHistory(req: Request, res: Response, next: NextFu
 
     res.status(200).json({
       success: true,
-      data: history
+      data: history,
     });
   } catch (error) {
     next(error);
@@ -123,7 +135,11 @@ export async function getEntityHistory(req: Request, res: Response, next: NextFu
  * Get user activity
  * GET /api/v1/audit/users/:userId/activity
  */
-export async function getUserActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getUserActivity(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const userId = req.params.userId!;
     const { startDate, endDate, limit = 100 } = req.query;
@@ -131,12 +147,12 @@ export async function getUserActivity(req: Request, res: Response, next: NextFun
     const activity = await auditService.getUserActivity(userId, {
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
-      limit: parseInt(limit as string) || 100
+      limit: parseInt(limit as string) || 100,
     });
 
     res.status(200).json({
       success: true,
-      data: activity
+      data: activity,
     });
   } catch (error) {
     next(error);
@@ -147,14 +163,18 @@ export async function getUserActivity(req: Request, res: Response, next: NextFun
  * Get my activity (current user)
  * GET /api/v1/audit/me/activity
  */
-export async function getMyActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getMyActivity(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const userId = req.userContext?.id;
-    
+
     if (!userId) {
       res.status(401).json({
         success: false,
-        message: 'User not authenticated'
+        message: 'User not authenticated',
       });
       return;
     }
@@ -164,12 +184,12 @@ export async function getMyActivity(req: Request, res: Response, next: NextFunct
     const activity = await auditService.getUserActivity(userId as string, {
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
-      limit: parseInt(limit as string) || 100
+      limit: parseInt(limit as string) || 100,
     });
 
     res.status(200).json({
       success: true,
-      data: activity
+      data: activity,
     });
   } catch (error) {
     next(error);
@@ -180,29 +200,33 @@ export async function getMyActivity(req: Request, res: Response, next: NextFunct
  * Get audit statistics
  * GET /api/v1/audit/stats
  */
-export async function getAuditStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getAuditStats(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const { organizationId, startDate, endDate } = req.query;
 
     // Use user's organizationId if not provided
-    const orgId = organizationId as string || req.userContext?.organizationId;
+    const orgId = (organizationId as string) || req.userContext?.organizationId;
 
     if (!orgId) {
       res.status(400).json({
         success: false,
-        message: 'Organization ID is required'
+        message: 'Organization ID is required',
       });
       return;
     }
 
     const stats = await auditService.getAuditStats(orgId, {
       startDate: startDate ? new Date(startDate as string) : undefined,
-      endDate: endDate ? new Date(endDate as string) : undefined
+      endDate: endDate ? new Date(endDate as string) : undefined,
     });
 
     res.status(200).json({
       success: true,
-      data: stats
+      data: stats,
     });
   } catch (error) {
     next(error);
@@ -213,7 +237,11 @@ export async function getAuditStats(req: Request, res: Response, next: NextFunct
  * Export audit logs (CSV)
  * GET /api/v1/audit/export/csv
  */
-export async function exportAuditLogsCsv(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function exportAuditLogsCsv(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const {
       organizationId,
@@ -224,11 +252,11 @@ export async function exportAuditLogsCsv(req: Request, res: Response, next: Next
       status,
       startDate,
       endDate,
-      branchId
+      branchId,
     } = req.query;
 
     // Use user's organizationId if not provided
-    const orgId = organizationId as string || req.userContext?.organizationId;
+    const orgId = (organizationId as string) || req.userContext?.organizationId;
 
     const csvContent = await auditService.exportAuditLogs({
       organizationId: orgId,
@@ -239,11 +267,14 @@ export async function exportAuditLogsCsv(req: Request, res: Response, next: Next
       status: status as any,
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
-      branchId: branchId as string
+      branchId: branchId as string,
     });
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.csv`
+    );
     res.status(200).send(csvContent);
   } catch (error) {
     next(error);
@@ -254,7 +285,11 @@ export async function exportAuditLogsCsv(req: Request, res: Response, next: Next
  * Export audit logs (JSON)
  * GET /api/v1/audit/export/json
  */
-export async function exportAuditLogsJson(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function exportAuditLogsJson(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const {
       organizationId,
@@ -265,11 +300,11 @@ export async function exportAuditLogsJson(req: Request, res: Response, next: Nex
       status,
       startDate,
       endDate,
-      branchId
+      branchId,
     } = req.query;
 
     // Use user's organizationId if not provided
-    const orgId = organizationId as string || req.userContext?.organizationId;
+    const orgId = (organizationId as string) || req.userContext?.organizationId;
 
     const logs = await auditService.exportAuditLogsJson({
       organizationId: orgId,
@@ -280,11 +315,14 @@ export async function exportAuditLogsJson(req: Request, res: Response, next: Nex
       status: status as any,
       startDate: startDate ? new Date(startDate as string) : undefined,
       endDate: endDate ? new Date(endDate as string) : undefined,
-      branchId: branchId as string
+      branchId: branchId as string,
     });
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.json`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.json`
+    );
     res.status(200).json(logs);
   } catch (error) {
     next(error);
@@ -295,19 +333,23 @@ export async function exportAuditLogsJson(req: Request, res: Response, next: Nex
  * Get archive count (dry run)
  * GET /api/v1/audit/archive/count
  */
-export async function getArchiveCount(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getArchiveCount(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
     const { olderThan, organizationId } = req.query;
 
     if (!olderThan) {
       res.status(400).json({
         success: false,
-        message: 'olderThan date is required'
+        message: 'olderThan date is required',
       });
       return;
     }
 
-    const orgId = organizationId as string || req.userContext?.organizationId;
+    const orgId = (organizationId as string) || req.userContext?.organizationId;
 
     const result = await auditService.archiveOldLogs(
       new Date(olderThan as string),
@@ -318,8 +360,8 @@ export async function getArchiveCount(req: Request, res: Response, next: NextFun
       success: true,
       data: {
         logsToArchive: result.count,
-        olderThan: olderThan
-      }
+        olderThan: olderThan,
+      },
     });
   } catch (error) {
     next(error);
@@ -335,7 +377,7 @@ export const auditController = {
   getAuditStats,
   exportAuditLogsCsv,
   exportAuditLogsJson,
-  getArchiveCount
+  getArchiveCount,
 };
 
 export default auditController;

@@ -988,7 +988,9 @@ router.get('/loans/:loanId/workflow-status', authenticate, async (req, res) => {
     res.status(error.message.includes('not found') ? 404 : 500).json({
       success: false,
       message: error.message || 'Internal server error',
-      error: error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR',
+      error: error.message.includes('not found')
+        ? 'NOT_FOUND'
+        : 'INTERNAL_ERROR',
       timestamp: new Date().toISOString(),
     });
   }
@@ -1448,7 +1450,9 @@ router.get(
 
 const disburseSchema = z.object({
   disbursementDate: z.string().datetime().optional(),
-  disbursementMethod: z.enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK']).optional(),
+  disbursementMethod: z
+    .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK'])
+    .optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -1521,7 +1525,9 @@ router.post(
 const batchDisburseSchema = z.object({
   loanIds: z.array(z.string().uuid()).min(1),
   disbursementDate: z.string().datetime().optional(),
-  disbursementMethod: z.enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK']).optional(),
+  disbursementMethod: z
+    .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK'])
+    .optional(),
   notes: z.string().optional(),
 });
 
