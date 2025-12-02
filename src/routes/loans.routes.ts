@@ -20,6 +20,7 @@ import {
   disburseLoanSchema,
   LoanApplicationFilters,
 } from '../services/loan-application.service';
+import { productCreditService } from '../services/product-credit.service';
 
 const router = Router();
 
@@ -908,5 +909,301 @@ router.get('/applications/statistics', authenticate, async (req, res) => {
     });
   }
 });
+
+// ===== PRODUCT CREDIT ROUTES =====
+
+// Product credit loan schema
+const productCreditSchema = z.object({
+  clientId: z.string().uuid('Invalid client ID'),
+  shopId: z.string().uuid('Invalid shop ID'),
+  productId: z.string().uuid('Invalid loan product ID'),
+  items: z
+    .array(
+      z.object({
+        shopProductId: z.string().uuid('Invalid product ID'),
+        quantity: z.number().int().positive('Quantity must be positive'),
+      })
+    )
+    .min(1, 'At least one item is required'),
+  term: z.number().int().positive('Term must be positive'),
+  repaymentFrequency: z
+    .enum([
+      'DAILY',
+      'WEEKLY',
+      'BIWEEKLY',
+      'MONTHLY',
+      'QUARTERLY',
+      'SEMI_ANNUAL',
+      'ANNUAL',
+    ])
+    .optional(),
+  notes: z.string().optional(),
+});
+
+const disburseToshopSchema = z.object({
+  disbursementMethod: z.enum(['BANK', 'MOBILE']),
+  transactionRef: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+/**
+ * @swagger
+ * /api/v1/loans/product-credit:
+ *   post:
+ *     summary: Create a product credit loan
+ *     description: Shop submits order for client. Creates loan with LoanItem records.
+ *     tags: [Product Credit]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/product-credit',
+  authenticate,
+  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(productCreditSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      const branchId = (req.user as any)?.branchId;
+      const loanOfficerId = (req.user as any)?.id;
+
+      if (!organizationId || !branchId || !loanOfficerId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization, branch, and user context required',
+          error: 'MISSING_CONTEXT',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await productCreditService.createProductCreditLoan(
+        organizationId,
+        branchId,
+        loanOfficerId,
+        req.body
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Product credit loan created successfully',
+        data: {
+          loan: {
+            ...result.loan,
+            amount: result.loan.amount.toNumber(),
+            interestRate: result.loan.interestRate.toNumber(),
+            installmentAmount: result.loan.installmentAmount.toNumber(),
+            totalAmount: result.loan.totalAmount.toNumber(),
+            totalInterest: result.loan.totalInterest.toNumber(),
+          },
+          items: result.items.map(item => ({
+            ...item,
+            unitPrice: item.unitPrice.toNumber(),
+            totalPrice: item.totalPrice.toNumber(),
+          })),
+          totalAmount: result.totalAmount.toNumber(),
+          shop: result.shop,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Create product credit loan error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to create product credit loan',
+        error: 'PRODUCT_CREDIT_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loans/{id}/disburse-to-shop:
+ *   post:
+ *     summary: Disburse product credit loan to shop
+ *     description: Sends funds to shop's bank/mobile account and notifies client to collect
+ *     tags: [Product Credit]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/:id/disburse-to-shop',
+  authenticate,
+  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  validateRequest(disburseToshopSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      const disbursedBy = (req.user as any)?.id;
+      const loanId = req.params.id;
+
+      if (!organizationId || !disbursedBy || !loanId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization and user context required',
+          error: 'MISSING_CONTEXT',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await productCreditService.disburseToShop(
+        organizationId,
+        loanId,
+        disbursedBy,
+        req.body
+      );
+
+      res.json({
+        success: true,
+        message: 'Loan disbursed to shop successfully',
+        data: {
+          loan: {
+            id: result.loan.id,
+            loanNumber: result.loan.loanNumber,
+            status: result.loan.status,
+            disbursedDate: result.loan.disbursedDate,
+          },
+          notification: result.notification,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Disburse to shop error:', error);
+      res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to disburse loan',
+        error: 'DISBURSEMENT_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loans/shops/{shopId}/product-credits:
+ *   get:
+ *     summary: Get product credit loans for a shop
+ *     tags: [Product Credit]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/shops/:shopId/product-credits', authenticate, async (req, res) => {
+  try {
+    const orgId = req.user?.organizationId;
+    const shopIdParam = req.params.shopId;
+
+    if (!orgId || !shopIdParam) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization context and shop ID required',
+        error: 'MISSING_CONTEXT',
+        timestamp: new Date().toISOString(),
+      });
+    }
+    const organizationId: string = orgId;
+    const shopId: string = shopIdParam;
+
+    const { status, clientId, dateFrom, dateTo, page, limit } = req.query;
+
+    const result = await productCreditService.getShopProductCreditLoans(
+      organizationId,
+      shopId,
+      {
+        status: status as any,
+        clientId: clientId as string,
+        dateFrom: dateFrom ? new Date(dateFrom as string) : undefined,
+        dateTo: dateTo ? new Date(dateTo as string) : undefined,
+        page: page ? parseInt(page as string) : undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+      }
+    );
+
+    res.json({
+      success: true,
+      message: 'Shop product credit loans retrieved successfully',
+      data: result.data.map(loan => ({
+        ...loan,
+        amount: loan.amount.toNumber(),
+        totalAmount: loan.totalAmount.toNumber(),
+        outstandingBalance: loan.outstandingBalance.toNumber(),
+      })),
+      pagination: result.pagination,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error('Get shop product credits error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/loans/shops/{shopId}/product-credits/stats:
+ *   get:
+ *     summary: Get product credit statistics for a shop
+ *     tags: [Product Credit]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/shops/:shopId/product-credits/stats',
+  authenticate,
+  async (req, res) => {
+    try {
+      const orgId = req.user?.organizationId;
+      const shopIdParam = req.params.shopId;
+
+      if (!orgId || !shopIdParam) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization context and shop ID required',
+          error: 'MISSING_CONTEXT',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      const organizationId: string = orgId;
+      const shopId: string = shopIdParam;
+
+      const stats = await productCreditService.getShopProductCreditStats(
+        organizationId,
+        shopId
+      );
+
+      res.json({
+        success: true,
+        message: 'Shop product credit statistics retrieved successfully',
+        data: {
+          ...stats,
+          summary: {
+            ...stats.summary,
+            totalPrincipal: stats.summary.totalPrincipal.toNumber(),
+            totalLoanValue: stats.summary.totalLoanValue.toNumber(),
+            totalProductValue: stats.summary.totalProductValue.toNumber(),
+          },
+          byStatus: stats.byStatus.map(s => ({
+            ...s,
+            totalAmount: s.totalAmount.toNumber(),
+          })),
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Get shop product credit stats error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
 
 export default router;

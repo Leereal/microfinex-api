@@ -25,6 +25,19 @@ import onlineApplicationRoutes from './online-applications.routes';
 import roleRoutes from './roles.routes';
 import auditRoutes from './audit.routes';
 import publicRoutes from './public.routes';
+import uploadRoutes from './uploads.routes';
+import syncRoutes from './sync.routes';
+// Phase 14-19 routes
+import notificationRoutes from './notification.routes';
+import importRoutes from './import.routes';
+import dashboardRoutes from './dashboard.routes';
+import enhancedReportRoutes from './report.routes';
+import branchRoutes from './branch.routes';
+import userManagementRoutes from './user.routes';
+import paymentEnhancementRoutes from './payment-enhancement.routes';
+import loanAdjustmentRoutes from './loan-adjustment.routes';
+// Phase 20 routes
+import securityRoutes from './security.routes';
 
 const router = Router();
 
@@ -53,6 +66,21 @@ router.use(`${apiVersion}/online-applications`, onlineApplicationRoutes);
 router.use(`${apiVersion}/roles`, roleRoutes);
 router.use(`${apiVersion}/audit`, auditRoutes);
 router.use(`${apiVersion}/public`, publicRoutes);
+router.use(`${apiVersion}/uploads`, uploadRoutes);
+router.use(`${apiVersion}/sync`, syncRoutes);
+
+// Phase 14-19 routes
+router.use(`${apiVersion}/notifications`, notificationRoutes);
+router.use(`${apiVersion}/import`, importRoutes);
+router.use(`${apiVersion}/dashboard`, dashboardRoutes);
+router.use(`${apiVersion}/enhanced-reports`, enhancedReportRoutes);
+router.use(`${apiVersion}/branches`, branchRoutes);
+router.use(`${apiVersion}/user-management`, userManagementRoutes);
+router.use(`${apiVersion}/payment-enhancements`, paymentEnhancementRoutes);
+router.use(`${apiVersion}/loan-adjustments`, loanAdjustmentRoutes);
+
+// Phase 20 routes - Security Hardening
+router.use(`${apiVersion}/security`, securityRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

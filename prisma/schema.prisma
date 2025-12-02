@@ -320,6 +320,8 @@ model Loan {
   applicationSource     ApplicationSource    @default(BRANCH)
   onlineApplicationId   String?
   disbursementBranchId  String?
+  syncStatus            SyncStatus           @default(SYNCED)
+  syncVersion           Int                  @default(1)
   createdAt             DateTime             @default(now())
   updatedAt             DateTime             @updatedAt
 
@@ -982,4 +984,79 @@ enum AuditStatus {
   SUCCESS
   FAILURE
   PARTIAL
+}
+
+// ===== OFFLINE SYNC MODELS =====
+
+enum SyncStatus {
+  SYNCED
+  PENDING
+  CONFLICT
+}
+
+enum SyncAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+model SyncQueue {
+  id             String       @id @default(uuid())
+  organizationId String
+  userId         String
+  deviceId       String?
+  entityType     String       // clients, loans, payments, visits, etc.
+  entityId       String
+  action         SyncAction
+  payload        Json         // The data to sync
+  version        Int          @default(1)
+  status         SyncStatus   @default(PENDING)
+  error          String?
+  retryCount     Int          @default(0)
+  createdAt      DateTime     @default(now())
+  syncedAt       DateTime?
+  processedAt    DateTime?
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("sync_queue")
+}
+
+model SyncConflict {
+  id              String       @id @default(uuid())
+  organizationId  String
+  syncQueueId     String
+  entityType      String
+  entityId        String
+  clientVersion   Int
+  serverVersion   Int
+  clientData      Json
+  serverData      Json
+  resolution      String?      // CLIENT_WINS, SERVER_WINS, MERGED, MANUAL
+  resolvedBy      String?
+  resolvedAt      DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([resolution])
+  @@map("sync_conflicts")
+}
+
+model EntityVersion {
+  id             String   @id @default(uuid())
+  organizationId String
+  entityType     String
+  entityId       String
+  version        Int      @default(1)
+  updatedAt      DateTime @default(now())
+  updatedBy      String?
+
+  @@unique([organizationId, entityType, entityId])
+  @@index([organizationId, entityType])
+  @@index([updatedAt])
+  @@map("entity_versions")
 }

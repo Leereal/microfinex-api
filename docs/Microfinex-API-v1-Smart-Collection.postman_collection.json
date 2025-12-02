@@ -4322,6 +4322,560 @@
       ]
     },
     {
+      "name": "📤 File Uploads & Biometrics",
+      "description": "File upload endpoints for client photos, biometrics, loan documents, and visit/pledge images",
+      "item": [
+        {
+          "name": "Upload Client Photo",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Client photo (max 5MB, JPEG/PNG/WebP)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/uploads/clients/{{clientId}}/photo",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "clients", "{{clientId}}", "photo"]
+            },
+            "description": "Upload a profile photo for a client. Replaces existing photo if one exists. Max 5MB."
+          }
+        },
+        {
+          "name": "Upload Client Thumbprint",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Thumbprint image (max 2MB, JPEG/PNG/WebP)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/uploads/clients/{{clientId}}/thumbprint",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "clients", "{{clientId}}", "thumbprint"]
+            },
+            "description": "Upload thumbprint biometric for a client. Replaces existing if one exists. Max 2MB."
+          }
+        },
+        {
+          "name": "Upload Client Signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Signature image (max 1MB, JPEG/PNG/WebP)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/uploads/clients/{{clientId}}/signature",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "clients", "{{clientId}}", "signature"]
+            },
+            "description": "Upload client signature image. Replaces existing if one exists. Max 1MB."
+          }
+        },
+        {
+          "name": "Upload Loan Documents",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "description": "Document files (max 10MB each, PDF/JPEG/PNG/DOC)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/uploads/loans/{{loanId}}/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "loans", "{{loanId}}", "documents"]
+            },
+            "description": "Upload multiple documents for a loan. Supports PDF, images, and Office documents. Max 10MB per file."
+          }
+        },
+        {
+          "name": "Upload Visit Images",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "description": "Visit photos (max 5MB each, JPEG/PNG/WebP)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/uploads/loans/{{loanId}}/visits/{{visitId}}/images",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "loans", "{{loanId}}", "visits", "{{visitId}}", "images"]
+            },
+            "description": "Upload photos taken during a loan visit (home or business verification)."
+          }
+        },
+        {
+          "name": "Upload Pledge Images",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "multipart/form-data" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "description": "Pledge item photos (max 5MB each, JPEG/PNG/WebP)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/uploads/loans/{{loanId}}/pledges/{{pledgeId}}/images",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "loans", "{{loanId}}", "pledges", "{{pledgeId}}", "images"]
+            },
+            "description": "Upload photos of security pledge items (collateral)."
+          }
+        },
+        {
+          "name": "Get Signed URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/signed-url?path=org-id/clients/client-id/photos/file.jpg",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "signed-url"],
+              "query": [
+                { "key": "path", "value": "org-id/clients/client-id/photos/file.jpg" }
+              ]
+            },
+            "description": "Generate a pre-signed URL for accessing a file. URLs expire after 1 hour."
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/delete?path=org-id/clients/client-id/photos/file.jpg",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "delete"],
+              "query": [
+                { "key": "path", "value": "org-id/clients/client-id/photos/file.jpg" }
+              ]
+            },
+            "description": "Delete a file from storage. Requires Manager or Admin role."
+          }
+        },
+        {
+          "name": "List Files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/uploads/list?entityType=clients&entityId={{clientId}}&fileType=PHOTO",
+              "host": ["{{baseUrl}}"],
+              "path": ["uploads", "list"],
+              "query": [
+                { "key": "entityType", "value": "clients" },
+                { "key": "entityId", "value": "{{clientId}}", "disabled": true },
+                { "key": "fileType", "value": "PHOTO", "disabled": true }
+              ]
+            },
+            "description": "List files in storage. Filter by entityType (clients/loans), entityId, and fileType (PHOTO, DOCUMENT, etc.)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔄 Offline Sync",
+      "description": "Offline-first data synchronization endpoints for mobile clients",
+      "item": [
+        {
+          "name": "Get Sync Info",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📋 Supported entities: ' + response.data.supportedEntityTypes.join(', '));",
+                  "        console.log('⚡ Supported actions: ' + response.data.supportedActions.join(', '));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sync/info",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "info"]
+            },
+            "description": "Get sync system configuration including supported entity types, actions, and usage instructions."
+          }
+        },
+        {
+          "name": "Push Changes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.summary) {",
+                  "        console.log('✅ Synced: ' + response.data.summary.synced);",
+                  "        console.log('❌ Failed: ' + response.data.summary.failed);",
+                  "        console.log('⚠️ Conflicts: ' + response.data.summary.conflicts);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"changes\": [\n    {\n      \"entityType\": \"clients\",\n      \"entityId\": \"{{clientId}}\",\n      \"action\": \"UPDATE\",\n      \"payload\": {\n        \"phoneNumber\": \"+263771234567\",\n        \"address\": \"123 New Street\"\n      },\n      \"clientVersion\": 1,\n      \"deviceId\": \"mobile-device-uuid\",\n      \"timestamp\": \"2024-01-15T10:30:00Z\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sync/push",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "push"]
+            },
+            "description": "Push offline changes from mobile client to server. Returns synced, failed, and conflicting changes."
+          }
+        },
+        {
+          "name": "Pull Changes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📥 Changes: ' + response.data.changes.length);",
+                  "        console.log('⏰ Last sync: ' + response.data.lastSync);",
+                  "        console.log('📄 Has more: ' + response.data.hasMore);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sync/pull?lastSync=2024-01-01T00:00:00Z&entityTypes=clients,loans&limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "pull"],
+              "query": [
+                { "key": "lastSync", "value": "2024-01-01T00:00:00Z" },
+                { "key": "entityTypes", "value": "clients,loans", "disabled": true },
+                { "key": "limit", "value": "50", "disabled": true }
+              ]
+            },
+            "description": "Pull incremental changes from server since last sync. Optionally filter by entity types."
+          }
+        },
+        {
+          "name": "Get Pending Conflicts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('⚠️ Pending conflicts: ' + (response.data?.conflicts?.length || 0));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sync/conflicts",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "conflicts"]
+            },
+            "description": "Get list of unresolved sync conflicts for manual resolution."
+          }
+        },
+        {
+          "name": "Resolve Conflicts",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.summary) {",
+                  "        console.log('✅ Resolved: ' + response.data.summary.resolved);",
+                  "        console.log('❌ Failed: ' + response.data.summary.failed);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolutions\": [\n    {\n      \"conflictId\": \"conflict-uuid-here\",\n      \"resolution\": \"CLIENT_WINS\",\n      \"mergedData\": null\n    },\n    {\n      \"conflictId\": \"another-conflict-uuid\",\n      \"resolution\": \"MERGED\",\n      \"mergedData\": {\n        \"phoneNumber\": \"+263771234567\",\n        \"address\": \"Merged address from both versions\"\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/sync/resolve",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "resolve"]
+            },
+            "description": "Resolve sync conflicts. Options: CLIENT_WINS (use client version), SERVER_WINS (use server version), MERGED (provide merged data)."
+          }
+        },
+        {
+          "name": "Get Entity Sync Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sync/status/clients/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["sync", "status", "clients", "{{clientId}}"]
+            },
+            "description": "Get sync status for a specific entity including version, pending changes, and conflict state."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🛍️ Product Credit",
+      "description": "Product credit loan management - loans disbursed to shops for client product purchases",
+      "item": [
+        {
+          "name": "Create Product Credit Loan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.loan) {",
+                  "        pm.collectionVariables.set('loanId', response.data.loan.id);",
+                  "        console.log('✅ Product credit loan created: ' + response.data.loan.id);",
+                  "        console.log('💰 Amount: ' + response.data.loan.amount);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientId}}\",\n  \"shopId\": \"{{shopId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{shopProductId}}\",\n      \"quantity\": 1,\n      \"unitPrice\": 999.99\n    }\n  ],\n  \"downPayment\": 200,\n  \"termInMonths\": 6,\n  \"interestRate\": 15,\n  \"purpose\": \"Purchase of electronics\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loans/product-credit",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans", "product-credit"]
+            },
+            "description": "Create a product credit loan for a client purchasing items from a shop. Amount is calculated from items."
+          }
+        },
+        {
+          "name": "Disburse to Shop",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Funds disbursed to shop');",
+                  "    console.log('📝 Reference: ' + pm.response.json().data?.disbursement?.reference);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disbursementMethod\": \"BANK_TRANSFER\",\n  \"reference\": \"PCL-2024-001\",\n  \"notes\": \"Disbursement to shop for product credit loan\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loans/product-credit/{{loanId}}/disburse",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans", "product-credit", "{{loanId}}", "disburse"]
+            },
+            "description": "Disburse product credit loan funds directly to the shop. Methods: BANK_TRANSFER, MOBILE_MONEY, CHECK"
+          }
+        },
+        {
+          "name": "Get Shop Product Credits",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📋 Shop product credits: ' + (response.data?.loans?.length || 0));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loans/shops/{{shopId}}/product-credits?page=1&limit=20&status=ACTIVE",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans", "shops", "{{shopId}}", "product-credits"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "status", "value": "ACTIVE", "disabled": true }
+              ]
+            },
+            "description": "Get all product credit loans for a specific shop. Optionally filter by status."
+          }
+        },
+        {
+          "name": "Get Shop Product Credit Stats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📊 Total credits: ' + (response.data.totalCredits || 0));",
+                  "        console.log('💰 Total amount: ' + (response.data.totalAmount || 0));",
+                  "        console.log('✅ Active: ' + (response.data.activeCredits || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loans/shops/{{shopId}}/product-credits/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["loans", "shops", "{{shopId}}", "product-credits", "stats"]
+            },
+            "description": "Get product credit statistics for a shop including totals, active loans, and payment status."
+          }
+        }
+      ]
+    },
+    {
       "name": "🔧 System & Health",
       "description": "System health and information endpoints",
       "item": [
@@ -4410,6 +4964,1305 @@
             },
             "description": "Get API information and available endpoints - no authentication required"
           }
+        }
+      ]
+    },
+    {
+      "name": "📧 Notifications",
+      "description": "Notification system endpoints for SMS, Email, and push notifications",
+      "item": [
+        {
+          "name": "Send SMS",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+263771234567\",\n  \"message\": \"Your loan payment of $100 is due tomorrow.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/sms",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "sms"]
+            },
+            "description": "Send an SMS notification to a phone number"
+          }
+        },
+        {
+          "name": "Send Email",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"to\": \"client@example.com\",\n  \"subject\": \"Payment Reminder\",\n  \"html\": \"<p>Your loan payment is due soon.</p>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/email",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "email"]
+            },
+            "description": "Send an email notification"
+          }
+        },
+        {
+          "name": "Get Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "templates"]
+            },
+            "description": "Get all notification templates"
+          }
+        },
+        {
+          "name": "Update Template",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Dear {{clientName}}, your payment of {{amount}} is due on {{dueDate}}.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/templates/:templateId",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "templates", ":templateId"],
+              "variable": [{ "key": "templateId", "value": "payment_reminder" }]
+            },
+            "description": "Update a notification template"
+          }
+        },
+        {
+          "name": "Get Notification Queue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/queue?status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "queue"],
+              "query": [{ "key": "status", "value": "pending" }]
+            },
+            "description": "Get queued notifications by status"
+          }
+        },
+        {
+          "name": "Get Client Preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/preferences/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "preferences", "{{clientId}}"]
+            },
+            "description": "Get notification preferences for a client"
+          }
+        },
+        {
+          "name": "Update Client Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"smsEnabled\": true,\n  \"emailEnabled\": true,\n  \"paymentReminders\": true,\n  \"marketingMessages\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/notifications/preferences/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "preferences", "{{clientId}}"]
+            },
+            "description": "Update notification preferences for a client"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📥 Data Import",
+      "description": "Bulk data import endpoints for clients, loans, and payments",
+      "item": [
+        {
+          "name": "Import Clients",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "description": "Excel or CSV file with client data" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/import/clients",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "clients"]
+            },
+            "description": "Import clients from Excel/CSV file"
+          }
+        },
+        {
+          "name": "Import Loans",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "description": "Excel or CSV file with loan data" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/import/loans",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "loans"]
+            },
+            "description": "Import loans from Excel/CSV file"
+          }
+        },
+        {
+          "name": "Import Payments",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "description": "Excel or CSV file with payment data" }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/import/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "payments"]
+            },
+            "description": "Import payments from Excel/CSV file"
+          }
+        },
+        {
+          "name": "Download Client Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/import/templates/clients",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "templates", "clients"]
+            },
+            "description": "Download Excel template for client import"
+          }
+        },
+        {
+          "name": "Download Loan Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/import/templates/loans",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "templates", "loans"]
+            },
+            "description": "Download Excel template for loan import"
+          }
+        },
+        {
+          "name": "Download Payment Template",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/import/templates/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "templates", "payments"]
+            },
+            "description": "Download Excel template for payment import"
+          }
+        },
+        {
+          "name": "Get Import Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/import/status/:importId",
+              "host": ["{{baseUrl}}"],
+              "path": ["import", "status", ":importId"],
+              "variable": [{ "key": "importId", "value": "" }]
+            },
+            "description": "Get status of an import job"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Dashboard",
+      "description": "Dashboard and analytics endpoints",
+      "item": [
+        {
+          "name": "Get Summary Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "summary"]
+            },
+            "description": "Get summary statistics for the dashboard"
+          }
+        },
+        {
+          "name": "Get Trends",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/trends?period=monthly",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "trends"],
+              "query": [{ "key": "period", "value": "monthly" }]
+            },
+            "description": "Get disbursement and collection trends"
+          }
+        },
+        {
+          "name": "Get Cash Flow",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/cash-flow?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "cash-flow"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-12-31" }
+              ]
+            },
+            "description": "Get cash flow analysis"
+          }
+        },
+        {
+          "name": "Get Alerts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/alerts",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "alerts"]
+            },
+            "description": "Get system alerts and notifications"
+          }
+        },
+        {
+          "name": "Get Officer Performance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/officer-performance",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "officer-performance"]
+            },
+            "description": "Get loan officer performance metrics"
+          }
+        },
+        {
+          "name": "Get Branch Comparison",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/branch-comparison",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "branch-comparison"]
+            },
+            "description": "Get branch comparison metrics"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📈 Enhanced Reports",
+      "description": "Advanced reporting and analytics endpoints",
+      "item": [
+        {
+          "name": "Get PAR Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enhanced-reports/par?asOfDate=2024-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["enhanced-reports", "par"],
+              "query": [{ "key": "asOfDate", "value": "2024-06-30" }]
+            },
+            "description": "Get Portfolio at Risk (PAR) report"
+          }
+        },
+        {
+          "name": "Get Aging Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enhanced-reports/aging?asOfDate=2024-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["enhanced-reports", "aging"],
+              "query": [{ "key": "asOfDate", "value": "2024-06-30" }]
+            },
+            "description": "Get loan aging report"
+          }
+        },
+        {
+          "name": "Get Disbursement Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enhanced-reports/disbursements?startDate=2024-01-01&endDate=2024-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["enhanced-reports", "disbursements"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-06-30" }
+              ]
+            },
+            "description": "Get disbursement report for a date range"
+          }
+        },
+        {
+          "name": "Get Collections Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enhanced-reports/collections?startDate=2024-01-01&endDate=2024-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["enhanced-reports", "collections"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-06-30" }
+              ]
+            },
+            "description": "Get collections report for a date range"
+          }
+        },
+        {
+          "name": "Get Portfolio Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enhanced-reports/portfolio?asOfDate=2024-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["enhanced-reports", "portfolio"],
+              "query": [{ "key": "asOfDate", "value": "2024-06-30" }]
+            },
+            "description": "Get comprehensive portfolio report"
+          }
+        },
+        {
+          "name": "Export PAR to Excel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enhanced-reports/par/export?asOfDate=2024-06-30&format=excel",
+              "host": ["{{baseUrl}}"],
+              "path": ["enhanced-reports", "par", "export"],
+              "query": [
+                { "key": "asOfDate", "value": "2024-06-30" },
+                { "key": "format", "value": "excel" }
+              ]
+            },
+            "description": "Export PAR report to Excel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🏢 Branch Management",
+      "description": "Branch CRUD and management endpoints",
+      "item": [
+        {
+          "name": "List Branches",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.branches && response.data.branches.length > 0) {",
+                  "        pm.collectionVariables.set('branchId', response.data.branches[0].id);",
+                  "        console.log('✅ First branch ID set: ' + response.data.branches[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "List all branches with pagination"
+          }
+        },
+        {
+          "name": "Get Branch by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}"]
+            },
+            "description": "Get a specific branch by ID"
+          }
+        },
+        {
+          "name": "Create Branch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.id) {",
+                  "        pm.collectionVariables.set('branchId', response.data.id);",
+                  "        console.log('✅ New branch ID set: ' + response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Branch\",\n  \"code\": \"MB001\",\n  \"address\": \"123 Main Street, Harare\",\n  \"phone\": \"+263771234567\",\n  \"email\": \"mainbranch@microfinex.com\",\n  \"managerId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches"]
+            },
+            "description": "Create a new branch"
+          }
+        },
+        {
+          "name": "Update Branch",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Main Branch Updated\",\n  \"address\": \"456 Updated Street, Harare\",\n  \"phone\": \"+263779876543\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}"]
+            },
+            "description": "Update a branch"
+          }
+        },
+        {
+          "name": "Delete Branch",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}"]
+            },
+            "description": "Delete a branch (soft delete)"
+          }
+        },
+        {
+          "name": "Get Branch Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "stats"]
+            },
+            "description": "Get statistics for a specific branch"
+          }
+        },
+        {
+          "name": "Get Branch Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "users"]
+            },
+            "description": "Get users assigned to a branch"
+          }
+        },
+        {
+          "name": "Get Branch Loans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/loans",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "loans"]
+            },
+            "description": "Get loans in a branch"
+          }
+        }
+      ]
+    },
+    {
+      "name": "👔 User Administration",
+      "description": "Advanced user management and role assignment endpoints",
+      "item": [
+        {
+          "name": "List System Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user-management?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            },
+            "description": "List all system users with pagination"
+          }
+        },
+        {
+          "name": "Get User Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user-management/{{targetUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management", "{{targetUserId}}"]
+            },
+            "description": "Get detailed user information"
+          }
+        },
+        {
+          "name": "Create System User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@microfinex.com\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"New\",\n  \"lastName\": \"User\",\n  \"role\": \"LOAN_OFFICER\",\n  \"branchId\": \"{{branchId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user-management",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management"]
+            },
+            "description": "Create a new system user"
+          }
+        },
+        {
+          "name": "Update User Roles",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"MANAGER\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user-management/{{targetUserId}}/roles",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management", "{{targetUserId}}", "roles"]
+            },
+            "description": "Update user role"
+          }
+        },
+        {
+          "name": "Update User Permissions",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"permissions\": [\"view_loans\", \"create_loans\", \"approve_loans\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user-management/{{targetUserId}}/permissions",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management", "{{targetUserId}}", "permissions"]
+            },
+            "description": "Update user permissions"
+          }
+        },
+        {
+          "name": "Update User Status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/user-management/{{targetUserId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management", "{{targetUserId}}", "status"]
+            },
+            "description": "Activate or deactivate a user"
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/user-management/{{targetUserId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["user-management", "{{targetUserId}}"]
+            },
+            "description": "Delete a system user"
+          }
+        }
+      ]
+    },
+    {
+      "name": "💳 Payment Enhancements",
+      "description": "Advanced payment operations including reversals and allocation strategies",
+      "item": [
+        {
+          "name": "Reverse Payment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Duplicate payment - entered in error\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-enhancements/{{paymentId}}/reverse",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment-enhancements", "{{paymentId}}", "reverse"]
+            },
+            "description": "Reverse a payment with reason"
+          }
+        },
+        {
+          "name": "Calculate Payment Allocation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanId\": \"{{loanId}}\",\n  \"amount\": 500,\n  \"strategy\": \"PENALTY_INTEREST_PRINCIPAL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-enhancements/calculate-allocation",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment-enhancements", "calculate-allocation"]
+            },
+            "description": "Preview payment allocation without applying. Strategies: PENALTY_INTEREST_PRINCIPAL, PRINCIPAL_INTEREST_PENALTY, PRO_RATA, OLDEST_FIRST"
+          }
+        },
+        {
+          "name": "Get Branch Payment Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-enhancements/branch-summary/{{branchId}}?startDate=2024-01-01&endDate=2024-06-30",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment-enhancements", "branch-summary", "{{branchId}}"],
+              "query": [
+                { "key": "startDate", "value": "2024-01-01" },
+                { "key": "endDate", "value": "2024-06-30" }
+              ]
+            },
+            "description": "Get payment summary for a branch"
+          }
+        },
+        {
+          "name": "Calculate Early Payoff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payment-enhancements/early-payoff/{{loanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment-enhancements", "early-payoff", "{{loanId}}"]
+            },
+            "description": "Calculate early payoff amount for a loan"
+          }
+        },
+        {
+          "name": "Process Payroll Deductions",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employerId\": \"{{employerId}}\",\n  \"payrollDate\": \"2024-06-30\",\n  \"deductions\": [\n    { \"employeeId\": \"EMP001\", \"loanId\": \"{{loanId}}\", \"amount\": 200 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payment-enhancements/payroll-deductions",
+              "host": ["{{baseUrl}}"],
+              "path": ["payment-enhancements", "payroll-deductions"]
+            },
+            "description": "Process bulk payroll deductions for an employer"
+          }
+        }
+      ]
+    },
+    {
+      "name": "📝 Loan Adjustments",
+      "description": "Loan adjustment endpoints including writeoffs and rescheduling",
+      "item": [
+        {
+          "name": "Get Loan Adjustments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-adjustments/{{loanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-adjustments", "{{loanId}}"]
+            },
+            "description": "Get all adjustments for a loan"
+          }
+        },
+        {
+          "name": "Create Loan Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanId\": \"{{loanId}}\",\n  \"adjustmentType\": \"INTEREST_WAIVER\",\n  \"amount\": 50,\n  \"reason\": \"Goodwill gesture for long-term client\",\n  \"effectiveDate\": \"2024-06-30\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-adjustments",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-adjustments"]
+            },
+            "description": "Create a manual loan adjustment"
+          }
+        },
+        {
+          "name": "Writeoff Loan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Uncollectable - client deceased\",\n  \"writeoffType\": \"FULL\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-adjustments/{{loanId}}/writeoff",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-adjustments", "{{loanId}}", "writeoff"]
+            },
+            "description": "Write off a loan (full or partial)"
+          }
+        },
+        {
+          "name": "Reschedule Loan",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTermMonths\": 12,\n  \"newInterestRate\": 15,\n  \"newStartDate\": \"2024-07-01\",\n  \"reason\": \"Client requested payment plan modification\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-adjustments/{{loanId}}/reschedule",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-adjustments", "{{loanId}}", "reschedule"]
+            },
+            "description": "Reschedule a loan with new terms"
+          }
+        },
+        {
+          "name": "Preview Writeoff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-adjustments/{{loanId}}/writeoff/preview",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-adjustments", "{{loanId}}", "writeoff", "preview"]
+            },
+            "description": "Preview writeoff impact without applying"
+          }
+        },
+        {
+          "name": "Preview Reschedule",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTermMonths\": 12,\n  \"newInterestRate\": 15,\n  \"newStartDate\": \"2024-07-01\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-adjustments/{{loanId}}/reschedule/preview",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-adjustments", "{{loanId}}", "reschedule", "preview"]
+            },
+            "description": "Preview new repayment schedule before applying"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔐 Security",
+      "description": "Security hardening endpoints - Email verification, password policies, sessions, rate limiting, API key IP whitelisting",
+      "item": [
+        {
+          "name": "Email Verification",
+          "item": [
+            {
+              "name": "Send Verification Email",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/email/verify/send",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "email", "verify", "send"]
+                },
+                "description": "Send email verification link to authenticated user"
+              }
+            },
+            {
+              "name": "Verify Email Token",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"token\": \"{{verificationToken}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/email/verify",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "email", "verify"]
+                },
+                "description": "Verify email with token from verification link"
+              }
+            },
+            {
+              "name": "Resend Verification",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/email/verify/resend",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "email", "verify", "resend"]
+                },
+                "description": "Resend verification email (rate limited)"
+              }
+            },
+            {
+              "name": "Get Verification Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/email/verify/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "email", "verify", "status"]
+                },
+                "description": "Get email verification status for authenticated user"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Password Policy",
+          "item": [
+            {
+              "name": "Get Password Policy",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/password/policy?organizationId={{organizationId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "password", "policy"],
+                  "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+                },
+                "description": "Get password requirements and policy"
+              }
+            },
+            {
+              "name": "Validate Password Strength",
+              "request": {
+                "auth": { "type": "noauth" },
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"password\": \"SecurePassword123!\",\n  \"organizationId\": \"{{organizationId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/password/validate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "password", "validate"]
+                },
+                "description": "Validate password against policy (returns strength score)"
+              }
+            },
+            {
+              "name": "Check Password Expiration",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/password/expiration",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "password", "expiration"]
+                },
+                "description": "Check if password has expired or will expire soon"
+              }
+            },
+            {
+              "name": "Change Password",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"currentPassword\": \"OldPassword123!\",\n  \"newPassword\": \"NewSecurePassword456!\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/password/change",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "password", "change"]
+                },
+                "description": "Change password with policy validation and history check"
+              }
+            },
+            {
+              "name": "Update Password Policy (Admin)",
+              "request": {
+                "method": "PUT",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"policy\": {\n    \"minLength\": 10,\n    \"requireUppercase\": true,\n    \"requireLowercase\": true,\n    \"requireNumbers\": true,\n    \"requireSpecialChars\": true,\n    \"maxAgeDays\": 60,\n    \"preventReuse\": 5\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/password/policy",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "password", "policy"]
+                },
+                "description": "Update organization password policy (Admin only)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Session Management",
+          "item": [
+            {
+              "name": "Get Active Sessions",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions"]
+                },
+                "description": "Get all active sessions for current user"
+              }
+            },
+            {
+              "name": "Terminate Session",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/{{sessionId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "{{sessionId}}"]
+                },
+                "description": "Terminate a specific session"
+              }
+            },
+            {
+              "name": "Logout Other Sessions",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"currentSessionId\": \"{{sessionId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/logout-others",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "logout-others"]
+                },
+                "description": "Terminate all other sessions except current"
+              }
+            },
+            {
+              "name": "Logout All Sessions",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/logout-all",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "logout-all"]
+                },
+                "description": "Terminate all sessions (full logout)"
+              }
+            },
+            {
+              "name": "Force Logout User (Admin)",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Security concern - suspicious activity\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/force-logout/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "force-logout", "{{userId}}"]
+                },
+                "description": "Force logout a user from all devices (Admin only)"
+              }
+            },
+            {
+              "name": "Get Session Config",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/config",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "config"]
+                },
+                "description": "Get session management configuration"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rate Limiting",
+          "item": [
+            {
+              "name": "Get Rate Limit Status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/rate-limit/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "rate-limit", "status"]
+                },
+                "description": "Get current rate limit status for authenticated user"
+              }
+            },
+            {
+              "name": "Get All Rate Limits (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/rate-limit/all",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "rate-limit", "all"]
+                },
+                "description": "Get all rate limit entries (Admin only)"
+              }
+            },
+            {
+              "name": "Reset User Rate Limit (Admin)",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/rate-limit/reset/{{userId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "rate-limit", "reset", "{{userId}}"]
+                },
+                "description": "Reset rate limit for a specific user (Admin only)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "API Key IP Whitelist",
+          "item": [
+            {
+              "name": "Get API Key Whitelist",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist"]
+                },
+                "description": "Get all whitelisted IPs for an API key"
+              }
+            },
+            {
+              "name": "Add IP to Whitelist",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ipAddress\": \"192.168.1.100\",\n  \"cidr\": 32,\n  \"description\": \"Office network\",\n  \"expiresAt\": \"2025-12-31T23:59:59Z\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist"]
+                },
+                "description": "Add an IP address to API key whitelist"
+              }
+            },
+            {
+              "name": "Remove IP from Whitelist",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist/{{whitelistEntryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist", "{{whitelistEntryId}}"]
+                },
+                "description": "Remove an IP from API key whitelist"
+              }
+            },
+            {
+              "name": "Toggle IP Whitelisting",
+              "request": {
+                "method": "PATCH",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"enabled\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist/toggle",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist", "toggle"]
+                },
+                "description": "Enable or disable IP whitelisting for an API key"
+              }
+            },
+            {
+              "name": "Bulk Add IPs",
+              "request": {
+                "method": "POST",
+                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"ips\": [\n    { \"ipAddress\": \"10.0.0.0\", \"cidr\": 8, \"description\": \"Internal network\" },\n    { \"ipAddress\": \"192.168.1.0\", \"cidr\": 24, \"description\": \"Office subnet\" }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist/bulk",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist", "bulk"]
+                },
+                "description": "Add multiple IPs to whitelist at once"
+              }
+            },
+            {
+              "name": "Clear Whitelist (Admin)",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist"]
+                },
+                "description": "Clear all whitelist entries for an API key (Admin only)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Security Audit",
+          "item": [
+            {
+              "name": "Get Audit Logs",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/audit?page=1&limit=50&action=LOGIN_FAILED",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "audit"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "50" },
+                    { "key": "action", "value": "LOGIN_FAILED" }
+                  ]
+                },
+                "description": "Get security audit logs with filtering"
+              }
+            },
+            {
+              "name": "Get Security Events Summary",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/events/summary?days=7",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "events", "summary"],
+                  "query": [{ "key": "days", "value": "7" }]
+                },
+                "description": "Get summary of security events for the specified period"
+              }
+            }
+          ]
         }
       ]
     }

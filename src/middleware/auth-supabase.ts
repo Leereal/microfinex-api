@@ -5,6 +5,10 @@ import {
   getUserWithContext,
 } from '../config/supabase-enhanced';
 import { UserRole } from '../types';
+import { validateApiKeyIP } from './api-key-ip-whitelist.middleware';
+import { userRateLimit } from './rate-limit.middleware';
+import { passwordPolicyService } from '../services/security/password-policy.service';
+import { sessionManagementService } from '../services/security/session-management.service';
 
 // User context interface
 export interface UserContext {
@@ -83,6 +87,25 @@ export const authenticateSupabase = async (
       supabaseUser,
       appUser,
     };
+
+    // Also set on req.user for compatibility with other middleware
+    (req as any).user = {
+      id: supabaseUser.id,
+      email: supabaseUser.email || '',
+      role: appUser.role as UserRole,
+      organizationId: appUser.organizationId,
+      isEmailVerified: appUser.isEmailVerified || false,
+    };
+
+    // Check password expiration (optional warning, not blocking)
+    const passwordCheck = await passwordPolicyService.isPasswordExpired(supabaseUser.id);
+    if (!passwordCheck.success && passwordCheck.error === 'PASSWORD_EXPIRED') {
+      res.setHeader('X-Password-Expired', 'true');
+      res.setHeader('X-Password-Expired-Message', 'Your password has expired. Please change it.');
+    } else if (passwordCheck.data?.warningThreshold) {
+      res.setHeader('X-Password-Expires-Soon', 'true');
+      res.setHeader('X-Password-Days-Until-Expiry', passwordCheck.data.daysUntilExpiry);
+    }
 
     // Update last login timestamp
     await supabaseAdmin
@@ -224,6 +247,43 @@ export const authenticateApiKey = async (
       },
     };
 
+    // Set on req.apiKey for IP whitelist middleware
+    (req as any).apiKey = {
+      id: apiKeyRecord.id,
+      organizationId: apiKeyRecord.organizationId,
+      rateLimit: apiKeyRecord.rateLimit,
+      settings: apiKeyRecord.settings || {},
+    };
+
+    // Validate IP whitelist for API key
+    const clientIP = req.ip || req.socket.remoteAddress || '';
+    if (apiKeyRecord.settings?.ipWhitelistEnabled) {
+      const { apiKeyIPWhitelistService } = await import('./api-key-ip-whitelist.middleware');
+      const ipValidation = await apiKeyIPWhitelistService.validateIP(apiKeyRecord.id, clientIP);
+      
+      if (!ipValidation.allowed) {
+        // Log blocked access attempt
+        await supabaseAdmin.from('audit_logs').insert({
+          action: 'API_KEY_IP_BLOCKED',
+          resource: 'api_keys',
+          resourceId: apiKeyRecord.id,
+          newValue: {
+            ip: clientIP,
+            reason: ipValidation.reason,
+            path: req.path,
+          },
+        });
+
+        res.status(403).json({
+          success: false,
+          message: 'Access denied: IP address not whitelisted for this API key',
+          error: 'IP_NOT_ALLOWED',
+          timestamp: new Date().toISOString(),
+        });
+        return;
+      }
+    }
+
     // Update API key usage
     await supabaseAdmin
       .from('api_keys')
@@ -272,3 +332,58 @@ export const authenticate = async (
 
 // Re-export for backward compatibility
 export const authorize = authorizeSupabase;
+
+/**
+ * Email verification required middleware
+ */
+export const requireEmailVerification = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void => {
+  const user = (req as any).user || req.userContext;
+  
+  if (!user) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      error: 'UNAUTHORIZED',
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const isVerified = user.isEmailVerified || user.appUser?.isEmailVerified;
+  
+  if (!isVerified) {
+    res.status(403).json({
+      success: false,
+      message: 'Email verification required. Please verify your email to access this resource.',
+      error: 'EMAIL_NOT_VERIFIED',
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  next();
+};
+
+/**
+ * Combined security middleware that applies rate limiting and authentication
+ */
+export const secureRoute = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  // First apply rate limiting
+  await new Promise<void>((resolve, reject) => {
+    userRateLimit(req, res, (err?: any) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+
+  // Then authenticate
+  await authenticate(req, res, next);
+};
