@@ -1,7 +1,7 @@
 import { supabase, supabaseAdmin } from '../config/supabase-enhanced';
-import { hashPassword } from '../utils/auth';
+import { hashPassword, generateToken } from '../utils/auth';
 import { generateApiKey } from '../utils/security';
-import { UserRole } from '../types';
+import { UserRole, ApiTier } from '../types';
 import { prisma } from '../config/database';
 
 export interface LoginInput {
@@ -112,6 +112,16 @@ class AuthService {
       .update({ lastLoginAt: new Date().toISOString() })
       .eq('id', user.id);
 
+    // Generate our own JWT token for API authentication
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role as UserRole,
+      organizationId: user.organization?.id,
+      permissions: user.permissions || [],
+      tier: (user.organization?.apiTier as ApiTier) || ApiTier.BASIC,
+    });
+
     return {
       success: true,
       message: 'Login successful',
@@ -125,7 +135,7 @@ class AuthService {
           organization: user.organization,
           lastLoginAt: user.lastLoginAt,
         },
-        token: authData.session?.access_token,
+        token: token,
       },
     };
   }
