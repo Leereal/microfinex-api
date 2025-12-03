@@ -417,7 +417,10 @@ class AuthService {
 
     // Create organization with isActive=false (pending approval)
     // Map organization type to valid enum values
-    const typeMap: Record<string, 'MICROFINANCE' | 'BANK' | 'CREDIT_UNION' | 'COOPERATIVE'> = {
+    const typeMap: Record<
+      string,
+      'MICROFINANCE' | 'BANK' | 'CREDIT_UNION' | 'COOPERATIVE'
+    > = {
       MICROFINANCE: 'MICROFINANCE',
       BANK: 'BANK',
       CREDIT_UNION: 'CREDIT_UNION',
@@ -427,7 +430,7 @@ class AuthService {
       OTHER: 'MICROFINANCE',
     };
     const mappedType = typeMap[organization.type] || 'MICROFINANCE';
-    
+
     const newOrg = await prisma.organization.create({
       data: {
         name: organization.name,
