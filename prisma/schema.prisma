@@ -858,9 +858,14 @@ enum OrganizationType {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
+  ORG_ADMIN
   MANAGER
+  LOAN_OFFICER
+  ACCOUNTANT
+  TELLER
   STAFF
   CLIENT
+  API_CLIENT
 }
 
 enum ClientType {

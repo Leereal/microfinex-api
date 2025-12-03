@@ -82,6 +82,140 @@ class AuthController {
   }
 
   /**
+   * Organization registration with first admin user
+   * POST /api/v1/auth/register-organization
+   */
+  async registerOrganization(req: Request, res: Response) {
+    try {
+      const { organization, admin } = req.body;
+
+      const result = await authService.registerOrganization({
+        organization,
+        admin,
+      });
+
+      if (!result.success) {
+        const statusCode =
+          result.error === 'ORG_EXISTS' ||
+          result.error === 'USER_EXISTS' ||
+          result.error === 'ORG_REG_EXISTS'
+            ? 409
+            : 400;
+        return res.status(statusCode).json({
+          ...result,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.status(201).json({
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Organization registration error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Approve organization
+   * POST /api/v1/auth/organizations/:id/approve
+   */
+  async approveOrganization(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+
+      const result = await authService.approveOrganization(id);
+
+      if (!result.success) {
+        const statusCode =
+          result.error === 'ORG_NOT_FOUND' || result.error === 'NO_USERS'
+            ? 404
+            : 400;
+        return res.status(statusCode).json({
+          ...result,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Approve organization error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Reject organization
+   * POST /api/v1/auth/organizations/:id/reject
+   */
+  async rejectOrganization(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+
+      const result = await authService.rejectOrganization(id, reason);
+
+      if (!result.success) {
+        const statusCode = result.error === 'ORG_NOT_FOUND' ? 404 : 400;
+        return res.status(statusCode).json({
+          ...result,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Reject organization error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Get pending organizations
+   * GET /api/v1/auth/organizations/pending
+   */
+  async getPendingOrganizations(req: Request, res: Response) {
+    try {
+      const result = await authService.getPendingOrganizations();
+
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get pending organizations error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
    * User logout
    * POST /api/v1/auth/logout
    */

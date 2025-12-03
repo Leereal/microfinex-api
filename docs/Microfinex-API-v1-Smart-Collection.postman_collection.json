@@ -97,6 +97,11 @@
       "description": "Current branch ID"
     },
     {
+      "key": "pendingOrganizationId",
+      "value": "",
+      "description": "ID of pending organization for approval/rejection"
+    },
+    {
       "key": "productId",
       "value": "",
       "description": "Loan product ID"
@@ -402,6 +407,225 @@
               "path": ["auth", "register"]
             },
             "description": "Register a new user. Automatically populates user variables and tokens if returned."
+          }
+        },
+        {
+          "name": "Register Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Handle organization registration response",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    ",
+                  "    if (response.success && response.data) {",
+                  "        // Set organization info for reference",
+                  "        if (response.data.organization) {",
+                  "            pm.collectionVariables.set('pendingOrganizationId', response.data.organization.id);",
+                  "            console.log('✅ Organization registration submitted');",
+                  "            console.log('🏢 Organization: ' + response.data.organization.name);",
+                  "            console.log('📋 Status: ' + response.data.organization.status);",
+                  "            console.log('📧 Pending approval notification will be sent to: ' + response.data.organization.email);",
+                  "        }",
+                  "        ",
+                  "        if (response.data.user) {",
+                  "            console.log('👤 Admin user created: ' + response.data.user.email);",
+                  "            console.log('⏳ User account is pending organization approval');",
+                  "        }",
+                  "    }",
+                  "}",
+                  "",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Organization registration submitted', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('organization');",
+                  "    pm.expect(jsonData.data).to.have.property('user');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organization\": {\n    \"name\": \"Test Microfinance Ltd\",\n    \"type\": \"MICROFINANCE\",\n    \"email\": \"contact@testmfi.com\",\n    \"phone\": \"+1234567890\",\n    \"address\": \"123 Finance Street, Business District\",\n    \"registrationNumber\": \"REG-2024-001\",\n    \"licenseNumber\": \"LIC-MFI-001\",\n    \"website\": \"https://testmfi.com\"\n  },\n  \"admin\": {\n    \"firstName\": \"John\",\n    \"lastName\": \"Admin\",\n    \"email\": \"john.admin@testmfi.com\",\n    \"phone\": \"+1234567891\",\n    \"password\": \"SecurePass@123\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register-organization",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register-organization"]
+            },
+            "description": "🏢 **ORGANIZATION REGISTRATION**\\n\\nRegister a new organization with its first admin user. The organization will be created with pending status and requires SUPER_ADMIN approval.\\n\\n**What it does:**\\n✅ Creates a new organization (inactive/pending)\\n✅ Creates the first admin user (inactive)\\n✅ Both will be activated upon approval\\n\\n**Organization Fields:**\\n- name: Organization name (required, unique)\\n- type: MICROFINANCE, SACCO, BANK, CREDIT_UNION, FINTECH, OTHER\\n- email: Organization email (required, unique)\\n- phone: Contact phone\\n- address: Physical address\\n- registrationNumber: Business registration number\\n- licenseNumber: Operating license number\\n- website: Organization website\\n\\n**Admin User Fields:**\\n- firstName, lastName: Admin name (required)\\n- email: Admin email (required, unique)\\n- phone: Admin phone\\n- password: Secure password (min 8 chars, 1 uppercase, 1 number, 1 special char)\\n\\n**After Registration:**\\n- Organization status: PENDING_APPROVAL\\n- Admin role: STAFF (promoted to ORG_ADMIN upon approval)\\n- Both accounts inactive until approval"
+          }
+        },
+        {
+          "name": "Get Pending Organizations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Pending organizations retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData.data).to.have.property('organizations');",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.organizations) {",
+                  "        const orgs = response.data.organizations;",
+                  "        console.log('📋 Pending organizations: ' + orgs.length);",
+                  "        orgs.forEach((org, index) => {",
+                  "            console.log('');",
+                  "            console.log('🏢 ' + (index + 1) + '. ' + org.name);",
+                  "            console.log('   📧 Email: ' + org.email);",
+                  "            console.log('   📅 Registered: ' + new Date(org.createdAt).toLocaleDateString());",
+                  "            if (org.pendingAdmin) {",
+                  "                console.log('   👤 Admin: ' + org.pendingAdmin.firstName + ' ' + org.pendingAdmin.lastName);",
+                  "            }",
+                  "        });",
+                  "        ",
+                  "        // Store first pending org ID for approval/rejection",
+                  "        if (orgs.length > 0) {",
+                  "            pm.collectionVariables.set('pendingOrganizationId', orgs[0].id);",
+                  "            console.log('');",
+                  "            console.log('📌 First pending org ID set to pendingOrganizationId variable');",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/organizations/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "organizations", "pending"]
+            },
+            "description": "📋 **GET PENDING ORGANIZATIONS** (SUPER_ADMIN only)\\n\\nRetrieve all organizations that are pending approval.\\n\\n**Response includes:**\\n- Organization details (name, email, type, etc.)\\n- Pending admin user information\\n- Registration date\\n- User count\\n\\n**Auto-population:**\\n- First pending org ID is set to `pendingOrganizationId` variable"
+          }
+        },
+        {
+          "name": "Approve Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Organization approved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('✅ Organization approved successfully!');",
+                  "        if (response.data.organization) {",
+                  "            console.log('🏢 Organization: ' + response.data.organization.name);",
+                  "            console.log('📧 Email: ' + response.data.organization.email);",
+                  "            console.log('🔓 Status: Active');",
+                  "        }",
+                  "        if (response.data.admin) {",
+                  "            console.log('👤 Admin promoted: ' + response.data.admin.email);",
+                  "            console.log('🎭 New role: ' + response.data.admin.role);",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/organizations/{{pendingOrganizationId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "organizations", "{{pendingOrganizationId}}", "approve"]
+            },
+            "description": "✅ **APPROVE ORGANIZATION** (SUPER_ADMIN only)\\n\\nApprove a pending organization registration.\\n\\n**What it does:**\\n✅ Activates the organization (isActive = true)\\n✅ Promotes the first user to ORG_ADMIN role\\n✅ Activates the admin user account\\n✅ Enables the organization to start operations\\n\\n**Prerequisites:**\\n- Must be logged in as SUPER_ADMIN\\n- Organization must be in pending state\\n- Use `pendingOrganizationId` variable or replace with actual ID"
+          }
+        },
+        {
+          "name": "Reject Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Organization rejected', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('❌ Organization registration rejected');",
+                  "    if (response.data && response.data.reason) {",
+                  "        console.log('📝 Reason: ' + response.data.reason);",
+                  "    }",
+                  "    // Clear the pending org ID",
+                  "    pm.collectionVariables.set('pendingOrganizationId', '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Incomplete documentation provided\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/organizations/{{pendingOrganizationId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "organizations", "{{pendingOrganizationId}}", "reject"]
+            },
+            "description": "❌ **REJECT ORGANIZATION** (SUPER_ADMIN only)\\n\\nReject a pending organization registration.\\n\\n**What it does:**\\n❌ Deletes the organization record\\n❌ Deletes associated admin user from auth and database\\n❌ Permanently removes all registration data\\n\\n**Request Body:**\\n- reason: Optional rejection reason (will be logged)\\n\\n**Prerequisites:**\\n- Must be logged in as SUPER_ADMIN\\n- Organization must be in pending state\\n- Cannot reject an already active organization"
           }
         },
         {
