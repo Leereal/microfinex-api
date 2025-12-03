@@ -4,11 +4,12 @@ import {
   supabaseAdmin,
   getUserWithContext,
 } from '../config/supabase-enhanced';
-import { UserRole } from '../types';
+import { UserRole, JWTPayload } from '../types';
 import { validateApiKeyIP } from './api-key-ip-whitelist.middleware';
 import { userRateLimit } from './rate-limit.middleware';
 import { passwordPolicyService } from '../services/security/password-policy.service';
 import { sessionManagementService } from '../services/security/session-management.service';
+import { verifyToken } from '../utils/auth';
 
 // User context interface
 export interface UserContext {
@@ -31,6 +32,7 @@ declare global {
 
 /**
  * Enhanced authentication middleware for Supabase integration
+ * Now supports both Supabase tokens and custom JWT tokens
  */
 export const authenticateSupabase = async (
   req: Request,
@@ -52,8 +54,36 @@ export const authenticateSupabase = async (
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Verify token with Supabase and get user context
-    const userContext = await getUserWithContext(token);
+    // First, try to verify as our custom JWT token
+    let userContext = null;
+    let jwtPayload: JWTPayload | null = null;
+
+    try {
+      jwtPayload = verifyToken(token);
+      // If custom JWT verification succeeds, get user from database
+      if (jwtPayload && jwtPayload.userId) {
+        const { data: userData, error } = await supabaseAdmin
+          .from('users')
+          .select(
+            `
+            *,
+            organization:organizations(*)
+          `
+          )
+          .eq('id', jwtPayload.userId)
+          .single();
+
+        if (!error && userData) {
+          userContext = {
+            supabaseUser: { id: jwtPayload.userId, email: jwtPayload.email },
+            appUser: userData,
+          };
+        }
+      }
+    } catch (jwtError) {
+      // Custom JWT verification failed, try Supabase token
+      userContext = await getUserWithContext(token);
+    }
 
     if (!userContext) {
       res.status(401).json({
@@ -98,13 +128,21 @@ export const authenticateSupabase = async (
     };
 
     // Check password expiration (optional warning, not blocking)
-    const passwordCheck = await passwordPolicyService.isPasswordExpired(supabaseUser.id);
+    const passwordCheck = await passwordPolicyService.isPasswordExpired(
+      supabaseUser.id
+    );
     if (!passwordCheck.success && passwordCheck.error === 'PASSWORD_EXPIRED') {
       res.setHeader('X-Password-Expired', 'true');
-      res.setHeader('X-Password-Expired-Message', 'Your password has expired. Please change it.');
+      res.setHeader(
+        'X-Password-Expired-Message',
+        'Your password has expired. Please change it.'
+      );
     } else if (passwordCheck.data?.warningThreshold) {
       res.setHeader('X-Password-Expires-Soon', 'true');
-      res.setHeader('X-Password-Days-Until-Expiry', passwordCheck.data.daysUntilExpiry);
+      res.setHeader(
+        'X-Password-Days-Until-Expiry',
+        passwordCheck.data.daysUntilExpiry
+      );
     }
 
     // Update last login timestamp
@@ -258,9 +296,14 @@ export const authenticateApiKey = async (
     // Validate IP whitelist for API key
     const clientIP = req.ip || req.socket.remoteAddress || '';
     if (apiKeyRecord.settings?.ipWhitelistEnabled) {
-      const { apiKeyIPWhitelistService } = await import('./api-key-ip-whitelist.middleware');
-      const ipValidation = await apiKeyIPWhitelistService.validateIP(apiKeyRecord.id, clientIP);
-      
+      const { apiKeyIPWhitelistService } = await import(
+        './api-key-ip-whitelist.middleware'
+      );
+      const ipValidation = await apiKeyIPWhitelistService.validateIP(
+        apiKeyRecord.id,
+        clientIP
+      );
+
       if (!ipValidation.allowed) {
         // Log blocked access attempt
         await supabaseAdmin.from('audit_logs').insert({
@@ -342,7 +385,7 @@ export const requireEmailVerification = (
   next: NextFunction
 ): void => {
   const user = (req as any).user || req.userContext;
-  
+
   if (!user) {
     res.status(401).json({
       success: false,
@@ -354,11 +397,12 @@ export const requireEmailVerification = (
   }
 
   const isVerified = user.isEmailVerified || user.appUser?.isEmailVerified;
-  
+
   if (!isVerified) {
     res.status(403).json({
       success: false,
-      message: 'Email verification required. Please verify your email to access this resource.',
+      message:
+        'Email verification required. Please verify your email to access this resource.',
       error: 'EMAIL_NOT_VERIFIED',
       timestamp: new Date().toISOString(),
     });

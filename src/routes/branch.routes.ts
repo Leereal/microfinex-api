@@ -6,8 +6,16 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authenticateToken, requirePermission } from '../middleware/auth.middleware';
-import { validateRequest, handleAsync } from '../middleware/validation.middleware';
+import {
+  authenticateToken,
+  requirePermission,
+} from '../middleware/auth.middleware';
+import {
+  validateRequest,
+  validateQuery,
+  validateFullRequest,
+  handleAsync,
+} from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -21,42 +29,52 @@ router.use(authenticateToken);
  * Create a new branch
  * POST /api/branches
  */
-const createBranchSchema = z.object({
-  body: z.object({
-    name: z.string().min(2, 'Branch name required'),
-    code: z.string().min(2).max(10),
-    address: z.string().optional(),
-    city: z.string().optional(),
-    phone: z.string().optional(),
-    email: z.string().email().optional().or(z.literal('')),
-    managerId: z.string().uuid().optional(),
-    isActive: z.boolean().default(true),
-    metadata: z.record(z.any()).optional(),
-  }),
+const createBranchBodySchema = z.object({
+  name: z.string().min(2, 'Branch name required'),
+  code: z.string().max(10).optional().default(''),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  managerId: z.string().uuid().optional(),
+  isActive: z.boolean().default(true),
+  metadata: z.record(z.any()).optional(),
 });
 
 router.post(
   '/',
   requirePermission('branch:create'),
-  validateRequest(createBranchSchema),
+  validateRequest(createBranchBodySchema),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
     const userId = req.user!.userId;
 
-    // Check for duplicate code
-    const existing = await prisma.branch.findFirst({
-      where: {
-        organizationId,
-        code: req.body.code,
-        isActive: true,
-      },
-    });
-
-    if (existing) {
+    // Check if user has an organization
+    if (!organizationId) {
       return res.status(400).json({
         success: false,
-        message: 'Branch code already exists',
+        message:
+          'User is not associated with an organization. Please contact your administrator.',
+        error: 'NO_ORGANIZATION',
       });
+    }
+
+    // Check for duplicate code (only if code is provided)
+    if (req.body.code) {
+      const existing = await prisma.branch.findFirst({
+        where: {
+          organizationId,
+          code: req.body.code,
+          isActive: true,
+        },
+      });
+
+      if (existing) {
+        return res.status(400).json({
+          success: false,
+          message: 'Branch code already exists',
+        });
+      }
     }
 
     const branch = await prisma.branch.create({
@@ -79,21 +97,25 @@ router.post(
  * Get all branches
  * GET /api/branches
  */
-const listBranchesSchema = z.object({
-  query: z.object({
-    page: z.string().optional().transform((v) => parseInt(v || '1')),
-    limit: z.string().optional().transform((v) => parseInt(v || '20')),
-    search: z.string().optional(),
-    isActive: z.enum(['true', 'false', 'all']).optional(),
-    sortBy: z.enum(['name', 'code', 'createdAt']).default('name'),
-    sortOrder: z.enum(['asc', 'desc']).default('asc'),
-  }),
+const listBranchesQuerySchema = z.object({
+  page: z
+    .string()
+    .optional()
+    .transform(v => parseInt(v || '1')),
+  limit: z
+    .string()
+    .optional()
+    .transform(v => parseInt(v || '20')),
+  search: z.string().optional(),
+  isActive: z.enum(['true', 'false', 'all']).optional(),
+  sortBy: z.enum(['name', 'code', 'createdAt']).default('name'),
+  sortOrder: z.enum(['asc', 'desc']).default('asc'),
 });
 
 router.get(
   '/',
   requirePermission('branch:view'),
-  validateRequest(listBranchesSchema),
+  validateQuery(listBranchesQuerySchema),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
     const { page, limit, search, isActive, sortBy, sortOrder } = req.query;
@@ -200,25 +222,26 @@ router.get(
  * Update branch
  * PUT /api/branches/:id
  */
-const updateBranchSchema = z.object({
-  params: z.object({ id: z.string().uuid() }),
-  body: z.object({
-    name: z.string().min(2).optional(),
-    code: z.string().min(2).max(10).optional(),
-    address: z.string().optional(),
-    city: z.string().optional(),
-    phone: z.string().optional(),
-    email: z.string().email().optional().or(z.literal('')),
-    managerId: z.string().uuid().optional().nullable(),
-    isActive: z.boolean().optional(),
-    metadata: z.record(z.any()).optional(),
-  }),
+const updateBranchParamsSchema = z.object({ id: z.string().uuid() });
+const updateBranchBodySchema = z.object({
+  name: z.string().min(2).optional(),
+  code: z.string().max(10).optional(),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  managerId: z.string().uuid().optional().nullable(),
+  isActive: z.boolean().optional(),
+  metadata: z.record(z.any()).optional(),
 });
 
 router.put(
   '/:id',
   requirePermission('branch:update'),
-  validateRequest(updateBranchSchema),
+  validateFullRequest({
+    params: updateBranchParamsSchema,
+    body: updateBranchBodySchema,
+  }),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
 
@@ -373,7 +396,10 @@ router.get(
         _sum: { amount: true },
       }),
       prisma.loan.aggregate({
-        where: { branchId: req.params.id, status: { in: ['ACTIVE', 'OVERDUE'] } },
+        where: {
+          branchId: req.params.id,
+          status: { in: ['ACTIVE', 'OVERDUE'] },
+        },
         _sum: { outstandingBalance: true },
       }),
       prisma.payment.aggregate({
@@ -394,7 +420,9 @@ router.get(
         activeLoans,
         overdueLoans,
         totalDisbursed: Number(totalDisbursed._sum?.amount || 0),
-        totalOutstanding: Number(totalOutstanding._sum?.outstandingBalance || 0),
+        totalOutstanding: Number(
+          totalOutstanding._sum?.outstandingBalance || 0
+        ),
         paymentsThisMonth: {
           count: paymentsThisMonth._count || 0,
           amount: Number(paymentsThisMonth._sum.amount || 0),

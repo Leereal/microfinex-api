@@ -19,6 +19,7 @@
     "db:studio": "prisma studio",
     "bootstrap": "tsx scripts/bootstrap-system.ts",
     "bootstrap:sql": "tsx scripts/bootstrap-sql.ts",
+    "db:seed": "tsx prisma/seed.ts",
     "docs:generate": "swagger-jsdoc -d swaggerDef.js src/routes/*.ts -o docs/swagger.json",
     "prepare": "husky install"
   },
@@ -99,5 +100,8 @@
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
