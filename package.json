@@ -4,7 +4,7 @@
   "description": "Modern Microfinance Management System API",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "test": "jest",

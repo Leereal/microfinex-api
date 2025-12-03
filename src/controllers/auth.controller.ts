@@ -129,6 +129,14 @@ class AuthController {
   async approveOrganization(req: Request, res: Response) {
     try {
       const { id } = req.params;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID is required',
+          error: 'INVALID_INPUT',
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       const result = await authService.approveOrganization(id);
 
@@ -166,6 +174,14 @@ class AuthController {
     try {
       const { id } = req.params;
       const { reason } = req.body;
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID is required',
+          error: 'INVALID_INPUT',
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       const result = await authService.rejectOrganization(id, reason);
 

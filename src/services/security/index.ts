@@ -36,6 +36,6 @@ export {
 } from './prisma-encryption.middleware';
 
 // Authentication & Session Services
-export { EmailVerificationService } from './email-verification.service';
-export { PasswordPolicyService } from './password-policy.service';
-export { SessionManagementService } from './session-management.service';
+export { emailVerificationService } from './email-verification.service';
+export { passwordPolicyService } from './password-policy.service';
+export { sessionManagementService } from './session-management.service';
