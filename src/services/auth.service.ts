@@ -419,7 +419,13 @@ class AuthService {
     const newOrg = await prisma.organization.create({
       data: {
         name: organization.name,
-        type: organization.type as 'MICROFINANCE' | 'SACCO' | 'BANK' | 'CREDIT_UNION' | 'FINTECH' | 'OTHER',
+        type: organization.type as
+          | 'MICROFINANCE'
+          | 'SACCO'
+          | 'BANK'
+          | 'CREDIT_UNION'
+          | 'FINTECH'
+          | 'OTHER',
         email: organization.email,
         phone: organization.phone,
         address: organization.address,
@@ -641,7 +647,7 @@ class AuthService {
 
     // Get first user for each organization
     const orgsWithAdmins = await Promise.all(
-      organizations.map(async (org) => {
+      organizations.map(async org => {
         const { data: users } = await supabaseAdmin
           .from('users')
           .select('id, email, firstName, lastName, createdAt')

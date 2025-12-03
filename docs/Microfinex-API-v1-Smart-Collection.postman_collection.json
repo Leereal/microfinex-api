@@ -573,7 +573,12 @@
             "url": {
               "raw": "{{baseUrl}}/auth/organizations/{{pendingOrganizationId}}/approve",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "organizations", "{{pendingOrganizationId}}", "approve"]
+              "path": [
+                "auth",
+                "organizations",
+                "{{pendingOrganizationId}}",
+                "approve"
+              ]
             },
             "description": "✅ **APPROVE ORGANIZATION** (SUPER_ADMIN only)\\n\\nApprove a pending organization registration.\\n\\n**What it does:**\\n✅ Activates the organization (isActive = true)\\n✅ Promotes the first user to ORG_ADMIN role\\n✅ Activates the admin user account\\n✅ Enables the organization to start operations\\n\\n**Prerequisites:**\\n- Must be logged in as SUPER_ADMIN\\n- Organization must be in pending state\\n- Use `pendingOrganizationId` variable or replace with actual ID"
           }
@@ -623,7 +628,12 @@
             "url": {
               "raw": "{{baseUrl}}/auth/organizations/{{pendingOrganizationId}}/reject",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "organizations", "{{pendingOrganizationId}}", "reject"]
+              "path": [
+                "auth",
+                "organizations",
+                "{{pendingOrganizationId}}",
+                "reject"
+              ]
             },
             "description": "❌ **REJECT ORGANIZATION** (SUPER_ADMIN only)\\n\\nReject a pending organization registration.\\n\\n**What it does:**\\n❌ Deletes the organization record\\n❌ Deletes associated admin user from auth and database\\n❌ Permanently removes all registration data\\n\\n**Request Body:**\\n- reason: Optional rejection reason (will be logged)\\n\\n**Prerequisites:**\\n- Must be logged in as SUPER_ADMIN\\n- Organization must be in pending state\\n- Cannot reject an already active organization"
           }
