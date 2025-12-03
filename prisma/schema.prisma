@@ -13,6 +13,7 @@ model Organization {
   id                String               @id @default(uuid())
   name              String               @unique
   type              OrganizationType     @default(MICROFINANCE)
+  logo              String?              // Logo image path in MinIO storage
   address           String?
   phone             String?
   email             String?

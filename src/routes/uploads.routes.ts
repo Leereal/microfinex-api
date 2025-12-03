@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import {
   uploadPhoto,
+  uploadLogo,
   uploadThumbprint,
   uploadSignature,
   uploadDocument,
@@ -21,6 +22,183 @@ import { prisma } from '../config/database';
 import { UserRole } from '../types';
 
 const router = Router();
+
+// ===== ORGANIZATION UPLOAD ROUTES =====
+
+/**
+ * @swagger
+ * /api/v1/uploads/organizations/{id}/logo:
+ *   post:
+ *     summary: Upload organization logo
+ *     tags: [Uploads]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/organizations/:id/logo',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  uploadLogo,
+  handleUploadError,
+  requireFile,
+  async (req: Request, res: Response) => {
+    try {
+      const organizationIdParam = req.params.id;
+      const userOrgId = req.user?.organizationId;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+
+      // Super Admin can update any org, Admin can only update their own
+      if (!isSuperAdmin && userOrgId !== organizationIdParam) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only update your own organization logo',
+          error: 'FORBIDDEN',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const organizationId: string = organizationIdParam;
+
+      // Verify organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+      if (!organization) {
+        return res.status(404).json({
+          success: false,
+          message: 'Organization not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const file = req.file!;
+
+      // Delete old logo if exists
+      if (organization.logo) {
+        await storageService.delete(organization.logo);
+      }
+
+      // Upload new logo
+      const result = await storageService.upload(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+        file.size,
+        {
+          organizationId,
+          entityType: 'organizations',
+          entityId: organizationId,
+          fileType: 'LOGO',
+        }
+      );
+
+      // Update organization record
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: { logo: result.path },
+      });
+
+      res.json({
+        success: true,
+        message: 'Logo uploaded successfully',
+        data: {
+          url: result.url,
+          path: result.path,
+          size: result.size,
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Upload logo error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Upload failed',
+        error: 'UPLOAD_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/uploads/organizations/{id}/logo:
+ *   delete:
+ *     summary: Delete organization logo
+ *     tags: [Uploads]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/organizations/:id/logo',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const organizationIdParam = req.params.id;
+      const userOrgId = req.user?.organizationId;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+
+      // Super Admin can delete any org logo, Admin can only delete their own
+      if (!isSuperAdmin && userOrgId !== organizationIdParam) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only delete your own organization logo',
+          error: 'FORBIDDEN',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const organizationId: string = organizationIdParam;
+
+      // Verify organization exists and has logo
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+      if (!organization) {
+        return res.status(404).json({
+          success: false,
+          message: 'Organization not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!organization.logo) {
+        return res.status(404).json({
+          success: false,
+          message: 'Organization has no logo',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Delete logo from storage
+      await storageService.delete(organization.logo);
+
+      // Update organization record
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: { logo: null },
+      });
+
+      res.json({
+        success: true,
+        message: 'Logo deleted successfully',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Delete logo error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Delete failed',
+        error: 'DELETE_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
 
 // ===== CLIENT UPLOAD ROUTES =====
 

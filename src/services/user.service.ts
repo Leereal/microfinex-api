@@ -9,6 +9,7 @@ export interface UserFilters {
   role?: string;
   isActive?: boolean;
   branchId?: string;
+  organizationId?: string; // Super Admin can filter by organization
   page?: number;
   limit?: number;
 }
@@ -42,14 +43,29 @@ class UserService {
     organizationId: string,
     isSuperAdmin: boolean = false
   ) {
-    const { search, role, isActive, branchId, page = 1, limit = 10 } = filters;
+    const {
+      search,
+      role,
+      isActive,
+      branchId,
+      organizationId: filterOrgId,
+      page = 1,
+      limit = 10,
+    } = filters;
     const skip = (page - 1) * limit;
 
     // Build where clause
     const where: Prisma.UserWhereInput = {};
 
-    // Non-super admins can only see users in their organization
-    if (!isSuperAdmin) {
+    // Super Admin can see all users or filter by specific organization
+    if (isSuperAdmin) {
+      // If Super Admin provides organizationId filter, use it
+      if (filterOrgId) {
+        where.organizationId = filterOrgId;
+      }
+      // Otherwise, no organization filter - show all users
+    } else {
+      // Non-super admins can only see users in their organization
       where.organizationId = organizationId;
     }
 
@@ -344,7 +360,18 @@ class UserService {
   /**
    * Update user status (activate/deactivate)
    */
-  async updateStatus(id: string, isActive: boolean) {
+  async updateStatus(
+    id: string,
+    isActive: boolean,
+    organizationId?: string,
+    isSuperAdmin: boolean = false
+  ) {
+    // Verify user exists and belongs to organization for non-super admins
+    const existingUser = await this.findById(id, organizationId, isSuperAdmin);
+    if (!existingUser) {
+      throw new Error('User not found');
+    }
+
     return prisma.user.update({
       where: { id },
       data: { isActive },
@@ -355,6 +382,12 @@ class UserService {
         lastName: true,
         role: true,
         isActive: true,
+        organization: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
   }
@@ -362,7 +395,17 @@ class UserService {
   /**
    * Delete user (soft delete by deactivating)
    */
-  async delete(id: string) {
+  async delete(
+    id: string,
+    organizationId?: string,
+    isSuperAdmin: boolean = false
+  ) {
+    // Verify user exists and belongs to organization for non-super admins
+    const existingUser = await this.findById(id, organizationId, isSuperAdmin);
+    if (!existingUser) {
+      throw new Error('User not found');
+    }
+
     // Deactivate in database
     await prisma.user.update({
       where: { id },
@@ -382,18 +425,33 @@ class UserService {
   }
 
   /**
-   * Get user statistics for an organization
+   * Get user statistics for an organization or globally for Super Admin
    */
-  async getStatistics(organizationId: string) {
-    const [totalUsers, activeUsers, usersByRole] = await Promise.all([
-      prisma.user.count({ where: { organizationId } }),
-      prisma.user.count({ where: { organizationId, isActive: true } }),
-      prisma.user.groupBy({
-        by: ['role'],
-        where: { organizationId },
-        _count: { id: true },
-      }),
-    ]);
+  async getStatistics(organizationId?: string, isSuperAdmin: boolean = false) {
+    const where: Prisma.UserWhereInput = {};
+
+    // Non-super admins or Super Admins filtering by org
+    if (organizationId) {
+      where.organizationId = organizationId;
+    }
+
+    const [totalUsers, activeUsers, usersByRole, usersByOrganization] =
+      await Promise.all([
+        prisma.user.count({ where }),
+        prisma.user.count({ where: { ...where, isActive: true } }),
+        prisma.user.groupBy({
+          by: ['role'],
+          where,
+          _count: { id: true },
+        }),
+        // Only get org breakdown for Super Admin without org filter
+        isSuperAdmin && !organizationId
+          ? prisma.user.groupBy({
+              by: ['organizationId'],
+              _count: { id: true },
+            })
+          : Promise.resolve([]),
+      ]);
 
     const roleBreakdown = usersByRole.reduce(
       (acc, item) => {
@@ -403,12 +461,31 @@ class UserService {
       {} as Record<string, number>
     );
 
-    return {
+    const result: {
+      totalUsers: number;
+      activeUsers: number;
+      inactiveUsers: number;
+      roleBreakdown: Record<string, number>;
+      organizationBreakdown?: Record<string, number>;
+    } = {
       totalUsers,
       activeUsers,
       inactiveUsers: totalUsers - activeUsers,
       roleBreakdown,
     };
+
+    // Add organization breakdown for Super Admin global view
+    if (isSuperAdmin && !organizationId && usersByOrganization.length > 0) {
+      result.organizationBreakdown = usersByOrganization.reduce(
+        (acc, item) => {
+          acc[item.organizationId || 'no_org'] = item._count.id;
+          return acc;
+        },
+        {} as Record<string, number>
+      );
+    }
+
+    return result;
   }
 
   /**

@@ -26,6 +26,11 @@ export const FILE_TYPES = {
     maxSize: 5 * 1024 * 1024, // 5MB
     folder: 'photos',
   },
+  LOGO: {
+    mimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/svg+xml'],
+    maxSize: 2 * 1024 * 1024, // 2MB
+    folder: 'logos',
+  },
   THUMBPRINT: {
     mimeTypes: ['image/jpeg', 'image/png', 'image/bmp'],
     maxSize: 2 * 1024 * 1024, // 2MB
@@ -72,7 +77,7 @@ interface UploadResult {
 
 interface UploadOptions {
   organizationId: string;
-  entityType: 'clients' | 'loans';
+  entityType: 'clients' | 'loans' | 'organizations';
   entityId: string;
   fileType: FileType;
   subEntityId?: string; // For visits/:visitId or pledges/:pledgeId

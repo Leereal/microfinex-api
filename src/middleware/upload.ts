@@ -77,6 +77,11 @@ const createMultiUploader = (
 export const uploadPhoto = createUploader('PHOTO', 'photo');
 
 /**
+ * Logo upload (2MB, JPEG/PNG/WebP/SVG)
+ */
+export const uploadLogo = createUploader('LOGO', 'logo');
+
+/**
  * Thumbprint upload (2MB, JPEG/PNG/BMP)
  */
 export const uploadThumbprint = createUploader('THUMBPRINT', 'thumbprint');
@@ -249,6 +254,7 @@ export const getExtensionFromMime = (mimeType: string): string => {
 
 export default {
   uploadPhoto,
+  uploadLogo,
   uploadThumbprint,
   uploadSignature,
   uploadDocument,

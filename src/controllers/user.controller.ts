@@ -16,6 +16,7 @@ class UserController {
         role,
         isActive,
         branchId,
+        organizationId: filterOrgId,
       } = req.query;
 
       const filters = {
@@ -23,6 +24,7 @@ class UserController {
         role: role as UserRole,
         isActive: isActive !== undefined ? isActive === 'true' : undefined,
         branchId: branchId as string,
+        organizationId: filterOrgId as string, // Super Admin can filter by organization
         page: Number(page),
         limit: Number(limit),
       };
@@ -202,6 +204,8 @@ class UserController {
     try {
       const id = req.params.id!;
       const { isActive } = req.body;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+      const organizationId = req.user?.organizationId;
 
       if (typeof isActive !== 'boolean') {
         return res.status(400).json({
@@ -212,7 +216,12 @@ class UserController {
         });
       }
 
-      const user = await userService.updateStatus(id, isActive);
+      const user = await userService.updateStatus(
+        id,
+        isActive,
+        organizationId,
+        isSuperAdmin
+      );
 
       res.json({
         success: true,
@@ -222,6 +231,14 @@ class UserController {
       });
     } catch (error) {
       console.error('Update user status error:', error);
+      if ((error as Error).message === 'User not found') {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -238,6 +255,8 @@ class UserController {
   async delete(req: Request, res: Response) {
     try {
       const id = req.params.id!;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+      const organizationId = req.user?.organizationId;
 
       // Prevent deleting yourself
       if (id === req.user?.userId) {
@@ -249,7 +268,7 @@ class UserController {
         });
       }
 
-      await userService.delete(id);
+      await userService.delete(id, organizationId, isSuperAdmin);
 
       res.json({
         success: true,
@@ -258,6 +277,14 @@ class UserController {
       });
     } catch (error) {
       console.error('Delete user error:', error);
+      if ((error as Error).message === 'User not found') {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -273,9 +300,14 @@ class UserController {
    */
   async getStatistics(req: Request, res: Response) {
     try {
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
       const organizationId = req.user?.organizationId;
 
-      if (!organizationId) {
+      // Super Admin can optionally filter by organization via query param
+      const filterOrgId = req.query.organizationId as string;
+
+      // Non-super admins require organization ID
+      if (!isSuperAdmin && !organizationId) {
         return res.status(400).json({
           success: false,
           message: 'Organization ID required',
@@ -284,7 +316,13 @@ class UserController {
         });
       }
 
-      const statistics = await userService.getStatistics(organizationId);
+      // Use filtered org ID for Super Admin, or user's org for others
+      const targetOrgId = isSuperAdmin ? filterOrgId : organizationId;
+
+      const statistics = await userService.getStatistics(
+        targetOrgId,
+        isSuperAdmin
+      );
 
       res.json({
         success: true,

@@ -80,6 +80,8 @@ const querySchema = z.object({
     .pipe(z.boolean())
     .optional(),
   branchId: z.string().uuid().optional(),
+  // Super Admin can filter by organization
+  organizationId: z.string().uuid().optional(),
 });
 
 /**
@@ -110,7 +112,7 @@ router.get(
 router.get(
   '/statistics',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.MANAGER),
+  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER),
   userController.getStatistics.bind(userController)
 );
 
