@@ -130,6 +130,11 @@
       "key": "verificationCode",
       "value": "",
       "description": "OTP verification code for online applications (dev mode only)"
+    },
+    {
+      "key": "encryptionKeyId",
+      "value": "",
+      "description": "Last created/retrieved encryption key ID"
     }
   ],
   "auth": {
@@ -4445,7 +4450,14 @@
             "url": {
               "raw": "{{baseUrl}}/uploads/loans/{{loanId}}/visits/{{visitId}}/images",
               "host": ["{{baseUrl}}"],
-              "path": ["uploads", "loans", "{{loanId}}", "visits", "{{visitId}}", "images"]
+              "path": [
+                "uploads",
+                "loans",
+                "{{loanId}}",
+                "visits",
+                "{{visitId}}",
+                "images"
+              ]
             },
             "description": "Upload photos taken during a loan visit (home or business verification)."
           }
@@ -4470,7 +4482,14 @@
             "url": {
               "raw": "{{baseUrl}}/uploads/loans/{{loanId}}/pledges/{{pledgeId}}/images",
               "host": ["{{baseUrl}}"],
-              "path": ["uploads", "loans", "{{loanId}}", "pledges", "{{pledgeId}}", "images"]
+              "path": [
+                "uploads",
+                "loans",
+                "{{loanId}}",
+                "pledges",
+                "{{pledgeId}}",
+                "images"
+              ]
             },
             "description": "Upload photos of security pledge items (collateral)."
           }
@@ -4485,7 +4504,10 @@
               "host": ["{{baseUrl}}"],
               "path": ["uploads", "signed-url"],
               "query": [
-                { "key": "path", "value": "org-id/clients/client-id/photos/file.jpg" }
+                {
+                  "key": "path",
+                  "value": "org-id/clients/client-id/photos/file.jpg"
+                }
               ]
             },
             "description": "Generate a pre-signed URL for accessing a file. URLs expire after 1 hour."
@@ -4501,7 +4523,10 @@
               "host": ["{{baseUrl}}"],
               "path": ["uploads", "delete"],
               "query": [
-                { "key": "path", "value": "org-id/clients/client-id/photos/file.jpg" }
+                {
+                  "key": "path",
+                  "value": "org-id/clients/client-id/photos/file.jpg"
+                }
               ]
             },
             "description": "Delete a file from storage. Requires Manager or Admin role."
@@ -4518,7 +4543,11 @@
               "path": ["uploads", "list"],
               "query": [
                 { "key": "entityType", "value": "clients" },
-                { "key": "entityId", "value": "{{clientId}}", "disabled": true },
+                {
+                  "key": "entityId",
+                  "value": "{{clientId}}",
+                  "disabled": true
+                },
                 { "key": "fileType", "value": "PHOTO", "disabled": true }
               ]
             },
@@ -4637,7 +4666,11 @@
               "path": ["sync", "pull"],
               "query": [
                 { "key": "lastSync", "value": "2024-01-01T00:00:00Z" },
-                { "key": "entityTypes", "value": "clients,loans", "disabled": true },
+                {
+                  "key": "entityTypes",
+                  "value": "clients,loans",
+                  "disabled": true
+                },
                 { "key": "limit", "value": "50", "disabled": true }
               ]
             },
@@ -4868,7 +4901,13 @@
             "url": {
               "raw": "{{baseUrl}}/loans/shops/{{shopId}}/product-credits/stats",
               "host": ["{{baseUrl}}"],
-              "path": ["loans", "shops", "{{shopId}}", "product-credits", "stats"]
+              "path": [
+                "loans",
+                "shops",
+                "{{shopId}}",
+                "product-credits",
+                "stats"
+              ]
             },
             "description": "Get product credit statistics for a shop including totals, active loans, and payment status."
           }
@@ -5094,7 +5133,11 @@
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "file", "type": "file", "description": "Excel or CSV file with client data" }
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Excel or CSV file with client data"
+                }
               ]
             },
             "url": {
@@ -5113,7 +5156,11 @@
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "file", "type": "file", "description": "Excel or CSV file with loan data" }
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Excel or CSV file with loan data"
+                }
               ]
             },
             "url": {
@@ -5132,7 +5179,11 @@
             "body": {
               "mode": "formdata",
               "formdata": [
-                { "key": "file", "type": "file", "description": "Excel or CSV file with payment data" }
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Excel or CSV file with payment data"
+                }
               ]
             },
             "url": {
@@ -5705,7 +5756,11 @@
             "url": {
               "raw": "{{baseUrl}}/payment-enhancements/branch-summary/{{branchId}}?startDate=2024-01-01&endDate=2024-06-30",
               "host": ["{{baseUrl}}"],
-              "path": ["payment-enhancements", "branch-summary", "{{branchId}}"],
+              "path": [
+                "payment-enhancements",
+                "branch-summary",
+                "{{branchId}}"
+              ],
               "query": [
                 { "key": "startDate", "value": "2024-01-01" },
                 { "key": "endDate", "value": "2024-06-30" }
@@ -5839,7 +5894,12 @@
             "url": {
               "raw": "{{baseUrl}}/loan-adjustments/{{loanId}}/reschedule/preview",
               "host": ["{{baseUrl}}"],
-              "path": ["loan-adjustments", "{{loanId}}", "reschedule", "preview"]
+              "path": [
+                "loan-adjustments",
+                "{{loanId}}",
+                "reschedule",
+                "preview"
+              ]
             },
             "description": "Preview new repayment schedule before applying"
           }
@@ -5871,7 +5931,9 @@
               "request": {
                 "auth": { "type": "noauth" },
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"token\": \"{{verificationToken}}\"\n}"
@@ -5925,7 +5987,9 @@
                   "raw": "{{baseUrl}}/security/password/policy?organizationId={{organizationId}}",
                   "host": ["{{baseUrl}}"],
                   "path": ["security", "password", "policy"],
-                  "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+                  "query": [
+                    { "key": "organizationId", "value": "{{organizationId}}" }
+                  ]
                 },
                 "description": "Get password requirements and policy"
               }
@@ -5935,7 +5999,9 @@
               "request": {
                 "auth": { "type": "noauth" },
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"password\": \"SecurePassword123!\",\n  \"organizationId\": \"{{organizationId}}\"\n}"
@@ -5965,7 +6031,9 @@
               "name": "Change Password",
               "request": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"currentPassword\": \"OldPassword123!\",\n  \"newPassword\": \"NewSecurePassword456!\"\n}"
@@ -5982,7 +6050,9 @@
               "name": "Update Password Policy (Admin)",
               "request": {
                 "method": "PUT",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"policy\": {\n    \"minLength\": 10,\n    \"requireUppercase\": true,\n    \"requireLowercase\": true,\n    \"requireNumbers\": true,\n    \"requireSpecialChars\": true,\n    \"maxAgeDays\": 60,\n    \"preventReuse\": 5\n  }\n}"
@@ -6030,7 +6100,9 @@
               "name": "Logout Other Sessions",
               "request": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"currentSessionId\": \"{{sessionId}}\"\n}"
@@ -6060,7 +6132,9 @@
               "name": "Force Logout User (Admin)",
               "request": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"reason\": \"Security concern - suspicious activity\"\n}"
@@ -6152,7 +6226,9 @@
               "name": "Add IP to Whitelist",
               "request": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"ipAddress\": \"192.168.1.100\",\n  \"cidr\": 32,\n  \"description\": \"Office network\",\n  \"expiresAt\": \"2025-12-31T23:59:59Z\"\n}"
@@ -6173,7 +6249,13 @@
                 "url": {
                   "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist/{{whitelistEntryId}}",
                   "host": ["{{baseUrl}}"],
-                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist", "{{whitelistEntryId}}"]
+                  "path": [
+                    "security",
+                    "api-keys",
+                    "{{apiKeyId}}",
+                    "whitelist",
+                    "{{whitelistEntryId}}"
+                  ]
                 },
                 "description": "Remove an IP from API key whitelist"
               }
@@ -6182,7 +6264,9 @@
               "name": "Toggle IP Whitelisting",
               "request": {
                 "method": "PATCH",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"enabled\": true\n}"
@@ -6190,7 +6274,13 @@
                 "url": {
                   "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist/toggle",
                   "host": ["{{baseUrl}}"],
-                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist", "toggle"]
+                  "path": [
+                    "security",
+                    "api-keys",
+                    "{{apiKeyId}}",
+                    "whitelist",
+                    "toggle"
+                  ]
                 },
                 "description": "Enable or disable IP whitelisting for an API key"
               }
@@ -6199,7 +6289,9 @@
               "name": "Bulk Add IPs",
               "request": {
                 "method": "POST",
-                "header": [{ "key": "Content-Type", "value": "application/json" }],
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"ips\": [\n    { \"ipAddress\": \"10.0.0.0\", \"cidr\": 8, \"description\": \"Internal network\" },\n    { \"ipAddress\": \"192.168.1.0\", \"cidr\": 24, \"description\": \"Office subnet\" }\n  ]\n}"
@@ -6207,7 +6299,13 @@
                 "url": {
                   "raw": "{{baseUrl}}/security/api-keys/{{apiKeyId}}/whitelist/bulk",
                   "host": ["{{baseUrl}}"],
-                  "path": ["security", "api-keys", "{{apiKeyId}}", "whitelist", "bulk"]
+                  "path": [
+                    "security",
+                    "api-keys",
+                    "{{apiKeyId}}",
+                    "whitelist",
+                    "bulk"
+                  ]
                 },
                 "description": "Add multiple IPs to whitelist at once"
               }
@@ -6260,6 +6358,620 @@
                   "query": [{ "key": "days", "value": "7" }]
                 },
                 "description": "Get summary of security events for the specified period"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔐 Data Encryption",
+      "description": "Data-at-rest encryption management endpoints (Super Admin only). Manage encryption keys, verify encrypted data, and perform bulk encryption operations.",
+      "item": [
+        {
+          "name": "Status & Monitoring",
+          "description": "Monitor encryption service status and key health",
+          "item": [
+            {
+              "name": "Get Encryption Status",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "pm.test('Encryption status retrieved', function () {",
+                      "    const jsonData = pm.response.json();",
+                      "    pm.expect(jsonData.success).to.be.true;",
+                      "    pm.expect(jsonData.data).to.have.property('service');",
+                      "    pm.expect(jsonData.data).to.have.property('keys');",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔐 Encryption Service Status');",
+                      "    console.log('✅ Enabled: ' + response.data.service.enabled);",
+                      "    console.log('🔑 Algorithm: ' + response.data.service.algorithm);",
+                      "    console.log('📊 Total Keys: ' + response.data.keys.total);",
+                      "    console.log('✅ Active Keys: ' + response.data.keys.active);",
+                      "    if (response.data.alerts && response.data.alerts.length > 0) {",
+                      "        console.log('⚠️ Alerts: ' + response.data.alerts.join(', '));",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "status"]
+                },
+                "description": "Get encryption service status including key statistics and expiring keys. Shows alerts for keys expiring within 30 days."
+              }
+            },
+            {
+              "name": "Get Encryption Audit Logs",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('📋 Encryption Audit Logs');",
+                      "    console.log('📊 Total entries: ' + response.data.pagination.total);",
+                      "    if (response.data.logs && response.data.logs.length > 0) {",
+                      "        console.log('📝 Latest action: ' + response.data.logs[0].action);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/audit?limit=50&offset=0",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "audit"],
+                  "query": [
+                    { "key": "limit", "value": "50" },
+                    { "key": "offset", "value": "0" }
+                  ]
+                },
+                "description": "Get encryption-related audit logs including key generation, rotation, and revocation events."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Key Management",
+          "description": "Generate, rotate, and manage encryption keys",
+          "item": [
+            {
+              "name": "List Encryption Keys",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔑 Encryption Keys');",
+                      "    console.log('📊 Total keys: ' + response.data.length);",
+                      "    if (response.data.length > 0) {",
+                      "        pm.collectionVariables.set('encryptionKeyId', response.data[0].id);",
+                      "        console.log('✅ First key ID saved: ' + response.data[0].id);",
+                      "        console.log('🔐 Key type: ' + response.data[0].keyType);",
+                      "        console.log('📅 Expires: ' + response.data[0].expiresAt);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/keys",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "keys"],
+                  "query": [
+                    {
+                      "key": "organizationId",
+                      "value": "{{organizationId}}",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "List all encryption keys. Enable organizationId query param to filter by organization."
+              }
+            },
+            {
+              "name": "Generate New Key",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('encryptionKeyId', response.data.id);",
+                      "    console.log('✅ New encryption key generated');",
+                      "    console.log('🆔 Key ID: ' + response.data.id);",
+                      "    console.log('📊 Version: ' + response.data.version);",
+                      "    console.log('📅 Expires: ' + response.data.expiresAt);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"keyType\": \"DATA\",\n  \"expiryDays\": 365,\n  \"metadata\": {\n    \"purpose\": \"Client PII encryption\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/keys/generate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "keys", "generate"]
+                },
+                "description": "Generate a new encryption key. Key types: DATA (default), MASTER, BACKUP. Optional organizationId for org-specific keys."
+              }
+            },
+            {
+              "name": "Rotate Keys",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔄 Key rotation initiated');",
+                      "    console.log('📋 ' + response.message);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Scheduled quarterly rotation\",\n  \"reEncryptData\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/keys/rotate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "keys", "rotate"]
+                },
+                "description": "Rotate encryption keys and optionally re-encrypt all data. Set reEncryptData to false to skip re-encryption (not recommended)."
+              }
+            },
+            {
+              "name": "Get Rotation Status",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔄 Rotation Status');",
+                      "    console.log('📊 In Progress: ' + response.data.inProgress);",
+                      "    if (response.data.progress) {",
+                      "        console.log('📈 Progress: ' + response.data.progress + '%');",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/keys/rotation-status",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "keys", "rotation-status"],
+                  "query": [
+                    {
+                      "key": "organizationId",
+                      "value": "{{organizationId}}",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "Check the status of an ongoing key rotation and data re-encryption operation."
+              }
+            },
+            {
+              "name": "Verify Key Integrity",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔍 Key Integrity Check');",
+                      "    console.log('✅ Valid: ' + response.success);",
+                      "    if (response.data.issues) {",
+                      "        console.log('⚠️ Issues: ' + response.data.issues.join(', '));",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/keys/{{encryptionKeyId}}/verify",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "encryption",
+                    "keys",
+                    "{{encryptionKeyId}}",
+                    "verify"
+                  ]
+                },
+                "description": "Verify the integrity of a specific encryption key. Checks for corruption or tampering."
+              }
+            },
+            {
+              "name": "Revoke Key",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🚫 Key Revoked');",
+                      "    console.log('⚠️ ' + response.warning);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Key compromised - security incident\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/keys/{{encryptionKeyId}}/revoke",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "encryption",
+                    "keys",
+                    "{{encryptionKeyId}}",
+                    "revoke"
+                  ]
+                },
+                "description": "⚠️ DANGER: Revoke a compromised encryption key. Data encrypted with this key may become inaccessible. Use only in security emergencies."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Field Configuration",
+          "description": "View encrypted field configurations",
+          "item": [
+            {
+              "name": "List Encrypted Fields",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔐 Encrypted Field Configuration');",
+                      "    console.log('📊 Total fields: ' + response.data.summary.totalFields);",
+                      "    console.log('🔍 Searchable fields: ' + response.data.summary.searchableFields);",
+                      "    console.log('');",
+                      "    console.log('By Sensitivity Level:');",
+                      "    console.log('  🟢 LOW: ' + response.data.summary.byLevel.LOW);",
+                      "    console.log('  🟡 MEDIUM: ' + response.data.summary.byLevel.MEDIUM);",
+                      "    console.log('  🟠 HIGH: ' + response.data.summary.byLevel.HIGH);",
+                      "    console.log('  🔴 CRITICAL: ' + response.data.summary.byLevel.CRITICAL);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/fields",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "fields"]
+                },
+                "description": "List all encrypted field configurations grouped by table. Shows sensitivity levels and which fields support deterministic encryption for searching."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Table Operations",
+          "description": "Verify and encrypt table data",
+          "item": [
+            {
+              "name": "Verify Table Encryption",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔍 Table Encryption Verification');",
+                      "    console.log('📋 Table: ' + response.data.table);",
+                      "    console.log('📊 Total Records: ' + response.data.totalRecords);",
+                      "    console.log('🔐 Encrypted: ' + response.data.encryptedRecords);",
+                      "    console.log('📈 Percentage: ' + response.data.encryptionPercentage + '%');",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/tables/clients/verify",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "tables", "clients", "verify"]
+                },
+                "description": "Verify encryption status of a table. Valid tables: clients, client_bank_accounts, guarantors, collaterals, users, api_keys, client_documents"
+              }
+            },
+            {
+              "name": "Bulk Encrypt Table",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🔐 Bulk Encryption Result');",
+                      "    console.log('📊 Processed: ' + response.data.processed);",
+                      "    console.log('✅ Encrypted: ' + response.data.encrypted);",
+                      "    console.log('❌ Failed: ' + response.data.failed);",
+                      "    console.log('⏱️ Duration: ' + response.data.duration + 'ms');",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"batchSize\": 100,\n  \"dryRun\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/tables/clients/encrypt",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "tables", "clients", "encrypt"]
+                },
+                "description": "Bulk encrypt unencrypted data in a table. Set dryRun: true to preview without making changes. Valid tables: clients, client_bank_accounts, guarantors, collaterals, users, api_keys, client_documents"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Backup & Recovery",
+          "description": "Export and import encryption keys",
+          "item": [
+            {
+              "name": "Export Key Backup",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    console.log('✅ Encryption key backup generated');",
+                      "    console.log('⚠️ Store this backup securely!');",
+                      "    console.log('🔐 Backup is encrypted with your master password');",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"masterPassword\": \"YourSecureMasterPassword16+\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/backup",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "backup"]
+                },
+                "description": "Export an encrypted backup of all encryption keys. Master password must be at least 16 characters. Store the backup and password separately and securely."
+              }
+            },
+            {
+              "name": "Import Key Backup",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('✅ Keys restored successfully');",
+                      "    console.log('🔑 Imported: ' + response.data.importedCount + ' keys');",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"backup\": \"<encrypted backup data from export>\",\n  \"masterPassword\": \"YourSecureMasterPassword16+\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/restore",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "restore"]
+                },
+                "description": "Restore encryption keys from a backup. Requires the same master password used during export."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Testing",
+          "description": "Test encryption functionality",
+          "item": [
+            {
+              "name": "Test Encryption",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🧪 Encryption Test Results');",
+                      "    console.log('');",
+                      "    console.log('Standard Encryption:');",
+                      "    console.log('  ✅ Encrypt/Decrypt: ' + response.data.standard.matches);",
+                      "    console.log('');",
+                      "    console.log('Deterministic Encryption:');",
+                      "    console.log('  ✅ Encrypt/Decrypt: ' + response.data.deterministic.matches);",
+                      "    console.log('  🔍 Is Deterministic: ' + response.data.deterministic.isDeterministic);",
+                      "    console.log('');",
+                      "    console.log('Data Masking:');",
+                      "    console.log('  Default: ' + response.data.masking.default);",
+                      "    console.log('  Middle: ' + response.data.masking.middle);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"plaintext\": \"SensitiveData123\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/encryption/test",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["encryption", "test"]
+                },
+                "description": "Test encryption and decryption with sample data. Tests both standard (random IV) and deterministic encryption, plus data masking."
               }
             }
           ]
