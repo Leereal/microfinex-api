@@ -6318,6 +6318,67 @@
               }
             },
             {
+              "name": "Get All Sessions (Admin)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.success && response.data?.sessions?.length > 0) {",
+                      "        pm.collectionVariables.set('sessionId', response.data.sessions[0].id);",
+                      "        console.log('📍 Set sessionId: ' + response.data.sessions[0].id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/all?page=1&limit=50&isActive=true",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "all"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "50" },
+                    { "key": "isActive", "value": "true" },
+                    {
+                      "key": "organizationId",
+                      "value": "{{organizationId}}",
+                      "disabled": true
+                    },
+                    { "key": "userId", "value": "{{userId}}", "disabled": true }
+                  ]
+                },
+                "description": "📋 **GET ALL SESSIONS** (Admin/Super Admin)\\n\\nRetrieve all active sessions across users.\\n\\n**Features:**\\n- Super Admins can see all organizations\\n- Org Admins can only see their organization\\n- Supports pagination and filtering\\n\\n**Query Parameters:**\\n- page: Page number (default: 1)\\n- limit: Items per page (default: 50)\\n- isActive: Filter by active status (true/false)\\n- organizationId: Filter by organization (Super Admin only)\\n- userId: Filter by specific user\\n\\n**Response includes:**\\n- Session details with user info\\n- Device info (type, browser, OS)\\n- IP address and timestamps\\n- Pagination metadata"
+              }
+            },
+            {
+              "name": "Get Session Statistics (Admin)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/security/sessions/stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["security", "sessions", "stats"],
+                  "query": [
+                    {
+                      "key": "organizationId",
+                      "value": "{{organizationId}}",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "description": "📊 **GET SESSION STATISTICS** (Admin/Super Admin)\\n\\nRetrieve session statistics and metrics.\\n\\n**Response includes:**\\n- activeSessions: Count of currently active sessions\\n- totalSessions: Total sessions in database\\n- newSessionsLast24h: Sessions created in last 24 hours\\n- uniqueActiveUsers: Number of unique users with active sessions"
+              }
+            },
+            {
               "name": "Terminate Session",
               "request": {
                 "method": "DELETE",

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import roleController from '../controllers/role.controller';
-import { authenticate } from '../middleware/auth';
+import { authenticate } from '../middleware/auth-supabase';
 import {
   requirePermission,
   requireAnyPermission,

@@ -145,6 +145,22 @@ export const authenticateSupabase = async (
       );
     }
 
+    // Validate and update session activity (non-blocking)
+    // This updates the lastActivityAt timestamp for the session
+    try {
+      const sessionResult =
+        await sessionManagementService.validateSessionByToken(token);
+      if (sessionResult.success && sessionResult.data?.sessionId) {
+        // Attach session info to request for potential logout operations
+        (req as any).sessionId = sessionResult.data.sessionId;
+      }
+      // If session validation fails, we don't block - the JWT is still valid
+      // This allows backward compatibility during migration
+    } catch (sessionError) {
+      // Silent fail - session tracking is optional
+      console.debug('Session tracking unavailable:', sessionError);
+    }
+
     // Update last login timestamp
     await supabaseAdmin
       .from('users')

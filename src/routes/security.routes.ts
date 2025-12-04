@@ -1,13 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { authenticateSupabase, authorizeSupabase } from '../middleware/auth-supabase';
+import {
+  authenticateSupabase,
+  authorizeSupabase,
+} from '../middleware/auth-supabase';
 import { emailVerificationService } from '../services/security/email-verification.service';
 import { passwordPolicyService } from '../services/security/password-policy.service';
 import { sessionManagementService } from '../services/security/session-management.service';
 import { apiKeyIPWhitelistService } from '../middleware/api-key-ip-whitelist.middleware';
-import { 
-  getRateLimitStatus, 
+import {
+  getRateLimitStatus,
   resetRateLimit,
-  getAllRateLimits 
+  getAllRateLimits,
 } from '../middleware/rate-limit.middleware';
 import { supabaseAdmin } from '../config/supabase-enhanced';
 import { UserRole } from '../types';
@@ -22,28 +25,45 @@ const router = Router();
  * Send verification email
  * POST /api/security/email/verify/send
  */
-router.post('/email/verify/send', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    
-    if (user.isEmailVerified || user.appUser?.isEmailVerified) {
-      return res.status(400).json({
-        success: false,
-        error: { code: 'ALREADY_VERIFIED', message: 'Email is already verified' },
+router.post(
+  '/email/verify/send',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+
+      if (user.isEmailVerified || user.appUser?.isEmailVerified) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'ALREADY_VERIFIED',
+            message: 'Email is already verified',
+          },
+        });
+      }
+
+      const result = await emailVerificationService.createVerificationToken(
+        user.id
+      );
+
+      if (!result.success) {
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.json({
+        success: true,
+        message: 'Verification email sent',
+        data: { expiresAt: result.data?.expiresAt },
       });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
-
-    const result = await emailVerificationService.createVerificationToken(user.id);
-    
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: { message: result.message } });
-    }
-
-    res.json({ success: true, message: 'Verification email sent', data: { expiresAt: result.data?.expiresAt } });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
   }
-});
+);
 
 /**
  * Verify email with token
@@ -56,14 +76,19 @@ router.post('/email/verify', async (req: Request, res: Response) => {
     if (!token) {
       return res.status(400).json({
         success: false,
-        error: { code: 'MISSING_TOKEN', message: 'Verification token is required' },
+        error: {
+          code: 'MISSING_TOKEN',
+          message: 'Verification token is required',
+        },
       });
     }
 
     const result = await emailVerificationService.verifyToken(token);
 
     if (!result.success) {
-      return res.status(400).json({ success: false, error: { message: result.message } });
+      return res
+        .status(400)
+        .json({ success: false, error: { message: result.message } });
     }
 
     res.json({ success: true, message: 'Email verified successfully' });
@@ -76,41 +101,56 @@ router.post('/email/verify', async (req: Request, res: Response) => {
  * Resend verification email
  * POST /api/security/email/verify/resend
  */
-router.post('/email/verify/resend', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
+router.post(
+  '/email/verify/resend',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
 
-    const result = await emailVerificationService.resendVerification(user.id);
+      const result = await emailVerificationService.resendVerification(user.id);
 
-    if (!result.success) {
-      return res.status(429).json({ success: false, error: { message: result.message } });
+      if (!result.success) {
+        return res
+          .status(429)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.json({ success: true, message: 'Verification email resent' });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
-
-    res.json({ success: true, message: 'Verification email resent' });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
   }
-});
+);
 
 /**
  * Get email verification status
  * GET /api/security/email/verify/status
  */
-router.get('/email/verify/status', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
+router.get(
+  '/email/verify/status',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
 
-    res.json({
-      success: true,
-      data: {
-        email: user.email,
-        isVerified: user.isEmailVerified || user.appUser?.isEmailVerified || false,
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      res.json({
+        success: true,
+        data: {
+          email: user.email,
+          isVerified:
+            user.isEmailVerified || user.appUser?.isEmailVerified || false,
+        },
+      });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 // ============================================
 // PASSWORD POLICY ROUTES
@@ -180,52 +220,71 @@ router.post('/password/validate', async (req: Request, res: Response) => {
  * Check password expiration
  * GET /api/security/password/expiration
  */
-router.get('/password/expiration', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    const result = await passwordPolicyService.isPasswordExpired(user.id);
+router.get(
+  '/password/expiration',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      const result = await passwordPolicyService.isPasswordExpired(user.id);
 
-    res.json({
-      success: true,
-      data: result.data || { expired: !result.success },
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      res.json({
+        success: true,
+        data: result.data || { expired: !result.success },
+      });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 /**
  * Change password with policy validation
  * POST /api/security/password/change
  */
-router.post('/password/change', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    const { currentPassword, newPassword } = req.body;
+router.post(
+  '/password/change',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      const { currentPassword, newPassword } = req.body;
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'Current password and new password are required' },
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Current password and new password are required' },
+        });
+      }
+
+      const result = await passwordPolicyService.processPasswordChange(
+        user.id,
+        currentPassword,
+        newPassword,
+        user.organizationId
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          error: { message: result.message, details: result.data },
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Password changed successfully',
+        data: result.data,
       });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
-
-    const result = await passwordPolicyService.processPasswordChange(
-      user.id,
-      currentPassword,
-      newPassword,
-      user.organizationId
-    );
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: { message: result.message, details: result.data } });
-    }
-
-    res.json({ success: true, message: 'Password changed successfully', data: result.data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
   }
-});
+);
 
 /**
  * Update organization password policy (admin only)
@@ -254,12 +313,20 @@ router.put(
       );
 
       if (!result.success) {
-        return res.status(400).json({ success: false, error: { message: result.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
       }
 
-      res.json({ success: true, message: 'Password policy updated', data: result.data });
+      res.json({
+        success: true,
+        message: 'Password policy updated',
+        data: result.data,
+      });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -269,74 +336,240 @@ router.put(
 // ============================================
 
 /**
+ * Get all sessions across users (admin only)
+ * GET /api/security/sessions/all
+ */
+router.get(
+  '/sessions/all',
+  authenticateSupabase,
+  authorizeSupabase(UserRole.ADMIN, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      const { page = 1, limit = 50, userId, isActive } = req.query;
+
+      // Super admins can see all, others can only see their organization
+      const organizationId =
+        user.role === 'SUPER_ADMIN'
+          ? (req.query.organizationId as string)
+          : user.organizationId;
+
+      const result = await sessionManagementService.getAllSessions({
+        organizationId,
+        userId: userId as string,
+        isActive:
+          isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+        page: Number(page),
+        limit: Number(limit),
+      });
+
+      if (!result.success) {
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.json({ success: true, data: result.data });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
+  }
+);
+
+/**
+ * Get session statistics (admin only)
+ * GET /api/security/sessions/stats
+ */
+router.get(
+  '/sessions/stats',
+  authenticateSupabase,
+  authorizeSupabase(UserRole.ADMIN, UserRole.ORG_ADMIN, UserRole.SUPER_ADMIN),
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+
+      // Super admins can see all, others can only see their organization
+      const organizationId =
+        user.role === 'SUPER_ADMIN'
+          ? (req.query.organizationId as string)
+          : user.organizationId;
+
+      const result =
+        await sessionManagementService.getSessionStats(organizationId);
+
+      if (!result.success) {
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.json({ success: true, data: result.data });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
+  }
+);
+
+/**
  * Get user sessions
  * GET /api/security/sessions
  */
-router.get('/sessions', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    const result = await sessionManagementService.getUserSessions(user.id);
+router.get(
+  '/sessions',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      const result = await sessionManagementService.getUserSessions(user.id);
 
-    res.json({ success: true, data: result.data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      res.json({ success: true, data: result.data });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
+
+/**
+ * Get current session status (for polling fallback)
+ * GET /api/security/sessions/current
+ */
+router.get(
+  '/sessions/current',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const sessionId = (req as any).sessionId;
+
+      if (!sessionId) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'No session found' },
+        });
+      }
+
+      // Get session directly from database
+      const { data: session, error } = await supabaseAdmin
+        .from('user_sessions')
+        .select('id, isActive, lastActivityAt, expiresAt')
+        .eq('id', sessionId)
+        .single();
+
+      if (error || !session) {
+        return res.status(404).json({
+          success: false,
+          error: { message: 'Session not found' },
+        });
+      }
+
+      // Check if session is expired
+      const isExpired = new Date(session.expiresAt) < new Date();
+
+      res.json({
+        success: true,
+        data: {
+          id: session.id,
+          isActive: session.isActive && !isExpired,
+          lastActivityAt: session.lastActivityAt,
+          expiresAt: session.expiresAt,
+        },
+      });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
+  }
+);
 
 /**
  * Terminate a specific session
  * DELETE /api/security/sessions/:sessionId
  */
-router.delete('/sessions/:sessionId', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const sessionId = req.params.sessionId;
-    if (!sessionId) {
-      return res.status(400).json({ success: false, error: { message: 'Session ID is required' } });
-    }
-    
-    const result = await sessionManagementService.terminateSession(sessionId);
+router.delete(
+  '/sessions/:sessionId',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.params.sessionId;
+      if (!sessionId) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Session ID is required' },
+        });
+      }
 
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: { message: result.message } });
-    }
+      const result = await sessionManagementService.terminateSession(sessionId);
 
-    res.json({ success: true, message: 'Session terminated' });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      if (!result.success) {
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.json({ success: true, message: 'Session terminated' });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 /**
  * Terminate all other sessions (keep current)
  * POST /api/security/sessions/logout-others
  */
-router.post('/sessions/logout-others', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    const currentSessionId = req.body.currentSessionId;
+router.post(
+  '/sessions/logout-others',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      const currentSessionId = req.body.currentSessionId;
 
-    await sessionManagementService.terminateAllSessions(user.id, currentSessionId);
+      await sessionManagementService.terminateAllSessions(
+        user.id,
+        currentSessionId
+      );
 
-    res.json({ success: true, message: 'All other sessions terminated' });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      res.json({ success: true, message: 'All other sessions terminated' });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 /**
  * Terminate all sessions (full logout)
  * POST /api/security/sessions/logout-all
  */
-router.post('/sessions/logout-all', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    await sessionManagementService.terminateAllSessions(user.id);
+router.post(
+  '/sessions/logout-all',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      await sessionManagementService.terminateAllSessions(user.id);
 
-    res.json({ success: true, message: 'All sessions terminated. Please log in again.' });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      res.json({
+        success: true,
+        message: 'All sessions terminated. Please log in again.',
+      });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 /**
  * Force logout a user (admin only)
@@ -353,18 +586,32 @@ router.post(
       const { reason } = req.body;
 
       if (!userId) {
-        return res.status(400).json({ success: false, error: { message: 'User ID is required' } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: 'User ID is required' } });
       }
 
-      const result = await sessionManagementService.forceLogoutUser(userId, admin.id, reason);
+      const result = await sessionManagementService.forceLogoutUser(
+        userId,
+        admin.id,
+        reason
+      );
 
       if (!result.success) {
-        return res.status(400).json({ success: false, error: { message: result.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
       }
 
-      res.json({ success: true, message: 'User forcefully logged out', data: result.data });
+      res.json({
+        success: true,
+        message: 'User forcefully logged out',
+        data: result.data,
+      });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -373,14 +620,20 @@ router.post(
  * Get session configuration
  * GET /api/security/sessions/config
  */
-router.get('/sessions/config', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const config = sessionManagementService.getConfig();
-    res.json({ success: true, data: { config } });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+router.get(
+  '/sessions/config',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const config = sessionManagementService.getConfig();
+      res.json({ success: true, data: { config } });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 // ============================================
 // RATE LIMITING ROUTES
@@ -390,24 +643,51 @@ router.get('/sessions/config', authenticateSupabase, async (req: Request, res: R
  * Get rate limit status
  * GET /api/security/rate-limit/status
  */
-router.get('/rate-limit/status', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const user = (req as any).user || req.userContext;
-    const key = `user:${user.id}`;
-    const status = getRateLimitStatus(key);
+router.get(
+  '/rate-limit/status',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user || req.userContext;
+      const key = `user:${user.id}`;
+      const status = getRateLimitStatus(key);
 
-    res.json({
-      success: true,
-      data: {
-        status: status || { count: 0, remaining: 100 },
-        limit: res.getHeader('X-RateLimit-Limit'),
-        tier: res.getHeader('X-RateLimit-Tier') || 'default',
-      },
-    });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      // Get all rate limits for this user across different endpoints
+      const allLimits = getAllRateLimits();
+      const userLimits = allLimits.filter(limit => 
+        limit.key.includes(user.id) || limit.key.includes(req.ip || '')
+      );
+
+      // Default tier config
+      const defaultWindowMs = 60000; // 1 minute
+      const defaultLimit = 100;
+
+      res.json({
+        success: true,
+        data: {
+          enabled: true,
+          defaultLimit,
+          windowMs: defaultWindowMs,
+          currentUser: {
+            count: status?.count || 0,
+            remaining: status?.remaining || defaultLimit,
+            resetAt: status?.resetAt?.toISOString(),
+          },
+          userLimits: userLimits.map(l => ({
+            key: l.key,
+            count: l.count,
+            resetAt: l.resetAt.toISOString(),
+          })),
+          tier: 'default',
+        },
+      });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 /**
  * Get all rate limits (admin only)
@@ -422,7 +702,9 @@ router.get(
       const limits = getAllRateLimits();
       res.json({ success: true, data: { limits, count: limits.length } });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -439,9 +721,11 @@ router.post(
     try {
       const userId = req.params.userId;
       if (!userId) {
-        return res.status(400).json({ success: false, error: { message: 'User ID is required' } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: 'User ID is required' } });
       }
-      
+
       const key = `user:${userId}`;
       const reset = resetRateLimit(key);
 
@@ -454,9 +738,14 @@ router.post(
         resourceId: userId,
       });
 
-      res.json({ success: true, message: reset ? 'Rate limit reset' : 'No rate limit found for user' });
+      res.json({
+        success: true,
+        message: reset ? 'Rate limit reset' : 'No rate limit found for user',
+      });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -469,60 +758,90 @@ router.post(
  * Get API key whitelist
  * GET /api/security/api-keys/:apiKeyId/whitelist
  */
-router.get('/api-keys/:apiKeyId/whitelist', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const apiKeyId = req.params.apiKeyId;
-    if (!apiKeyId) {
-      return res.status(400).json({ success: false, error: { message: 'API Key ID is required' } });
-    }
-    
-    const result = await apiKeyIPWhitelistService.getWhitelist(apiKeyId);
+router.get(
+  '/api-keys/:apiKeyId/whitelist',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const apiKeyId = req.params.apiKeyId;
+      if (!apiKeyId) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'API Key ID is required' },
+        });
+      }
 
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: { message: result.message } });
-    }
+      const result = await apiKeyIPWhitelistService.getWhitelist(apiKeyId);
 
-    res.json({ success: true, data: result.data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
+      if (!result.success) {
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.json({ success: true, data: result.data });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
+    }
   }
-});
+);
 
 /**
  * Add IP to whitelist
  * POST /api/security/api-keys/:apiKeyId/whitelist
  */
-router.post('/api-keys/:apiKeyId/whitelist', authenticateSupabase, async (req: Request, res: Response) => {
-  try {
-    const apiKeyId = req.params.apiKeyId;
-    if (!apiKeyId) {
-      return res.status(400).json({ success: false, error: { message: 'API Key ID is required' } });
-    }
-    
-    const { ipAddress, cidr, description, expiresAt } = req.body;
+router.post(
+  '/api-keys/:apiKeyId/whitelist',
+  authenticateSupabase,
+  async (req: Request, res: Response) => {
+    try {
+      const apiKeyId = req.params.apiKeyId;
+      if (!apiKeyId) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'API Key ID is required' },
+        });
+      }
 
-    if (!ipAddress) {
-      return res.status(400).json({
-        success: false,
-        error: { message: 'IP address is required' },
+      const { ipAddress, cidr, description, expiresAt } = req.body;
+
+      if (!ipAddress) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'IP address is required' },
+        });
+      }
+
+      const result = await apiKeyIPWhitelistService.addToWhitelist(
+        apiKeyId,
+        ipAddress,
+        {
+          cidr,
+          description,
+          expiresAt: expiresAt ? new Date(expiresAt) : undefined,
+        }
+      );
+
+      if (!result.success) {
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'IP added to whitelist',
+        data: result.data,
       });
+    } catch (error: any) {
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
-
-    const result = await apiKeyIPWhitelistService.addToWhitelist(apiKeyId, ipAddress, {
-      cidr,
-      description,
-      expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-    });
-
-    if (!result.success) {
-      return res.status(400).json({ success: false, error: { message: result.message } });
-    }
-
-    res.status(201).json({ success: true, message: 'IP added to whitelist', data: result.data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: { message: error.message } });
   }
-});
+);
 
 /**
  * Remove IP from whitelist
@@ -535,20 +854,30 @@ router.delete(
     try {
       const apiKeyId = req.params.apiKeyId;
       const entryId = req.params.entryId;
-      
+
       if (!apiKeyId || !entryId) {
-        return res.status(400).json({ success: false, error: { message: 'API Key ID and Entry ID are required' } });
+        return res.status(400).json({
+          success: false,
+          error: { message: 'API Key ID and Entry ID are required' },
+        });
       }
-      
-      const result = await apiKeyIPWhitelistService.removeFromWhitelist(apiKeyId, entryId);
+
+      const result = await apiKeyIPWhitelistService.removeFromWhitelist(
+        apiKeyId,
+        entryId
+      );
 
       if (!result.success) {
-        return res.status(400).json({ success: false, error: { message: result.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
       }
 
       res.json({ success: true, message: 'IP removed from whitelist' });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -564,9 +893,12 @@ router.patch(
     try {
       const apiKeyId = req.params.apiKeyId;
       if (!apiKeyId) {
-        return res.status(400).json({ success: false, error: { message: 'API Key ID is required' } });
+        return res.status(400).json({
+          success: false,
+          error: { message: 'API Key ID is required' },
+        });
       }
-      
+
       const { enabled } = req.body;
 
       if (typeof enabled !== 'boolean') {
@@ -576,15 +908,22 @@ router.patch(
         });
       }
 
-      const result = await apiKeyIPWhitelistService.toggleIPWhitelist(apiKeyId, enabled);
+      const result = await apiKeyIPWhitelistService.toggleIPWhitelist(
+        apiKeyId,
+        enabled
+      );
 
       if (!result.success) {
-        return res.status(400).json({ success: false, error: { message: result.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
       }
 
       res.json({ success: true, message: result.message, data: result.data });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -600,9 +939,12 @@ router.post(
     try {
       const apiKeyId = req.params.apiKeyId;
       if (!apiKeyId) {
-        return res.status(400).json({ success: false, error: { message: 'API Key ID is required' } });
+        return res.status(400).json({
+          success: false,
+          error: { message: 'API Key ID is required' },
+        });
       }
-      
+
       const { ips } = req.body;
 
       if (!Array.isArray(ips) || ips.length === 0) {
@@ -612,15 +954,24 @@ router.post(
         });
       }
 
-      const result = await apiKeyIPWhitelistService.bulkAddToWhitelist(apiKeyId, ips);
+      const result = await apiKeyIPWhitelistService.bulkAddToWhitelist(
+        apiKeyId,
+        ips
+      );
 
       if (!result.success) {
-        return res.status(400).json({ success: false, error: { message: result.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
       }
 
-      res.status(201).json({ success: true, message: result.message, data: result.data });
+      res
+        .status(201)
+        .json({ success: true, message: result.message, data: result.data });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -637,18 +988,25 @@ router.delete(
     try {
       const apiKeyId = req.params.apiKeyId;
       if (!apiKeyId) {
-        return res.status(400).json({ success: false, error: { message: 'API Key ID is required' } });
+        return res.status(400).json({
+          success: false,
+          error: { message: 'API Key ID is required' },
+        });
       }
-      
+
       const result = await apiKeyIPWhitelistService.clearWhitelist(apiKeyId);
 
       if (!result.success) {
-        return res.status(400).json({ success: false, error: { message: result.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: result.message } });
       }
 
       res.json({ success: true, message: 'Whitelist cleared' });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -668,13 +1026,23 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const user = (req as any).user || req.userContext;
-      const { page = 1, limit = 50, action, userId, startDate, endDate } = req.query;
+      const {
+        page = 1,
+        limit = 50,
+        action,
+        userId,
+        startDate,
+        endDate,
+      } = req.query;
 
       let query = supabaseAdmin
         .from('audit_logs')
         .select('*', { count: 'exact' })
         .order('createdAt', { ascending: false })
-        .range((Number(page) - 1) * Number(limit), Number(page) * Number(limit) - 1);
+        .range(
+          (Number(page) - 1) * Number(limit),
+          Number(page) * Number(limit) - 1
+        );
 
       // Filter by organization
       if (user.organizationId) {
@@ -693,7 +1061,9 @@ router.get(
       const { data, error, count } = await query;
 
       if (error) {
-        return res.status(400).json({ success: false, error: { message: error.message } });
+        return res
+          .status(400)
+          .json({ success: false, error: { message: error.message } });
       }
 
       res.json({
@@ -709,7 +1079,9 @@ router.get(
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );
@@ -747,7 +1119,7 @@ router.get(
 
       // Aggregate by action
       const summary: Record<string, number> = {};
-      (events || []).forEach((event) => {
+      (events || []).forEach(event => {
         summary[event.action] = (summary[event.action] || 0) + 1;
       });
 
@@ -760,7 +1132,9 @@ router.get(
         },
       });
     } catch (error: any) {
-      res.status(500).json({ success: false, error: { message: error.message } });
+      res
+        .status(500)
+        .json({ success: false, error: { message: error.message } });
     }
   }
 );

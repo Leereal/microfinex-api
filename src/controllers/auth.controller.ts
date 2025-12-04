@@ -10,7 +10,19 @@ class AuthController {
     try {
       const { email, password } = req.body;
 
-      const result = await authService.login({ email, password });
+      // Get IP and user agent for session tracking
+      const ipAddress =
+        req.ip ||
+        req.headers['x-forwarded-for']?.toString().split(',')[0] ||
+        'unknown';
+      const userAgent = req.headers['user-agent'] || 'unknown';
+
+      const result = await authService.login({
+        email,
+        password,
+        ipAddress,
+        userAgent,
+      });
 
       if (!result.success) {
         return res.status(401).json({
@@ -237,7 +249,10 @@ class AuthController {
    */
   async logout(req: Request, res: Response) {
     try {
-      const result = await authService.logout();
+      const userId = req.userContext?.id;
+      const sessionId = req.body.sessionId; // Optional: terminate specific session
+
+      const result = await authService.logout(userId, sessionId);
 
       if (!result.success) {
         return res.status(400).json({

@@ -3,10 +3,13 @@ import { hashPassword, generateToken } from '../utils/auth';
 import { generateApiKey } from '../utils/security';
 import { UserRole, ApiTier } from '../types';
 import { prisma } from '../config/database';
+import { sessionManagementService } from './security/session-management.service';
 
 export interface LoginInput {
   email: string;
   password: string;
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 export interface RegisterInput {
@@ -55,7 +58,12 @@ class AuthService {
    * Authenticate user with email and password
    */
   async login(input: LoginInput): Promise<AuthResult> {
-    const { email, password } = input;
+    const {
+      email,
+      password,
+      ipAddress = 'unknown',
+      userAgent = 'unknown',
+    } = input;
 
     // Authenticate with Supabase
     const { data: authData, error: authError } =
@@ -122,6 +130,19 @@ class AuthService {
       tier: (user.organization?.apiTier as ApiTier) || ApiTier.BASIC,
     });
 
+    // Create session record
+    const sessionResult = await sessionManagementService.createSession(
+      user.id,
+      ipAddress,
+      userAgent,
+      token
+    );
+
+    // Log if session creation failed but don't block login
+    if (!sessionResult.success) {
+      console.warn('Failed to create session record:', sessionResult.message);
+    }
+
     return {
       success: true,
       message: 'Login successful',
@@ -136,6 +157,7 @@ class AuthService {
           lastLoginAt: user.lastLoginAt,
         },
         token: token,
+        sessionId: sessionResult.data?.sessionId,
       },
     };
   }
@@ -235,7 +257,7 @@ class AuthService {
   /**
    * Logout user
    */
-  async logout(): Promise<AuthResult> {
+  async logout(userId?: string, sessionId?: string): Promise<AuthResult> {
     const { error } = await supabase.auth.signOut();
 
     if (error) {
@@ -244,6 +266,13 @@ class AuthService {
         message: 'Logout failed',
         error: error.message,
       };
+    }
+
+    // Terminate specific session or all sessions for user
+    if (sessionId) {
+      await sessionManagementService.terminateSession(sessionId);
+    } else if (userId) {
+      await sessionManagementService.terminateAllSessions(userId);
     }
 
     return {

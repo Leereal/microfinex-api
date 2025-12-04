@@ -143,6 +143,7 @@ model User {
   payments       Payment[]
   auditLogs      AuditLog[]
   refreshTokens  RefreshToken[]
+  sessions       UserSession[]
   assessments    LoanAssessment[]
   visits         LoanVisit[]
   workflowChanges LoanWorkflowHistory[]
@@ -163,6 +164,27 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+model UserSession {
+  id             String    @id @default(uuid())
+  userId         String
+  token          String    @unique
+  deviceInfo     Json?
+  ipAddress      String?
+  userAgent      String?
+  isActive       Boolean   @default(true)
+  lastActivityAt DateTime  @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  // Relations
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([isActive])
+  @@map("user_sessions")
 }
 
 model Client {
