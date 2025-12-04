@@ -654,8 +654,8 @@ router.get(
 
       // Get all rate limits for this user across different endpoints
       const allLimits = getAllRateLimits();
-      const userLimits = allLimits.filter(limit => 
-        limit.key.includes(user.id) || limit.key.includes(req.ip || '')
+      const userLimits = allLimits.filter(
+        limit => limit.key.includes(user.id) || limit.key.includes(req.ip || '')
       );
 
       // Default tier config
