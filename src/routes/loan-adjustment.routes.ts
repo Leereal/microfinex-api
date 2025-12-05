@@ -40,7 +40,7 @@ const createAdjustmentSchema = z.object({
 
 router.post(
   '/adjustments',
-  requirePermission('loan:adjust'),
+  requirePermission('loans:adjust'),
   validateRequest(createAdjustmentSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -78,7 +78,7 @@ const adjustmentHistorySchema = z.object({
 
 router.get(
   '/:loanId/adjustments',
-  requirePermission('loan:view'),
+  requirePermission('loans:view'),
   validateRequest(adjustmentHistorySchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -117,7 +117,7 @@ const writeoffSchema = z.object({
 
 router.post(
   '/writeoff',
-  requirePermission('loan:writeoff'),
+  requirePermission('loans:writeoff'),
   validateRequest(writeoffSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -157,7 +157,7 @@ const writeoffHistorySchema = z.object({
 
 router.get(
   '/writeoffs',
-  requirePermission('loan:view'),
+  requirePermission('loans:view'),
   validateRequest(writeoffHistorySchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -197,7 +197,7 @@ const rescheduleSchema = z.object({
 
 router.post(
   '/reschedule',
-  requirePermission('loan:reschedule'),
+  requirePermission('loans:reschedule'),
   validateRequest(rescheduleSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -235,7 +235,7 @@ const rescheduleHistorySchema = z.object({
 
 router.get(
   '/:loanId/reschedules',
-  requirePermission('loan:view'),
+  requirePermission('loans:view'),
   validateRequest(rescheduleHistorySchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -269,7 +269,7 @@ const waivePenaltySchema = z.object({
 
 router.post(
   '/:loanId/waive-penalty',
-  requirePermission('loan:adjust'),
+  requirePermission('loans:adjust'),
   validateRequest(waivePenaltySchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -318,7 +318,7 @@ const waiveInterestSchema = z.object({
 
 router.post(
   '/:loanId/waive-interest',
-  requirePermission('loan:adjust'),
+  requirePermission('loans:adjust'),
   validateRequest(waiveInterestSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;

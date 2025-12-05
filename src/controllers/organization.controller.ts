@@ -14,7 +14,8 @@ class OrganizationController {
       const filters = {
         search: search as string,
         type: type as any,
-        isActive: isActive !== undefined ? isActive === 'true' : undefined,
+        // isActive is already transformed to boolean by Zod validation
+        isActive: isActive as boolean | undefined,
         page: Number(page),
         limit: Number(limit),
       };

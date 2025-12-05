@@ -10,6 +10,7 @@ import {
   kycDocumentSchema,
   ClientSearchFilters,
 } from '../services/client.service';
+import { logCreate } from '../services/audit.service';
 
 const router = Router();
 
@@ -124,6 +125,10 @@ router.post(
     try {
       const organizationId = req.userContext?.organizationId;
       const createdBy = req.userContext?.id;
+      const branchId = req.userContext?.branchId;
+
+      console.log('[Client Create] Request body:', JSON.stringify(req.body, null, 2));
+      console.log('[Client Create] User context:', { organizationId, createdBy, branchId });
 
       if (!organizationId || !createdBy) {
         return res.status(400).json({
@@ -140,17 +145,57 @@ router.post(
         createdBy
       );
 
+      // Explicit audit logging for client creation
+      try {
+        await logCreate('CLIENT', client.id, client, {
+          userId: createdBy,
+          organizationId,
+          branchId: req.body.branchId || branchId,
+          ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+          userAgent: req.headers['user-agent'] as string,
+          requestId: req.auditContext?.requestId,
+        });
+        console.log('[Client Create] Audit log created for client:', client.id);
+      } catch (auditError) {
+        console.error('[Client Create] Audit logging failed:', auditError);
+        // Don't fail the request if audit logging fails
+      }
+
       res.status(201).json({
         success: true,
         message: 'Client created successfully',
         data: { client },
         timestamp: new Date().toISOString(),
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Create client error:', error);
+      
+      // Handle specific Prisma errors
+      if (error.code === 'P2002') {
+        // Unique constraint violation
+        const field = error.meta?.target?.[0] || 'field';
+        return res.status(409).json({
+          success: false,
+          message: `A client with this ${field} already exists`,
+          error: 'DUPLICATE_ENTRY',
+          field,
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      if (error.code === 'P2003') {
+        // Foreign key constraint failure
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid reference: branch or other related entity not found',
+          error: 'INVALID_REFERENCE',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
         error: 'INTERNAL_ERROR',
         timestamp: new Date().toISOString(),
       });

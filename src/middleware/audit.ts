@@ -52,6 +52,7 @@ const SKIP_AUDIT_PATHS = [
   '/health',
   '/api/v1/health',
   '/api/v1/audit', // Don't audit audit endpoints
+  '/api/v1/client-drafts', // Don't audit draft auto-saves (too noisy)
   '/api-docs',
   '/swagger',
 ];
@@ -236,9 +237,9 @@ async function logAuditEntry(
       action,
       resource,
       resourceId,
-      userId: ctx.userId || 'anonymous',
-      organizationId: ctx.organizationId,
-      branchId: ctx.branchId,
+      userId: ctx.userId || null, // Don't use 'anonymous' - use null for unknown users
+      organizationId: ctx.organizationId || null,
+      branchId: ctx.branchId || null,
       previousValue: req.previousEntityState || null,
       newValue:
         action === 'DELETE' ? null : responseBody?.data || req.body || null,

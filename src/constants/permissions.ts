@@ -27,6 +27,10 @@ export const PERMISSION_MODULES = {
   ONLINE_APPLICATIONS: 'online_applications',
   API_KEYS: 'api_keys',
   DASHBOARD: 'dashboard',
+  // Client Management
+  DOCUMENTS: 'documents',
+  COLLATERALS: 'collaterals',
+  IMPORTS: 'imports',
 } as const;
 
 // Permission interface
@@ -899,6 +903,114 @@ export const DASHBOARD_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== DOCUMENT PERMISSIONS ====================
+export const DOCUMENT_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'documents:view',
+    name: 'View Documents',
+    description: 'View client documents',
+    module: PERMISSION_MODULES.DOCUMENTS,
+  },
+  {
+    code: 'documents:create',
+    name: 'Upload Documents',
+    description: 'Upload client documents',
+    module: PERMISSION_MODULES.DOCUMENTS,
+  },
+  {
+    code: 'documents:verify',
+    name: 'Verify Documents',
+    description: 'Verify and approve documents',
+    module: PERMISSION_MODULES.DOCUMENTS,
+  },
+  {
+    code: 'documents:delete',
+    name: 'Delete Documents',
+    description: 'Delete client documents',
+    module: PERMISSION_MODULES.DOCUMENTS,
+  },
+  {
+    code: 'documents:extract',
+    name: 'Extract Document Data',
+    description: 'Use AI to extract data from documents',
+    module: PERMISSION_MODULES.DOCUMENTS,
+  },
+  {
+    code: 'documents:manage',
+    name: 'Manage Document Types',
+    description: 'Create and manage document types',
+    module: PERMISSION_MODULES.DOCUMENTS,
+  },
+];
+
+// ==================== COLLATERAL PERMISSIONS ====================
+export const COLLATERAL_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'collaterals:view',
+    name: 'View Collaterals',
+    description: 'View client collaterals',
+    module: PERMISSION_MODULES.COLLATERALS,
+  },
+  {
+    code: 'collaterals:create',
+    name: 'Create Collateral',
+    description: 'Add collateral for clients',
+    module: PERMISSION_MODULES.COLLATERALS,
+  },
+  {
+    code: 'collaterals:update',
+    name: 'Update Collateral',
+    description: 'Update collateral information',
+    module: PERMISSION_MODULES.COLLATERALS,
+  },
+  {
+    code: 'collaterals:delete',
+    name: 'Delete Collateral',
+    description: 'Remove collateral records',
+    module: PERMISSION_MODULES.COLLATERALS,
+  },
+  {
+    code: 'collaterals:manage',
+    name: 'Manage Collateral Types',
+    description: 'Create and manage collateral types',
+    module: PERMISSION_MODULES.COLLATERALS,
+  },
+  {
+    code: 'collaterals:valuate',
+    name: 'Valuate Collateral',
+    description: 'Update collateral valuation',
+    module: PERMISSION_MODULES.COLLATERALS,
+  },
+];
+
+// ==================== IMPORT PERMISSIONS ====================
+export const IMPORT_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'imports:view',
+    name: 'View Import Jobs',
+    description: 'View import job history',
+    module: PERMISSION_MODULES.IMPORTS,
+  },
+  {
+    code: 'imports:create',
+    name: 'Create Import',
+    description: 'Start bulk data imports',
+    module: PERMISSION_MODULES.IMPORTS,
+  },
+  {
+    code: 'imports:cancel',
+    name: 'Cancel Import',
+    description: 'Cancel pending import jobs',
+    module: PERMISSION_MODULES.IMPORTS,
+  },
+  {
+    code: 'imports:delete',
+    name: 'Delete Import',
+    description: 'Delete import job records',
+    module: PERMISSION_MODULES.IMPORTS,
+  },
+];
+
 // ==================== ALL PERMISSIONS ====================
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
@@ -923,6 +1035,10 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...ONLINE_APPLICATION_PERMISSIONS,
   ...API_KEY_PERMISSIONS,
   ...DASHBOARD_PERMISSIONS,
+  // Client Management
+  ...DOCUMENT_PERMISSIONS,
+  ...COLLATERAL_PERMISSIONS,
+  ...IMPORT_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -952,6 +1068,8 @@ export const PERMISSIONS = {
   LOANS_DISBURSE: 'loans:disburse',
   LOANS_TOPUP: 'loans:topup',
   LOANS_RESTRUCTURE: 'loans:restructure',
+  LOANS_RESCHEDULE: 'loans:reschedule',
+  LOANS_ADJUST: 'loans:adjust',
   LOANS_WRITEOFF: 'loans:writeoff',
   LOANS_RECOVER: 'loans:recover',
   LOANS_SCHEDULE_VIEW: 'loans:schedule:view',
@@ -963,6 +1081,7 @@ export const PERMISSIONS = {
 
   // Payments
   PAYMENTS_VIEW: 'payments:view',
+  PAYMENTS_CREATE: 'payments:create',
   PAYMENTS_RECEIVE: 'payments:receive',
   PAYMENTS_REVERSE: 'payments:reverse',
   PAYMENTS_BULK: 'payments:bulk',
@@ -1099,6 +1218,34 @@ export const PERMISSIONS = {
   DASHBOARD_VIEW: 'dashboard:view',
   DASHBOARD_ANALYTICS: 'dashboard:analytics',
   DASHBOARD_CUSTOMIZE: 'dashboard:customize',
+
+  // Notifications
+  NOTIFICATIONS_VIEW: 'notifications:view',
+  NOTIFICATIONS_SEND: 'notifications:send',
+  NOTIFICATIONS_BULK: 'notifications:bulk',
+  NOTIFICATIONS_MANAGE: 'notifications:manage',
+
+  // Imports
+  IMPORTS_VIEW: 'imports:view',
+  IMPORTS_CREATE: 'imports:create',
+  IMPORTS_CANCEL: 'imports:cancel',
+  IMPORTS_DELETE: 'imports:delete',
+
+  // Documents
+  DOCUMENTS_VIEW: 'documents:view',
+  DOCUMENTS_CREATE: 'documents:create',
+  DOCUMENTS_VERIFY: 'documents:verify',
+  DOCUMENTS_DELETE: 'documents:delete',
+  DOCUMENTS_EXTRACT: 'documents:extract',
+  DOCUMENTS_MANAGE: 'documents:manage',
+
+  // Collaterals
+  COLLATERALS_VIEW: 'collaterals:view',
+  COLLATERALS_CREATE: 'collaterals:create',
+  COLLATERALS_UPDATE: 'collaterals:update',
+  COLLATERALS_DELETE: 'collaterals:delete',
+  COLLATERALS_MANAGE: 'collaterals:manage',
+  COLLATERALS_VALUATE: 'collaterals:valuate',
 } as const;
 
 // ==================== DEFAULT ROLE PERMISSIONS ====================

@@ -43,7 +43,7 @@ const createBranchBodySchema = z.object({
 
 router.post(
   '/',
-  requirePermission('branch:create'),
+  requirePermission('branches:create'),
   validateRequest(createBranchBodySchema),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
@@ -110,19 +110,43 @@ const listBranchesQuerySchema = z.object({
   isActive: z.enum(['true', 'false', 'all']).optional(),
   sortBy: z.enum(['name', 'code', 'createdAt']).default('name'),
   sortOrder: z.enum(['asc', 'desc']).default('asc'),
+  organizationId: z.string().uuid().optional(), // SUPER_ADMIN can filter by org
 });
 
 router.get(
   '/',
-  requirePermission('branch:view'),
+  requirePermission('branches:view'),
   validateQuery(listBranchesQuerySchema),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
-    const { page, limit, search, isActive, sortBy, sortOrder } = req.query;
+    const userRole = req.user!.role;
+    const {
+      page,
+      limit,
+      search,
+      isActive,
+      sortBy,
+      sortOrder,
+      organizationId: queryOrgId,
+    } = req.query;
 
-    const where: any = {
-      organizationId,
-    };
+    const where: any = {};
+
+    // Only SUPER_ADMIN can see branches from all organizations
+    // All other users must be filtered to their own organization
+    if (userRole !== 'SUPER_ADMIN') {
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must be assigned to an organization to view branches',
+          error: 'NO_ORGANIZATION',
+        });
+      }
+      where.organizationId = organizationId;
+    } else if (queryOrgId) {
+      // SUPER_ADMIN can filter by specific organization
+      where.organizationId = queryOrgId;
+    }
 
     if (search) {
       where.OR = [
@@ -177,16 +201,30 @@ router.get(
  */
 router.get(
   '/:id',
-  requirePermission('branch:view'),
+  requirePermission('branches:view'),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Build where clause - SUPER_ADMIN can view any branch
+    const where: any = {
+      id: req.params.id,
+      isActive: true,
+    };
+
+    if (userRole !== 'SUPER_ADMIN') {
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must be assigned to an organization to view branches',
+          error: 'NO_ORGANIZATION',
+        });
+      }
+      where.organizationId = organizationId;
+    }
 
     const branch = await prisma.branch.findFirst({
-      where: {
-        id: req.params.id,
-        organizationId,
-        isActive: true,
-      },
+      where,
       include: {
         manager: {
           select: { id: true, firstName: true, lastName: true, email: true },
@@ -237,20 +275,34 @@ const updateBranchBodySchema = z.object({
 
 router.put(
   '/:id',
-  requirePermission('branch:update'),
+  requirePermission('branches:update'),
   validateFullRequest({
     params: updateBranchParamsSchema,
     body: updateBranchBodySchema,
   }),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Build where clause - SUPER_ADMIN can update any branch
+    const where: any = {
+      id: req.params.id,
+      isActive: true,
+    };
+
+    if (userRole !== 'SUPER_ADMIN') {
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must be assigned to an organization to update branches',
+          error: 'NO_ORGANIZATION',
+        });
+      }
+      where.organizationId = organizationId;
+    }
 
     const branch = await prisma.branch.findFirst({
-      where: {
-        id: req.params.id,
-        organizationId,
-        isActive: true,
-      },
+      where,
     });
 
     if (!branch) {
@@ -300,16 +352,30 @@ router.put(
  */
 router.delete(
   '/:id',
-  requirePermission('branch:delete'),
+  requirePermission('branches:delete'),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Build where clause - SUPER_ADMIN can delete any branch
+    const where: any = {
+      id: req.params.id,
+      isActive: true,
+    };
+
+    if (userRole !== 'SUPER_ADMIN') {
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must be assigned to an organization to delete branches',
+          error: 'NO_ORGANIZATION',
+        });
+      }
+      where.organizationId = organizationId;
+    }
 
     const branch = await prisma.branch.findFirst({
-      where: {
-        id: req.params.id,
-        organizationId,
-        isActive: true,
-      },
+      where,
       include: {
         _count: {
           select: {
@@ -355,16 +421,31 @@ router.delete(
  */
 router.get(
   '/:id/stats',
-  requirePermission('branch:view'),
+  requirePermission('branches:view'),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Build where clause - SUPER_ADMIN can view any branch stats
+    const where: any = {
+      id: req.params.id,
+      isActive: true,
+    };
+
+    if (userRole !== 'SUPER_ADMIN') {
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message:
+            'You must be assigned to an organization to view branch stats',
+          error: 'NO_ORGANIZATION',
+        });
+      }
+      where.organizationId = organizationId;
+    }
 
     const branch = await prisma.branch.findFirst({
-      where: {
-        id: req.params.id,
-        organizationId,
-        isActive: true,
-      },
+      where,
     });
 
     if (!branch) {
@@ -445,18 +526,33 @@ const assignManagerSchema = z.object({
 
 router.post(
   '/:id/manager',
-  requirePermission('branch:update'),
+  requirePermission('branches:update'),
   validateRequest(assignManagerSchema),
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
     const { managerId } = req.body;
 
+    // Build where clause - SUPER_ADMIN can assign manager to any branch
+    const branchWhere: any = {
+      id: req.params.id,
+      isActive: true,
+    };
+
+    if (userRole !== 'SUPER_ADMIN') {
+      if (!organizationId) {
+        return res.status(403).json({
+          success: false,
+          message:
+            'You must be assigned to an organization to assign branch managers',
+          error: 'NO_ORGANIZATION',
+        });
+      }
+      branchWhere.organizationId = organizationId;
+    }
+
     const branch = await prisma.branch.findFirst({
-      where: {
-        id: req.params.id,
-        organizationId,
-        isActive: true,
-      },
+      where: branchWhere,
     });
 
     if (!branch) {
@@ -466,13 +562,18 @@ router.post(
       });
     }
 
-    // Verify manager exists
+    // Verify manager exists (and belongs to same org for non-super-admins)
+    const managerWhere: any = {
+      id: managerId,
+      isActive: true,
+    };
+
+    if (userRole !== 'SUPER_ADMIN') {
+      managerWhere.organizationId = organizationId;
+    }
+
     const manager = await prisma.user.findFirst({
-      where: {
-        id: managerId,
-        organizationId,
-        isActive: true,
-      },
+      where: managerWhere,
     });
 
     if (!manager) {

@@ -39,6 +39,11 @@ import loanAdjustmentRoutes from './loan-adjustment.routes';
 // Phase 20 routes
 import securityRoutes from './security.routes';
 import encryptionRoutes from './encryption.routes';
+// Client Management routes
+import documentRoutes from './document.routes';
+import collateralRoutes from './collateral.routes';
+import aiRoutes from './ai.routes';
+import clientDraftRoutes from './client-drafts.routes';
 
 const router = Router();
 
@@ -83,6 +88,12 @@ router.use(`${apiVersion}/loan-adjustments`, loanAdjustmentRoutes);
 // Phase 20 routes - Security Hardening
 router.use(`${apiVersion}/security`, securityRoutes);
 router.use(`${apiVersion}/encryption`, encryptionRoutes);
+
+// Client Management routes
+router.use(`${apiVersion}/documents`, documentRoutes);
+router.use(`${apiVersion}/collaterals`, collateralRoutes);
+router.use(`${apiVersion}/ai`, aiRoutes);
+router.use(`${apiVersion}/client-drafts`, clientDraftRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

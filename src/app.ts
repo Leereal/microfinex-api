@@ -9,6 +9,7 @@ import { securityHeaders, rateLimiter } from './utils/security';
 import routes from './routes';
 import { errorHandler } from './middleware/error';
 import { requestLogger } from './middleware/logging';
+import { initAuditContext, auditLogger } from './middleware/audit';
 
 const app = express();
 
@@ -40,6 +41,10 @@ app.use(rateLimiter);
 
 // Request logging
 app.use(requestLogger);
+
+// Audit logging middleware - Initialize context for all requests
+app.use(initAuditContext);
+app.use(auditLogger);
 
 // API routes
 app.use('/api', routes);

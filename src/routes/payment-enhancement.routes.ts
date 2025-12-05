@@ -28,7 +28,7 @@ const reversePaymentSchema = z.object({
 
 router.post(
   '/reverse',
-  requirePermission('payment:reverse'),
+  requirePermission('payments:reverse'),
   validateRequest(reversePaymentSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -76,7 +76,7 @@ const calculateAllocationSchema = z.object({
 
 router.post(
   '/calculate-allocation',
-  requirePermission('payment:view'),
+  requirePermission('payments:view'),
   validateRequest(calculateAllocationSchema),
   handleAsync(async (req, res) => {
     const { amount, penaltyBalance, interestBalance, principalBalance, strategy } = req.body;
@@ -116,7 +116,7 @@ const branchSummarySchema = z.object({
 
 router.get(
   '/branch-summary/:branchId',
-  requirePermission('payment:view'),
+  requirePermission('payments:view'),
   validateRequest(branchSummarySchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -158,7 +158,7 @@ const allBranchSummariesSchema = z.object({
 
 router.get(
   '/branch-summaries',
-  requirePermission('payment:view'),
+  requirePermission('payments:view'),
   validateRequest(allBranchSummariesSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -193,7 +193,7 @@ const earlyPayoffSchema = z.object({
 
 router.get(
   '/early-payoff/:loanId',
-  requirePermission('payment:view'),
+  requirePermission('payments:view'),
   validateRequest(earlyPayoffSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -246,7 +246,7 @@ const payrollPaymentsSchema = z.object({
 
 router.post(
   '/payroll',
-  requirePermission('payment:create'),
+  requirePermission('payments:create'),
   validateRequest(payrollPaymentsSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;

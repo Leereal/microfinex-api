@@ -114,6 +114,22 @@ class AuthService {
       };
     }
 
+    // Check if non-admin users have a branch assigned
+    const adminRoles = ['SUPER_ADMIN', 'ORG_ADMIN'];
+    if (!adminRoles.includes(user.role) && !user.branchId) {
+      console.warn('Login blocked - User has no branch assigned:', {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      });
+      return {
+        success: false,
+        message:
+          'Your account has not been assigned to a branch. Please contact your administrator.',
+        error: 'NO_BRANCH_ASSIGNED',
+      };
+    }
+
     // Update last login
     await supabaseAdmin
       .from('users')

@@ -34,7 +34,7 @@ const sendSMSSchema = z.object({
 
 router.post(
   '/sms',
-  requirePermission('notification:send'),
+  requirePermission('notifications:send'),
   validateRequest(sendSMSSchema),
   handleAsync(async (req, res) => {
     const { to, message, templateId, data } = req.body;
@@ -83,7 +83,7 @@ const sendEmailSchema = z.object({
 
 router.post(
   '/email',
-  requirePermission('notification:send'),
+  requirePermission('notifications:send'),
   validateRequest(sendEmailSchema),
   handleAsync(async (req, res) => {
     const { to, subject, message, templateId, data } = req.body;
@@ -133,7 +133,7 @@ const queueNotificationSchema = z.object({
 
 router.post(
   '/queue',
-  requirePermission('notification:send'),
+  requirePermission('notifications:send'),
   validateRequest(queueNotificationSchema),
   handleAsync(async (req, res) => {
     const notificationId = await notificationService.queueNotification(req.body);
@@ -169,7 +169,7 @@ const bulkNotificationSchema = z.object({
 
 router.post(
   '/bulk',
-  requirePermission('notification:bulk'),
+  requirePermission('notifications:bulk'),
   validateRequest(bulkNotificationSchema),
   handleAsync(async (req, res) => {
     const { type, recipients, templateId, priority } = req.body;
@@ -193,7 +193,7 @@ router.post(
  */
 router.get(
   '/queue/stats',
-  requirePermission('notification:view'),
+  requirePermission('notifications:view'),
   handleAsync(async (req, res) => {
     const stats = await notificationService.getQueueStats();
 
@@ -210,7 +210,7 @@ router.get(
  */
 router.get(
   '/sms/balance',
-  requirePermission('notification:view'),
+  requirePermission('notifications:view'),
   handleAsync(async (req, res) => {
     const balances = await notificationService.getSMSBalance();
 
@@ -227,7 +227,7 @@ router.get(
  */
 router.get(
   '/templates',
-  requirePermission('notification:view'),
+  requirePermission('notifications:view'),
   handleAsync(async (req, res) => {
     const templates = Object.entries(NOTIFICATION_TEMPLATES).map(([key, template]) => ({
       key,
@@ -260,7 +260,7 @@ const previewTemplateSchema = z.object({
 
 router.post(
   '/templates/:templateId/preview',
-  requirePermission('notification:view'),
+  requirePermission('notifications:view'),
   validateRequest(previewTemplateSchema),
   handleAsync(async (req, res) => {
     const templateId = req.params.templateId!;
@@ -295,7 +295,7 @@ router.post(
  */
 router.get(
   '/jobs',
-  requirePermission('notification:manage'),
+  requirePermission('notifications:manage'),
   handleAsync(async (req, res) => {
     const jobs = getJobDefinitions();
 
@@ -318,7 +318,7 @@ const runJobSchema = z.object({
 
 router.post(
   '/jobs/:jobName/run',
-  requirePermission('notification:manage'),
+  requirePermission('notifications:manage'),
   validateRequest(runJobSchema),
   handleAsync(async (req, res) => {
     const jobName = req.params.jobName!;

@@ -56,6 +56,20 @@ export const authenticate = async (
       return;
     }
 
+    // Check if non-admin users have a branch assigned
+    // SUPER_ADMIN and ORG_ADMIN don't require branch assignment
+    const adminRoles = ['SUPER_ADMIN', 'ORG_ADMIN'];
+    if (!adminRoles.includes(user.role) && !user.branchId) {
+      res.status(403).json({
+        success: false,
+        message:
+          'Your account has not been assigned to a branch. Please contact your administrator.',
+        error: 'NO_BRANCH_ASSIGNED',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     // Update last login
     await prisma.user.update({
       where: { id: user.id },
@@ -140,6 +154,20 @@ export const authenticateSupabase = async (
       return;
     }
 
+    // Check if non-admin users have a branch assigned
+    // SUPER_ADMIN and ORG_ADMIN don't require branch assignment
+    const adminRoles = ['SUPER_ADMIN', 'ORG_ADMIN'];
+    if (!adminRoles.includes(dbUser.role) && !dbUser.branchId) {
+      res.status(403).json({
+        success: false,
+        message:
+          'Your account has not been assigned to a branch. Please contact your administrator.',
+        error: 'NO_BRANCH_ASSIGNED',
+        timestamp: new Date().toISOString(),
+      });
+      return;
+    }
+
     req.user = {
       userId: dbUser.id,
       email: dbUser.email,
@@ -193,9 +221,14 @@ export const authorize = (...roles: UserRole[]) => {
 
 /**
  * Permission-based Authorization Middleware
+ * Uses RBAC system - loads permissions from user's assigned roles
  */
 export const requirePermission = (permission: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
     const user = req.user;
 
     if (!user) {
@@ -208,10 +241,17 @@ export const requirePermission = (permission: string) => {
       return;
     }
 
-    if (
-      !user.permissions.includes(permission) &&
-      user.role !== UserRole.SUPER_ADMIN
-    ) {
+    // SUPER_ADMIN bypasses all permission checks
+    if (user.role === UserRole.SUPER_ADMIN) {
+      next();
+      return;
+    }
+
+    // Import and use the RBAC permission loading
+    const { loadUserPermissions } = require('./permissions');
+    const userPermissions = await loadUserPermissions(user.userId);
+
+    if (!userPermissions.has(permission)) {
       res.status(403).json({
         success: false,
         message: `Permission required: ${permission}`,

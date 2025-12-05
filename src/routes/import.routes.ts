@@ -42,7 +42,7 @@ router.use(authenticateToken);
  */
 router.get(
   '/types',
-  requirePermission('import:view'),
+  requirePermission('imports:view'),
   handleAsync(async (req, res) => {
     const types = importService.getImportTypes();
     res.json({
@@ -64,7 +64,7 @@ const templateSchema = z.object({
 
 router.get(
   '/template/:type',
-  requirePermission('import:view'),
+  requirePermission('imports:view'),
   validateRequest(templateSchema),
   handleAsync(async (req, res) => {
     const type = req.params.type as ImportType;
@@ -89,7 +89,7 @@ const validateImportSchema = z.object({
 
 router.post(
   '/validate/:type',
-  requirePermission('import:create'),
+  requirePermission('imports:create'),
   upload.single('file'),
   validateRequest(validateImportSchema),
   handleAsync(async (req, res) => {
@@ -147,7 +147,7 @@ const importDataSchema = z.object({
 
 router.post(
   '/:type',
-  requirePermission('import:create'),
+  requirePermission('imports:create'),
   upload.single('file'),
   validateRequest(importDataSchema),
   handleAsync(async (req, res) => {
@@ -207,7 +207,7 @@ router.post(
  */
 router.post(
   '/clients',
-  requirePermission('import:create'),
+  requirePermission('imports:create'),
   upload.single('file'),
   handleAsync(async (req, res) => {
     if (!req.file) {
@@ -260,7 +260,7 @@ router.post(
  */
 router.post(
   '/payments',
-  requirePermission('import:create'),
+  requirePermission('imports:create'),
   upload.single('file'),
   handleAsync(async (req, res) => {
     if (!req.file) {

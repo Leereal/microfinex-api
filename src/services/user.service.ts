@@ -118,6 +118,18 @@ class UserService {
               name: true,
             },
           },
+          userRoles: {
+            where: { isActive: true },
+            select: {
+              role: {
+                select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -176,6 +188,18 @@ class UserService {
           select: {
             id: true,
             name: true,
+          },
+        },
+        userRoles: {
+          where: { isActive: true },
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                description: true,
+              },
+            },
           },
         },
       },
@@ -238,6 +262,12 @@ class UserService {
       branchId,
       phone,
     } = input;
+
+    // Validate branch requirement for non-admin users
+    const adminRoles = [UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN];
+    if (!adminRoles.includes(role as UserRole) && !branchId) {
+      throw new Error('Branch is required for non-admin users');
+    }
 
     // Create user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({

@@ -29,7 +29,7 @@ const parSchema = z.object({
 
 router.get(
   '/par',
-  requirePermission('report:view'),
+  requirePermission('reports:view'),
   validateRequest(parSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -171,7 +171,7 @@ const agingSchema = z.object({
 
 router.get(
   '/aging',
-  requirePermission('report:view'),
+  requirePermission('reports:view'),
   validateRequest(agingSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -289,7 +289,7 @@ const collectionsSchema = z.object({
 
 router.get(
   '/collections',
-  requirePermission('report:view'),
+  requirePermission('reports:view'),
   validateRequest(collectionsSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -413,7 +413,7 @@ const disbursementsSchema = z.object({
 
 router.get(
   '/disbursements',
-  requirePermission('report:view'),
+  requirePermission('reports:view'),
   validateRequest(disbursementsSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
@@ -514,7 +514,7 @@ const exportSchema = z.object({
 
 router.post(
   '/export',
-  requirePermission('report:export'),
+  requirePermission('reports:export'),
   validateRequest(exportSchema),
   handleAsync(async (req, res) => {
     const { reportType, data, filename } = req.body;
@@ -539,7 +539,7 @@ router.post(
  */
 router.get(
   '/portfolio-summary',
-  requirePermission('report:view'),
+  requirePermission('reports:view'),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;
     const branchId = req.query.branchId as string | undefined;

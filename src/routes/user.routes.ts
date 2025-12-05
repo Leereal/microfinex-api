@@ -7,8 +7,14 @@ import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../config/database';
-import { authenticateToken, requirePermission } from '../middleware/auth.middleware';
-import { validateRequest, handleAsync } from '../middleware/validation.middleware';
+import {
+  authenticateToken,
+  requirePermission,
+} from '../middleware/auth.middleware';
+import {
+  validateRequest,
+  handleAsync,
+} from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -20,79 +26,185 @@ router.use(authenticateToken);
  * POST /api/users
  */
 const createUserSchema = z.object({
-  body: z.object({
-    email: z.string().email('Valid email required'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    firstName: z.string().min(1, 'First name required'),
-    lastName: z.string().min(1, 'Last name required'),
-    phone: z.string().optional(),
-    roleId: z.string().uuid('Valid role ID required'),
-    branchId: z.string().uuid().optional(),
-    isActive: z.boolean().default(true),
-    metadata: z.record(z.any()).optional(),
-  }),
+  body: z
+    .object({
+      email: z.string().email('Valid email required'),
+      password: z.string().min(8, 'Password must be at least 8 characters'),
+      firstName: z.string().min(1, 'First name required'),
+      lastName: z.string().min(1, 'Last name required'),
+      phone: z.string().optional(),
+      roleId: z.string().uuid('Valid role ID required').optional(), // RBAC role ID
+      role: z
+        .enum([
+          'SUPER_ADMIN',
+          'ORG_ADMIN',
+          'ADMIN',
+          'MANAGER',
+          'LOAN_OFFICER',
+          'ACCOUNTANT',
+          'TELLER',
+          'STAFF',
+          'VIEWER',
+        ])
+        .optional(), // Role name
+      branchId: z.string().uuid().optional(),
+      isActive: z.boolean().default(true),
+      isEmailVerified: z.boolean().optional(), // SUPER_ADMIN can set verification status
+      organizationId: z.string().uuid().optional(), // SUPER_ADMIN can specify organization
+      metadata: z.record(z.any()).optional(),
+    })
+    .refine(data => data.roleId || data.role, {
+      message: 'Either roleId or role name is required',
+    }),
 });
 
 router.post(
   '/',
-  requirePermission('user:create'),
+  requirePermission('users:create'),
   validateRequest(createUserSchema),
   handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId;
+    const userOrganizationId = req.user!.organizationId;
     const creatorId = req.user!.userId;
-    const { email, password, firstName, lastName, phone, roleId, branchId, isActive, metadata } =
-      req.body;
+    const creatorRole = req.user!.role;
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      phone,
+      roleId,
+      role: roleName,
+      branchId,
+      isActive,
+      isEmailVerified,
+      organizationId: requestedOrgId,
+      metadata,
+    } = req.body;
 
-    // Check for duplicate email
+    // Determine target organization
+    // SUPER_ADMIN can create users in any organization
+    let targetOrganizationId = userOrganizationId;
+    if (creatorRole === 'SUPER_ADMIN' && requestedOrgId) {
+      // Verify the organization exists
+      const org = await prisma.organization.findUnique({
+        where: { id: requestedOrgId },
+      });
+      if (!org) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization not found',
+        });
+      }
+      targetOrganizationId = requestedOrgId;
+    }
+
+    if (!targetOrganizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization is required',
+      });
+    }
+
+    // Check for duplicate email within the target organization
     const existing = await prisma.user.findFirst({
-      where: { email, organizationId },
+      where: { email, organizationId: targetOrganizationId },
     });
 
     if (existing) {
       return res.status(400).json({
         success: false,
-        message: 'Email already registered',
+        message: 'Email already registered in this organization',
       });
     }
 
-    // Verify role exists
-    const role = await prisma.role.findFirst({
-      where: { id: roleId, organizationId },
-    });
+    // Resolve role - either by ID or by name
+    let role;
+    if (roleId) {
+      role = await prisma.role.findFirst({
+        where: { id: roleId, organizationId: targetOrganizationId },
+      });
+    } else if (roleName) {
+      // Find role by name in the organization
+      role = await prisma.role.findFirst({
+        where: { name: roleName, organizationId: targetOrganizationId },
+      });
+    }
 
     if (!role) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid role',
+        message: roleId
+          ? 'Invalid role for this organization'
+          : `Role "${roleName}" not found in this organization. Please ensure RBAC roles are seeded.`,
       });
+    }
+
+    // Verify branch belongs to target organization (if provided)
+    if (branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: branchId, organizationId: targetOrganizationId },
+      });
+      if (!branch) {
+        return res.status(400).json({
+          success: false,
+          message: 'Branch does not belong to the selected organization',
+        });
+      }
     }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        firstName,
-        lastName,
-        phone,
-        role: role.name as any, // Use role name as enum value
-        branchId,
-        isActive,
-        organizationId,
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        phone: true,
-        isActive: true,
-        role: true,
-        branch: { select: { id: true, name: true, code: true } },
-        createdAt: true,
-      },
+    // Determine email verification status
+    // SUPER_ADMIN can set isEmailVerified, defaults to true for SUPER_ADMIN-created users
+    const emailVerified =
+      creatorRole === 'SUPER_ADMIN'
+        ? isEmailVerified !== undefined
+          ? isEmailVerified
+          : true
+        : false;
+
+    // Create user and assign to role in a transaction
+    const user = await prisma.$transaction(async tx => {
+      // Create the user
+      const newUser = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          firstName,
+          lastName,
+          phone,
+          role: role.name as any, // Use role name as enum value
+          branchId,
+          isActive,
+          isEmailVerified: emailVerified,
+          organizationId: targetOrganizationId,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phone: true,
+          isActive: true,
+          isEmailVerified: true,
+          role: true,
+          branch: { select: { id: true, name: true, code: true } },
+          organization: { select: { id: true, name: true } },
+          createdAt: true,
+        },
+      });
+
+      // Assign user to RBAC role
+      await tx.userRoleAssignment.create({
+        data: {
+          userId: newUser.id,
+          roleId: role.id,
+          assignedBy: creatorId,
+        },
+      });
+
+      return newUser;
     });
 
     res.status(201).json({
@@ -108,20 +220,28 @@ router.post(
  */
 const listUsersSchema = z.object({
   query: z.object({
-    page: z.string().optional().transform((v) => parseInt(v || '1')),
-    limit: z.string().optional().transform((v) => parseInt(v || '20')),
+    page: z
+      .string()
+      .optional()
+      .transform(v => parseInt(v || '1')),
+    limit: z
+      .string()
+      .optional()
+      .transform(v => parseInt(v || '20')),
     search: z.string().optional(),
     roleId: z.string().optional(),
     branchId: z.string().optional(),
     isActive: z.enum(['true', 'false', 'all']).optional(),
-    sortBy: z.enum(['firstName', 'lastName', 'email', 'createdAt']).default('firstName'),
+    sortBy: z
+      .enum(['firstName', 'lastName', 'email', 'createdAt'])
+      .default('firstName'),
     sortOrder: z.enum(['asc', 'desc']).default('asc'),
   }),
 });
 
 router.get(
   '/',
-  requirePermission('user:view'),
+  requirePermission('users:view'),
   validateRequest(listUsersSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
@@ -186,7 +306,7 @@ router.get(
  */
 router.get(
   '/:id',
-  requirePermission('user:view'),
+  requirePermission('users:view'),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
 
@@ -245,7 +365,7 @@ const updateUserSchema = z.object({
 
 router.put(
   '/:id',
-  requirePermission('user:update'),
+  requirePermission('users:update'),
   validateRequest(updateUserSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
@@ -323,7 +443,7 @@ const changePasswordSchema = z.object({
 
 router.put(
   '/:id/password',
-  requirePermission('user:update'),
+  requirePermission('users:update'),
   validateRequest(changePasswordSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
@@ -365,7 +485,7 @@ router.put(
  */
 router.post(
   '/:id/deactivate',
-  requirePermission('user:update'),
+  requirePermission('users:update'),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
     const currentUserId = req.user!.userId;
@@ -412,7 +532,7 @@ router.post(
  */
 router.post(
   '/:id/reactivate',
-  requirePermission('user:update'),
+  requirePermission('users:update'),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
 
@@ -458,7 +578,7 @@ const assignRoleSchema = z.object({
 
 router.post(
   '/:id/role',
-  requirePermission('user:update'),
+  requirePermission('users:assign_role'),
   validateRequest(assignRoleSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
@@ -517,7 +637,7 @@ const assignBranchSchema = z.object({
 
 router.post(
   '/:id/branch',
-  requirePermission('user:update'),
+  requirePermission('users:assign_branch'),
   validateRequest(assignBranchSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
@@ -572,8 +692,14 @@ router.post(
 const activitySchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   query: z.object({
-    page: z.string().optional().transform((v) => parseInt(v || '1')),
-    limit: z.string().optional().transform((v) => parseInt(v || '20')),
+    page: z
+      .string()
+      .optional()
+      .transform(v => parseInt(v || '1')),
+    limit: z
+      .string()
+      .optional()
+      .transform(v => parseInt(v || '20')),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
   }),
@@ -581,7 +707,7 @@ const activitySchema = z.object({
 
 router.get(
   '/:id/activity',
-  requirePermission('user:view'),
+  requirePermission('users:view'),
   validateRequest(activitySchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
@@ -608,10 +734,16 @@ router.get(
     };
 
     if (startDate) {
-      where.timestamp = { ...where.timestamp, gte: new Date(startDate as string) };
+      where.timestamp = {
+        ...where.timestamp,
+        gte: new Date(startDate as string),
+      };
     }
     if (endDate) {
-      where.timestamp = { ...where.timestamp, lte: new Date(endDate as string) };
+      where.timestamp = {
+        ...where.timestamp,
+        lte: new Date(endDate as string),
+      };
     }
 
     const [logs, total] = await Promise.all([
