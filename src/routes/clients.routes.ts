@@ -119,7 +119,13 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF),
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.ORG_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER,
+    UserRole.STAFF
+  ),
   validateRequest(createClientSchema),
   async (req, res) => {
     try {

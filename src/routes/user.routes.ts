@@ -311,22 +311,26 @@ router.get(
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId;
 
-    const [totalUsers, activeUsers, inactiveUsers, verifiedUsers, roleStats] = await Promise.all([
-      prisma.user.count({ where: { organizationId } }),
-      prisma.user.count({ where: { organizationId, isActive: true } }),
-      prisma.user.count({ where: { organizationId, isActive: false } }),
-      prisma.user.count({ where: { organizationId, isEmailVerified: true } }),
-      prisma.user.groupBy({
-        by: ['role'],
-        where: { organizationId },
-        _count: { role: true },
-      }),
-    ]);
+    const [totalUsers, activeUsers, inactiveUsers, verifiedUsers, roleStats] =
+      await Promise.all([
+        prisma.user.count({ where: { organizationId } }),
+        prisma.user.count({ where: { organizationId, isActive: true } }),
+        prisma.user.count({ where: { organizationId, isActive: false } }),
+        prisma.user.count({ where: { organizationId, isEmailVerified: true } }),
+        prisma.user.groupBy({
+          by: ['role'],
+          where: { organizationId },
+          _count: { role: true },
+        }),
+      ]);
 
-    const roleDistribution = roleStats.reduce((acc: Record<string, number>, item) => {
-      acc[item.role] = item._count.role;
-      return acc;
-    }, {});
+    const roleDistribution = roleStats.reduce(
+      (acc: Record<string, number>, item) => {
+        acc[item.role] = item._count.role;
+        return acc;
+      },
+      {}
+    );
 
     res.json({
       success: true,
@@ -1058,7 +1062,10 @@ router.delete(
 const resetPasswordSchema = z.object({
   params: z.object({ id: z.string().uuid() }),
   body: z.object({
-    newPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
+    newPassword: z
+      .string()
+      .min(8, 'Password must be at least 8 characters')
+      .optional(),
   }),
 });
 
@@ -1084,7 +1091,8 @@ router.post(
     }
 
     // Generate a temporary password if not provided
-    const newPassword = req.body.newPassword || Math.random().toString(36).slice(-10) + 'A1!';
+    const newPassword =
+      req.body.newPassword || Math.random().toString(36).slice(-10) + 'A1!';
     const hashedPassword = await bcrypt.hash(newPassword, 12);
 
     await prisma.user.update({
