@@ -105,7 +105,7 @@ export const clientDraftDataSchema = z
     // Other fields
     photo: z.string().nullable().optional(),
     is_active: z.boolean().optional(),
-    branch: z.number().optional(),
+    branch: z.number().nullable().optional(),
   })
   .passthrough(); // Allow additional fields
 

@@ -207,6 +207,20 @@ router.post(
         });
       }
 
+      // Handle duplicate phone number error
+      if (
+        error.message &&
+        error.message.includes('phone number already exists')
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: error.message,
+          error: 'DUPLICATE_PHONE',
+          field: 'phone',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',
@@ -343,7 +357,12 @@ router.put(
 router.patch(
   '/:clientId/kyc-status',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.ORG_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER
+  ),
   validateRequest(kycStatusSchema),
   async (req, res) => {
     try {

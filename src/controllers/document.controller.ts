@@ -139,12 +139,16 @@ class DocumentController {
         });
       }
 
-      const documents = await documentService.getClientDocuments(clientId, {
-        status: status as DocumentStatus,
-        documentTypeId: documentTypeId as string,
-        page: Number(page),
-        limit: Number(limit),
-      });
+      const documents = await documentService.getClientDocuments(
+        clientId,
+        organizationId,
+        {
+          status: status as DocumentStatus,
+          documentTypeId: documentTypeId as string,
+          page: Number(page),
+          limit: Number(limit),
+        }
+      );
 
       res.json({
         success: true,

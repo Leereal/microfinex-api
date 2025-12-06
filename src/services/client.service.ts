@@ -2,6 +2,60 @@ import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase-enhanced';
 import { prisma } from '../config/database';
 
+export interface ClientAddress {
+  id: string;
+  addressType: string;
+  addressLine1: string;
+  addressLine2?: string;
+  suburb?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  isPrimary: boolean;
+  notes?: string;
+}
+
+export interface ClientContact {
+  id: string;
+  contactType: string;
+  contactValue: string;
+  label?: string;
+  isPrimary: boolean;
+  isWhatsApp: boolean;
+  notes?: string;
+}
+
+export interface NextOfKin {
+  id: string;
+  name: string;
+  relationship: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+}
+
+export interface ClientEmployer {
+  id: string;
+  employerName: string;
+  position?: string;
+  startDate?: Date;
+  endDate?: Date;
+  isCurrent: boolean;
+  monthlyIncome?: number;
+  employerPhone?: string;
+  employerAddress?: string;
+}
+
+export interface ClientLimit {
+  id: string;
+  currency: string;
+  maxAmount: number;
+  usedAmount: number;
+  availableAmount: number;
+  isActive: boolean;
+}
+
 export interface ClientProfile {
   id: string;
   clientNumber: string;
@@ -28,6 +82,29 @@ export interface ClientProfile {
   organizationId: string;
   branchId: string;
   isActive: boolean;
+  profileImage?: string;
+  // Branch details
+  branch?: {
+    id: string;
+    name: string;
+    code?: string;
+  };
+  // Creator details
+  createdBy?: string;
+  creator?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email?: string;
+  };
+  createdAt?: Date;
+  updatedAt?: Date;
+  // Related data
+  addresses?: ClientAddress[];
+  contacts?: ClientContact[];
+  nextOfKins?: NextOfKin[];
+  employers?: ClientEmployer[];
+  limits?: ClientLimit[];
 }
 
 export interface ClientSearchFilters {
@@ -178,6 +255,26 @@ class ClientService {
     organizationId: string,
     createdBy: string
   ): Promise<ClientProfile> {
+    // Check for duplicate phone number within the organization
+    if (clientData.phone) {
+      const existingClient = await prisma.client.findFirst({
+        where: {
+          organizationId,
+          phone: clientData.phone,
+        },
+      });
+
+      if (existingClient) {
+        const clientName =
+          existingClient.firstName && existingClient.lastName
+            ? `${existingClient.firstName} ${existingClient.lastName}`
+            : existingClient.businessName || 'Unknown';
+        throw new Error(
+          `A client with this phone number already exists: ${clientName} (${existingClient.clientNumber})`
+        );
+      }
+    }
+
     const clientNumber = await this.generateClientNumber(organizationId);
 
     const client = await prisma.client.create({
@@ -284,6 +381,8 @@ class ClientService {
             isActive: true,
           },
         },
+        addresses: true,
+        contacts: true,
       },
     });
 
@@ -587,6 +686,79 @@ class ClientService {
       organizationId: client.organizationId,
       branchId: client.branchId,
       isActive: client.isActive,
+      profileImage: client.profileImage,
+      // Include branch details if available
+      branch: client.branch
+        ? {
+            id: client.branch.id,
+            name: client.branch.name,
+            code: client.branch.code,
+          }
+        : undefined,
+      // Include creator details if available
+      createdBy: client.createdBy,
+      creator: client.creator
+        ? {
+            id: client.creator.id,
+            firstName: client.creator.firstName,
+            lastName: client.creator.lastName,
+            email: client.creator.email,
+          }
+        : undefined,
+      createdAt: client.createdAt,
+      updatedAt: client.updatedAt,
+      // Include addresses and contacts if available
+      addresses: client.addresses?.map((addr: any) => ({
+        id: addr.id,
+        addressType: addr.addressType,
+        addressLine1: addr.addressLine1,
+        addressLine2: addr.addressLine2,
+        suburb: addr.suburb,
+        city: addr.city,
+        state: addr.state,
+        zipCode: addr.zipCode,
+        country: addr.country,
+        isPrimary: addr.isPrimary,
+        notes: addr.notes,
+      })),
+      contacts: client.contacts?.map((contact: any) => ({
+        id: contact.id,
+        contactType: contact.contactType,
+        contactValue: contact.contactValue,
+        label: contact.label,
+        isPrimary: contact.isPrimary,
+        isWhatsApp: contact.isWhatsApp,
+        notes: contact.notes,
+      })),
+      nextOfKins: client.nextOfKins?.map((kin: any) => ({
+        id: kin.id,
+        name: kin.name,
+        relationship: kin.relationship,
+        phone: kin.phone,
+        email: kin.email,
+        address: kin.address,
+      })),
+      employers: client.employers?.map((emp: any) => ({
+        id: emp.id,
+        employerName: emp.employer?.name || emp.employerName,
+        position: emp.position,
+        startDate: emp.startDate,
+        endDate: emp.endDate,
+        isCurrent: emp.isCurrent,
+        monthlyIncome: emp.monthlyIncome
+          ? parseFloat(emp.monthlyIncome.toString())
+          : undefined,
+        employerPhone: emp.employer?.phone,
+        employerAddress: emp.employer?.address,
+      })),
+      limits: client.clientLimits?.map((limit: any) => ({
+        id: limit.id,
+        currency: limit.currency,
+        maxAmount: parseFloat(limit.maxAmount?.toString() || '0'),
+        usedAmount: parseFloat(limit.usedAmount?.toString() || '0'),
+        availableAmount: parseFloat(limit.availableAmount?.toString() || '0'),
+        isActive: limit.isActive,
+      })),
     };
   }
 }
