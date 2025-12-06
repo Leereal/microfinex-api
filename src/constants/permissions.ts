@@ -31,6 +31,11 @@ export const PERMISSION_MODULES = {
   DOCUMENTS: 'documents',
   COLLATERALS: 'collaterals',
   IMPORTS: 'imports',
+  // Financial Management
+  PAYMENT_METHODS: 'payment_methods',
+  INCOME_CATEGORIES: 'income_categories',
+  EXPENSE_CATEGORIES: 'expense_categories',
+  FINANCIAL_TRANSACTIONS: 'financial_transactions',
 } as const;
 
 // Permission interface
@@ -1011,6 +1016,142 @@ export const IMPORT_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== PAYMENT METHOD PERMISSIONS ====================
+export const PAYMENT_METHOD_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'payment_methods:view',
+    name: 'View Payment Methods',
+    description: 'View payment methods and balances',
+    module: PERMISSION_MODULES.PAYMENT_METHODS,
+  },
+  {
+    code: 'payment_methods:create',
+    name: 'Create Payment Method',
+    description: 'Create new payment methods',
+    module: PERMISSION_MODULES.PAYMENT_METHODS,
+  },
+  {
+    code: 'payment_methods:update',
+    name: 'Update Payment Method',
+    description: 'Update payment method details',
+    module: PERMISSION_MODULES.PAYMENT_METHODS,
+  },
+  {
+    code: 'payment_methods:delete',
+    name: 'Delete Payment Method',
+    description: 'Delete payment methods',
+    module: PERMISSION_MODULES.PAYMENT_METHODS,
+  },
+  {
+    code: 'payment_methods:adjust_balance',
+    name: 'Adjust Balance',
+    description: 'Manually adjust payment method balances',
+    module: PERMISSION_MODULES.PAYMENT_METHODS,
+  },
+  {
+    code: 'payment_methods:transfer',
+    name: 'Transfer Funds',
+    description: 'Transfer funds between payment methods',
+    module: PERMISSION_MODULES.PAYMENT_METHODS,
+  },
+];
+
+// ==================== INCOME CATEGORY PERMISSIONS ====================
+export const INCOME_CATEGORY_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'income_categories:view',
+    name: 'View Income Categories',
+    description: 'View income categories',
+    module: PERMISSION_MODULES.INCOME_CATEGORIES,
+  },
+  {
+    code: 'income_categories:create',
+    name: 'Create Income Category',
+    description: 'Create new income categories',
+    module: PERMISSION_MODULES.INCOME_CATEGORIES,
+  },
+  {
+    code: 'income_categories:update',
+    name: 'Update Income Category',
+    description: 'Update income category details',
+    module: PERMISSION_MODULES.INCOME_CATEGORIES,
+  },
+  {
+    code: 'income_categories:delete',
+    name: 'Delete Income Category',
+    description: 'Delete income categories',
+    module: PERMISSION_MODULES.INCOME_CATEGORIES,
+  },
+];
+
+// ==================== EXPENSE CATEGORY PERMISSIONS ====================
+export const EXPENSE_CATEGORY_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'expense_categories:view',
+    name: 'View Expense Categories',
+    description: 'View expense categories',
+    module: PERMISSION_MODULES.EXPENSE_CATEGORIES,
+  },
+  {
+    code: 'expense_categories:create',
+    name: 'Create Expense Category',
+    description: 'Create new expense categories',
+    module: PERMISSION_MODULES.EXPENSE_CATEGORIES,
+  },
+  {
+    code: 'expense_categories:update',
+    name: 'Update Expense Category',
+    description: 'Update expense category details',
+    module: PERMISSION_MODULES.EXPENSE_CATEGORIES,
+  },
+  {
+    code: 'expense_categories:delete',
+    name: 'Delete Expense Category',
+    description: 'Delete expense categories',
+    module: PERMISSION_MODULES.EXPENSE_CATEGORIES,
+  },
+];
+
+// ==================== FINANCIAL TRANSACTION PERMISSIONS ====================
+export const FINANCIAL_TRANSACTION_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'financial_transactions:view',
+    name: 'View Financial Transactions',
+    description: 'View income and expense transactions',
+    module: PERMISSION_MODULES.FINANCIAL_TRANSACTIONS,
+  },
+  {
+    code: 'financial_transactions:create',
+    name: 'Create Financial Transaction',
+    description: 'Record income and expense transactions',
+    module: PERMISSION_MODULES.FINANCIAL_TRANSACTIONS,
+  },
+  {
+    code: 'financial_transactions:update',
+    name: 'Update Financial Transaction',
+    description: 'Update transaction details',
+    module: PERMISSION_MODULES.FINANCIAL_TRANSACTIONS,
+  },
+  {
+    code: 'financial_transactions:void',
+    name: 'Void Financial Transaction',
+    description: 'Void transactions and reverse balances',
+    module: PERMISSION_MODULES.FINANCIAL_TRANSACTIONS,
+  },
+  {
+    code: 'financial_transactions:export',
+    name: 'Export Financial Transactions',
+    description: 'Export transaction data',
+    module: PERMISSION_MODULES.FINANCIAL_TRANSACTIONS,
+  },
+  {
+    code: 'financial_transactions:summary',
+    name: 'View Financial Summary',
+    description: 'View financial summary and reports',
+    module: PERMISSION_MODULES.FINANCIAL_TRANSACTIONS,
+  },
+];
+
 // ==================== ALL PERMISSIONS ====================
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
@@ -1039,6 +1180,11 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...DOCUMENT_PERMISSIONS,
   ...COLLATERAL_PERMISSIONS,
   ...IMPORT_PERMISSIONS,
+  // Financial Management
+  ...PAYMENT_METHOD_PERMISSIONS,
+  ...INCOME_CATEGORY_PERMISSIONS,
+  ...EXPENSE_CATEGORY_PERMISSIONS,
+  ...FINANCIAL_TRANSACTION_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -1246,6 +1392,34 @@ export const PERMISSIONS = {
   COLLATERALS_DELETE: 'collaterals:delete',
   COLLATERALS_MANAGE: 'collaterals:manage',
   COLLATERALS_VALUATE: 'collaterals:valuate',
+
+  // Payment Methods
+  PAYMENT_METHODS_VIEW: 'payment_methods:view',
+  PAYMENT_METHODS_CREATE: 'payment_methods:create',
+  PAYMENT_METHODS_UPDATE: 'payment_methods:update',
+  PAYMENT_METHODS_DELETE: 'payment_methods:delete',
+  PAYMENT_METHODS_ADJUST_BALANCE: 'payment_methods:adjust_balance',
+  PAYMENT_METHODS_TRANSFER: 'payment_methods:transfer',
+
+  // Income Categories
+  INCOME_CATEGORIES_VIEW: 'income_categories:view',
+  INCOME_CATEGORIES_CREATE: 'income_categories:create',
+  INCOME_CATEGORIES_UPDATE: 'income_categories:update',
+  INCOME_CATEGORIES_DELETE: 'income_categories:delete',
+
+  // Expense Categories
+  EXPENSE_CATEGORIES_VIEW: 'expense_categories:view',
+  EXPENSE_CATEGORIES_CREATE: 'expense_categories:create',
+  EXPENSE_CATEGORIES_UPDATE: 'expense_categories:update',
+  EXPENSE_CATEGORIES_DELETE: 'expense_categories:delete',
+
+  // Financial Transactions
+  FINANCIAL_TRANSACTIONS_VIEW: 'financial_transactions:view',
+  FINANCIAL_TRANSACTIONS_CREATE: 'financial_transactions:create',
+  FINANCIAL_TRANSACTIONS_UPDATE: 'financial_transactions:update',
+  FINANCIAL_TRANSACTIONS_VOID: 'financial_transactions:void',
+  FINANCIAL_TRANSACTIONS_EXPORT: 'financial_transactions:export',
+  FINANCIAL_TRANSACTIONS_SUMMARY: 'financial_transactions:summary',
 } as const;
 
 // ==================== DEFAULT ROLE PERMISSIONS ====================
@@ -1275,6 +1449,11 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...ONLINE_APPLICATION_PERMISSIONS.map(p => p.code),
     ...API_KEY_PERMISSIONS.map(p => p.code),
     ...DASHBOARD_PERMISSIONS.map(p => p.code),
+    // Financial Management
+    ...PAYMENT_METHOD_PERMISSIONS.map(p => p.code),
+    ...INCOME_CATEGORY_PERMISSIONS.map(p => p.code),
+    ...EXPENSE_CATEGORY_PERMISSIONS.map(p => p.code),
+    ...FINANCIAL_TRANSACTION_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
@@ -1321,6 +1500,21 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.GROUPS_MEMBERS_MANAGE,
     PERMISSIONS.DASHBOARD_VIEW,
     PERMISSIONS.DASHBOARD_ANALYTICS,
+    // Financial Management - Managers can view and create transactions
+    PERMISSIONS.PAYMENT_METHODS_VIEW,
+    PERMISSIONS.PAYMENT_METHODS_CREATE,
+    PERMISSIONS.PAYMENT_METHODS_UPDATE,
+    PERMISSIONS.INCOME_CATEGORIES_VIEW,
+    PERMISSIONS.INCOME_CATEGORIES_CREATE,
+    PERMISSIONS.INCOME_CATEGORIES_UPDATE,
+    PERMISSIONS.EXPENSE_CATEGORIES_VIEW,
+    PERMISSIONS.EXPENSE_CATEGORIES_CREATE,
+    PERMISSIONS.EXPENSE_CATEGORIES_UPDATE,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_VIEW,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_CREATE,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_UPDATE,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_VOID,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_SUMMARY,
   ],
 
   LOAN_ASSESSOR: [
@@ -1369,6 +1563,12 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.PAYMENTS_RECEIPT_PRINT,
     PERMISSIONS.PAYMENTS_RECEIPT_REPRINT,
     PERMISSIONS.DASHBOARD_VIEW,
+    // Financial Management - Cashiers can view and create transactions
+    PERMISSIONS.PAYMENT_METHODS_VIEW,
+    PERMISSIONS.INCOME_CATEGORIES_VIEW,
+    PERMISSIONS.EXPENSE_CATEGORIES_VIEW,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_VIEW,
+    PERMISSIONS.FINANCIAL_TRANSACTIONS_CREATE,
   ],
 
   VIEWER: [

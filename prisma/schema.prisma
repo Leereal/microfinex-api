@@ -47,6 +47,11 @@ model Organization {
   organizationAIConfigs OrganizationAIConfig[]
   collateralTypes       CollateralType[]
   importJobs            ImportJob[]
+  // Financial Management Relations
+  paymentMethods        PaymentMethod[]
+  incomeCategories      IncomeCategory[]
+  expenseCategories     ExpenseCategory[]
+  financialTransactions FinancialTransaction[]
 
   @@map("organizations")
 }
@@ -96,6 +101,126 @@ model CurrencyRecord {
   @@map("currencies")
 }
 
+// ========================================
+// FINANCIAL MANAGEMENT MODELS
+// ========================================
+
+// Payment Methods - Cash, EcoCash, Bank Transfer, PayShap, etc.
+model PaymentMethod {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String   // e.g., "Main Cash", "EcoCash", "FNB Account"
+  code           String   // e.g., "CASH", "ECOCASH", "BANK_FNB"
+  type           PaymentMethodType
+  accountNumber  String?  // Bank account number or mobile money number
+  description    String?
+  initialBalance Decimal  @default(0) @db.Decimal(15, 2)
+  currentBalance Decimal  @default(0) @db.Decimal(15, 2)
+  currency       String   @default("USD")
+  isActive       Boolean  @default(true)
+  isDefault      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdBy      String?
+  updatedBy      String?
+
+  // Relations
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[]
+
+  @@unique([organizationId, code])
+  @@map("payment_methods")
+}
+
+// Income Categories - Funding, Investments, Asset Sales, etc.
+model IncomeCategory {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String   // e.g., "Shareholder Investment", "Asset Sale", "Interest Income"
+  code           String   // e.g., "INV", "ASSET_SALE", "INT_INCOME"
+  description    String?
+  isSystemCategory Boolean @default(false) // System categories like LOAN_REPAYMENT
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdBy      String?
+
+  // Relations
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[]
+
+  @@unique([organizationId, code])
+  @@map("income_categories")
+}
+
+// Expense Categories - Rent, Stationery, Utilities, etc.
+model ExpenseCategory {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String   // e.g., "Rent", "Stationery", "Utilities"
+  code           String   // e.g., "RENT", "STAT", "UTIL"
+  description    String?
+  isSystemCategory Boolean @default(false) // System categories like LOAN_DISBURSEMENT
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdBy      String?
+
+  // Relations
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[]
+
+  @@unique([organizationId, code])
+  @@map("expense_categories")
+}
+
+// Financial Transactions - All income and expenses
+model FinancialTransaction {
+  id                 String                   @id @default(uuid())
+  organizationId     String
+  branchId           String?
+  transactionNumber  String                   @unique
+  type               FinancialTransactionType // INCOME or EXPENSE
+  incomeCategoryId   String?
+  expenseCategoryId  String?
+  paymentMethodId    String
+  amount             Decimal                  @db.Decimal(15, 2)
+  currency           String                   @default("USD")
+  description        String
+  reference          String?                  // External reference (receipt number, invoice, etc.)
+  relatedLoanId      String?                  // If transaction is related to a loan
+  relatedPaymentId   String?                  // If transaction is a loan repayment
+  transactionDate    DateTime                 @default(now())
+  balanceBefore      Decimal                  @db.Decimal(15, 2)
+  balanceAfter       Decimal                  @db.Decimal(15, 2)
+  status             FinancialTransactionStatus @default(COMPLETED)
+  notes              String?
+  attachments        Json?                    // Store file paths for receipts/documents
+  processedBy        String
+  approvedBy         String?
+  approvedAt         DateTime?
+  voidedBy           String?
+  voidedAt           DateTime?
+  voidReason         String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  // Relations
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch          Branch?          @relation(fields: [branchId], references: [id])
+  incomeCategory  IncomeCategory?  @relation(fields: [incomeCategoryId], references: [id])
+  expenseCategory ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
+  paymentMethod   PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
+  processor       User             @relation("TransactionProcessor", fields: [processedBy], references: [id])
+  approver        User?            @relation("TransactionApprover", fields: [approvedBy], references: [id])
+  voider          User?            @relation("TransactionVoider", fields: [voidedBy], references: [id])
+  relatedLoan     Loan?            @relation(fields: [relatedLoanId], references: [id])
+
+  @@index([organizationId, transactionDate])
+  @@index([paymentMethodId])
+  @@map("financial_transactions")
+}
+
 model ExchangeRate {
   id             String   @id @default(uuid())
   organizationId String
@@ -126,14 +251,15 @@ model Branch {
   updatedAt      DateTime @updatedAt
 
   // Relations
-  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  manager           User?        @relation("BranchManager", fields: [managerId], references: [id])
-  users             User[]       @relation("BranchUsers")
-  clients           Client[]
-  homeClients       Client[]     @relation("ClientHomeBranch")
-  loans             Loan[]
-  disbursedLoans    Loan[]       @relation("LoanDisbursementBranch")
-  processedPayments Payment[]    @relation("PaymentProcessedBranch")
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  manager               User?                  @relation("BranchManager", fields: [managerId], references: [id])
+  users                 User[]                 @relation("BranchUsers")
+  clients               Client[]
+  homeClients           Client[]               @relation("ClientHomeBranch")
+  loans                 Loan[]
+  disbursedLoans        Loan[]                 @relation("LoanDisbursementBranch")
+  processedPayments     Payment[]              @relation("PaymentProcessedBranch")
+  financialTransactions FinancialTransaction[]
 
   @@map("branches")
 }
@@ -172,6 +298,10 @@ model User {
   workflowChanges LoanWorkflowHistory[]
   userRoles       UserRoleAssignment[]
   userPermissions UserPermission[]
+  // Financial Transaction Relations
+  processedTransactions FinancialTransaction[] @relation("TransactionProcessor")
+  approvedTransactions  FinancialTransaction[] @relation("TransactionApprover")
+  voidedTransactions    FinancialTransaction[] @relation("TransactionVoider")
 
   @@map("users")
 }
@@ -397,6 +527,8 @@ model Loan {
   workflowHistory    LoanWorkflowHistory[]
   // Client Management - Collateral relation
   collaterals        ClientCollateral[]
+  // Financial Management - Related Transactions
+  financialTransactions FinancialTransaction[]
 
   @@map("loans")
 }
@@ -1280,6 +1412,28 @@ enum PaymentStatus {
   FAILED
   CANCELLED
   REFUNDED
+}
+
+enum PaymentMethodType {
+  CASH
+  MOBILE_MONEY       // EcoCash, OneMoney, etc.
+  BANK_TRANSFER
+  CHEQUE
+  CARD               // Debit/Credit card
+  DIGITAL_WALLET     // PayShap, etc.
+  OTHER
+}
+
+enum FinancialTransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum FinancialTransactionStatus {
+  PENDING
+  COMPLETED
+  VOIDED
+  CANCELLED
 }
 
 enum TransactionType {

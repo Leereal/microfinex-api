@@ -46,6 +46,11 @@ import aiRoutes from './ai.routes';
 import clientDraftRoutes from './client-drafts.routes';
 // Currency management
 import currencyRoutes from './currency.routes';
+// Financial Management routes
+import paymentMethodRoutes from './payment-method.routes';
+import incomeCategoryRoutes from './income-category.routes';
+import expenseCategoryRoutes from './expense-category.routes';
+import financialTransactionRoutes from './financial-transaction.routes';
 
 const router = Router();
 
@@ -99,6 +104,12 @@ router.use(`${apiVersion}/client-drafts`, clientDraftRoutes);
 
 // Currency management
 router.use(`${apiVersion}/currencies`, currencyRoutes);
+
+// Financial Management routes
+router.use(`${apiVersion}/payment-methods`, paymentMethodRoutes);
+router.use(`${apiVersion}/income-categories`, incomeCategoryRoutes);
+router.use(`${apiVersion}/expense-categories`, expenseCategoryRoutes);
+router.use(`${apiVersion}/financial-transactions`, financialTransactionRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

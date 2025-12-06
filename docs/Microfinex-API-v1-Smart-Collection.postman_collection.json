@@ -140,6 +140,26 @@
       "key": "encryptionKeyId",
       "value": "",
       "description": "Last created/retrieved encryption key ID"
+    },
+    {
+      "key": "paymentMethodId",
+      "value": "",
+      "description": "Last created/retrieved payment method ID"
+    },
+    {
+      "key": "incomeCategoryId",
+      "value": "",
+      "description": "Last created/retrieved income category ID"
+    },
+    {
+      "key": "expenseCategoryId",
+      "value": "",
+      "description": "Last created/retrieved expense category ID"
+    },
+    {
+      "key": "financialTransactionId",
+      "value": "",
+      "description": "Last created/retrieved financial transaction ID"
     }
   ],
   "auth": {
@@ -6137,6 +6157,679 @@
             },
             "description": "Preview new repayment schedule before applying"
           }
+        }
+      ]
+    },
+    {
+      "name": "💰 Financial Management",
+      "description": "Income, Expenses, and Payment Methods management - Track organizational cash flow",
+      "item": [
+        {
+          "name": "Payment Methods",
+          "description": "Manage payment channels (Cash, Mobile Money, Bank Transfer, etc.)",
+          "item": [
+            {
+              "name": "List Payment Methods",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.length > 0) {",
+                      "        pm.collectionVariables.set('paymentMethodId', response.data[0].id);",
+                      "        console.log('✅ First payment method ID set: ' + response.data[0].id);",
+                      "        console.log('💳 Payment method name: ' + response.data[0].name);",
+                      "        console.log('💰 Current balance: ' + response.data[0].currentBalance);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods"]
+                },
+                "description": "List all payment methods with their current balances"
+              }
+            },
+            {
+              "name": "Get Payment Method by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods/{{paymentMethodId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods", "{{paymentMethodId}}"]
+                },
+                "description": "Get a specific payment method by ID"
+              }
+            },
+            {
+              "name": "Create Payment Method",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.id) {",
+                      "        pm.collectionVariables.set('paymentMethodId', response.data.id);",
+                      "        console.log('✅ Payment method created with ID: ' + response.data.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Main Cash\",\n  \"code\": \"CASH-001\",\n  \"type\": \"CASH\",\n  \"description\": \"Main office cash drawer\",\n  \"currentBalance\": 5000,\n  \"currency\": \"USD\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods"]
+                },
+                "description": "Create a new payment method. Types: CASH, MOBILE_MONEY, BANK_TRANSFER, CHEQUE, CARD, CRYPTO, OTHER"
+              }
+            },
+            {
+              "name": "Update Payment Method",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Main Cash Updated\",\n  \"description\": \"Updated description\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods/{{paymentMethodId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods", "{{paymentMethodId}}"]
+                },
+                "description": "Update a payment method"
+              }
+            },
+            {
+              "name": "Adjust Balance",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"amount\": 1000,\n  \"type\": \"credit\",\n  \"reason\": \"Initial funding deposit\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods/{{paymentMethodId}}/adjust-balance",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "payment-methods",
+                    "{{paymentMethodId}}",
+                    "adjust-balance"
+                  ]
+                },
+                "description": "Manually adjust the balance of a payment method. Type can be 'credit' or 'debit'."
+              }
+            },
+            {
+              "name": "Transfer Funds",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fromPaymentMethodId\": \"{{paymentMethodId}}\",\n  \"toPaymentMethodId\": \"<target-payment-method-id>\",\n  \"amount\": 500,\n  \"description\": \"Transfer to bank account\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods/transfer",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods", "transfer"]
+                },
+                "description": "Transfer funds between payment methods"
+              }
+            },
+            {
+              "name": "Get Payment Method Stats",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods/stats",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods", "stats"]
+                },
+                "description": "Get statistics for all payment methods including total balances"
+              }
+            },
+            {
+              "name": "Delete Payment Method",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/payment-methods/{{paymentMethodId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["payment-methods", "{{paymentMethodId}}"]
+                },
+                "description": "Delete a payment method (only if no transactions are associated)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Income Categories",
+          "description": "Manage income category types",
+          "item": [
+            {
+              "name": "List Income Categories",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.length > 0) {",
+                      "        pm.collectionVariables.set('incomeCategoryId', response.data[0].id);",
+                      "        console.log('✅ First income category ID set: ' + response.data[0].id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/income-categories",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["income-categories"]
+                },
+                "description": "List all income categories"
+              }
+            },
+            {
+              "name": "Get Income Category by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/income-categories/{{incomeCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["income-categories", "{{incomeCategoryId}}"]
+                },
+                "description": "Get a specific income category"
+              }
+            },
+            {
+              "name": "Create Income Category",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.id) {",
+                      "        pm.collectionVariables.set('incomeCategoryId', response.data.id);",
+                      "        console.log('✅ Income category created with ID: ' + response.data.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Loan Repayments\",\n  \"description\": \"Income from loan repayments\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/income-categories",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["income-categories"]
+                },
+                "description": "Create a new income category"
+              }
+            },
+            {
+              "name": "Update Income Category",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Loan Repayments Updated\",\n  \"description\": \"Updated description\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/income-categories/{{incomeCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["income-categories", "{{incomeCategoryId}}"]
+                },
+                "description": "Update an income category"
+              }
+            },
+            {
+              "name": "Delete Income Category",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/income-categories/{{incomeCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["income-categories", "{{incomeCategoryId}}"]
+                },
+                "description": "Delete an income category"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Expense Categories",
+          "description": "Manage expense category types",
+          "item": [
+            {
+              "name": "List Expense Categories",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.length > 0) {",
+                      "        pm.collectionVariables.set('expenseCategoryId', response.data[0].id);",
+                      "        console.log('✅ First expense category ID set: ' + response.data[0].id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/expense-categories",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["expense-categories"]
+                },
+                "description": "List all expense categories"
+              }
+            },
+            {
+              "name": "Get Expense Category by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/expense-categories/{{expenseCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["expense-categories", "{{expenseCategoryId}}"]
+                },
+                "description": "Get a specific expense category"
+              }
+            },
+            {
+              "name": "Create Expense Category",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.id) {",
+                      "        pm.collectionVariables.set('expenseCategoryId', response.data.id);",
+                      "        console.log('✅ Expense category created with ID: ' + response.data.id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Loan Disbursements\",\n  \"description\": \"Expenses from loan disbursements\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/expense-categories",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["expense-categories"]
+                },
+                "description": "Create a new expense category"
+              }
+            },
+            {
+              "name": "Update Expense Category",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Loan Disbursements Updated\",\n  \"description\": \"Updated description\",\n  \"isActive\": true\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/expense-categories/{{expenseCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["expense-categories", "{{expenseCategoryId}}"]
+                },
+                "description": "Update an expense category"
+              }
+            },
+            {
+              "name": "Delete Expense Category",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/expense-categories/{{expenseCategoryId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["expense-categories", "{{expenseCategoryId}}"]
+                },
+                "description": "Delete an expense category"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Financial Transactions",
+          "description": "Record and manage income/expense transactions",
+          "item": [
+            {
+              "name": "List Financial Transactions",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.transactions && response.data.transactions.length > 0) {",
+                      "        pm.collectionVariables.set('financialTransactionId', response.data.transactions[0].id);",
+                      "        console.log('✅ First transaction ID set: ' + response.data.transactions[0].id);",
+                      "        console.log('📝 Transaction type: ' + response.data.transactions[0].type);",
+                      "        console.log('💰 Amount: ' + response.data.transactions[0].amount);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["financial-transactions"],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "type", "value": "", "disabled": true },
+                    { "key": "status", "value": "", "disabled": true },
+                    { "key": "startDate", "value": "", "disabled": true },
+                    { "key": "endDate", "value": "", "disabled": true },
+                    { "key": "paymentMethodId", "value": "", "disabled": true }
+                  ]
+                },
+                "description": "List all financial transactions with filtering options. Types: INCOME, EXPENSE. Status: PENDING, COMPLETED, VOIDED"
+              }
+            },
+            {
+              "name": "Get Financial Summary",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions/summary",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["financial-transactions", "summary"],
+                  "query": [
+                    { "key": "startDate", "value": "", "disabled": true },
+                    { "key": "endDate", "value": "", "disabled": true }
+                  ]
+                },
+                "description": "Get financial summary with total income, expenses, and net balance"
+              }
+            },
+            {
+              "name": "Get Transaction by ID",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions/{{financialTransactionId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "financial-transactions",
+                    "{{financialTransactionId}}"
+                  ]
+                },
+                "description": "Get a specific financial transaction by ID"
+              }
+            },
+            {
+              "name": "Create Income Transaction",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.id) {",
+                      "        pm.collectionVariables.set('financialTransactionId', response.data.id);",
+                      "        console.log('✅ Income transaction created: ' + response.data.id);",
+                      "        console.log('📝 Transaction #: ' + response.data.transactionNumber);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"INCOME\",\n  \"amount\": 5000,\n  \"currency\": \"USD\",\n  \"description\": \"Investment from shareholder\",\n  \"transactionDate\": \"2025-12-06T10:00:00Z\",\n  \"reference\": \"INV-001\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\",\n  \"incomeCategoryId\": \"{{incomeCategoryId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["financial-transactions"]
+                },
+                "description": "Record a new income transaction"
+              }
+            },
+            {
+              "name": "Create Expense Transaction",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data && response.data.id) {",
+                      "        pm.collectionVariables.set('financialTransactionId', response.data.id);",
+                      "        console.log('✅ Expense transaction created: ' + response.data.id);",
+                      "        console.log('📝 Transaction #: ' + response.data.transactionNumber);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"type\": \"EXPENSE\",\n  \"amount\": 1000,\n  \"currency\": \"USD\",\n  \"description\": \"Office rent payment\",\n  \"transactionDate\": \"2025-12-06T10:00:00Z\",\n  \"reference\": \"RENT-DEC-2025\",\n  \"paymentMethodId\": \"{{paymentMethodId}}\",\n  \"expenseCategoryId\": \"{{expenseCategoryId}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["financial-transactions"]
+                },
+                "description": "Record a new expense transaction"
+              }
+            },
+            {
+              "name": "Update Transaction",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"description\": \"Updated transaction description\",\n  \"reference\": \"REF-UPDATED\",\n  \"notes\": \"Added notes to transaction\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions/{{financialTransactionId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "financial-transactions",
+                    "{{financialTransactionId}}"
+                  ]
+                },
+                "description": "Update a financial transaction (only description, reference, notes can be updated)"
+              }
+            },
+            {
+              "name": "Void Transaction",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Transaction entered in error\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions/{{financialTransactionId}}/void",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "financial-transactions",
+                    "{{financialTransactionId}}",
+                    "void"
+                  ]
+                },
+                "description": "Void a transaction - reverses the balance changes and marks as VOIDED"
+              }
+            },
+            {
+              "name": "Get Payment Method History",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/financial-transactions/payment-method/{{paymentMethodId}}/history?page=1&limit=20",
+                  "host": ["{{baseUrl}}"],
+                  "path": [
+                    "financial-transactions",
+                    "payment-method",
+                    "{{paymentMethodId}}",
+                    "history"
+                  ],
+                  "query": [
+                    { "key": "page", "value": "1" },
+                    { "key": "limit", "value": "20" },
+                    { "key": "startDate", "value": "", "disabled": true },
+                    { "key": "endDate", "value": "", "disabled": true }
+                  ]
+                },
+                "description": "Get transaction history for a specific payment method"
+              }
+            }
+          ]
         }
       ]
     },

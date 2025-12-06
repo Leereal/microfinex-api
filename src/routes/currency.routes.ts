@@ -199,7 +199,7 @@ router.get(
   '/:id',
   authenticateToken,
   handleAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id: string = req.params.id!;
     const currency = await currencyService.getById(id);
 
     if (!currency) {
@@ -235,7 +235,7 @@ router.post(
   authorize(UserRole.SUPER_ADMIN),
   validateRequest(createCurrencySchema),
   handleAsync(async (req: Request, res: Response) => {
-    const userId = req.user?.userId;
+    const userId: string = req.user!.userId;
 
     const currency = await currencyService.create({
       ...req.body,
@@ -266,8 +266,8 @@ router.patch(
   authorize(UserRole.SUPER_ADMIN),
   validateRequest(updateCurrencySchema),
   handleAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = req.user?.userId;
+    const id: string = req.params.id!;
+    const userId: string = req.user!.userId;
 
     try {
       const currency = await currencyService.update(id, {
@@ -309,7 +309,7 @@ router.delete(
   authenticateToken,
   authorize(UserRole.SUPER_ADMIN),
   handleAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id: string = req.params.id!;
 
     try {
       await currencyService.delete(id);
@@ -355,8 +355,8 @@ router.post(
   authenticateToken,
   authorize(UserRole.SUPER_ADMIN),
   handleAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = req.user?.userId;
+    const id: string = req.params.id!;
+    const userId: string = req.user!.userId;
 
     try {
       const currency = await currencyService.setDefault(id, userId);
@@ -403,8 +403,8 @@ router.post(
   authenticateToken,
   authorize(UserRole.SUPER_ADMIN),
   handleAsync(async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const userId = req.user?.userId;
+    const id: string = req.params.id!;
+    const userId: string = req.user!.userId;
 
     try {
       const currency = await currencyService.toggleActive(id, userId);
