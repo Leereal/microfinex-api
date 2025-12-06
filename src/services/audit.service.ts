@@ -86,7 +86,8 @@ export interface AuditStats {
  */
 function isValidUUID(str: string | null | undefined): boolean {
   if (!str) return false;
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const uuidRegex =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(str);
 }
 
@@ -96,9 +97,11 @@ function isValidUUID(str: string | null | undefined): boolean {
 export async function createAuditLog(entry: AuditLogEntry): Promise<AuditLog> {
   // Only set userId if it's a valid UUID (to avoid foreign key constraint violations)
   const validUserId = isValidUUID(entry.userId) ? entry.userId : null;
-  const validOrganizationId = isValidUUID(entry.organizationId) ? entry.organizationId : null;
+  const validOrganizationId = isValidUUID(entry.organizationId)
+    ? entry.organizationId
+    : null;
   const validBranchId = isValidUUID(entry.branchId) ? entry.branchId : null;
-  
+
   return prisma.auditLog.create({
     data: {
       action: entry.action,

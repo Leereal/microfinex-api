@@ -78,6 +78,24 @@ model SystemSettings {
   @@map("system_settings")
 }
 
+// Currency configuration managed by Super Admin
+model CurrencyRecord {
+  id            String   @id @default(uuid())
+  code          String   @unique  // ISO 4217 code (e.g., USD, ZAR, ZWG)
+  name          String            // Full name (e.g., "US Dollar")
+  symbol        String            // Currency symbol (e.g., "$", "R")
+  position      String   @default("before")  // "before" or "after" the amount
+  decimalPlaces Int      @default(2)
+  isActive      Boolean  @default(true)
+  isDefault     Boolean  @default(false)  // Only one can be default
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  createdBy     String?
+  updatedBy     String?
+
+  @@map("currencies")
+}
+
 model ExchangeRate {
   id             String   @id @default(uuid())
   organizationId String

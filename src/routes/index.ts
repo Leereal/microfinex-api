@@ -44,6 +44,8 @@ import documentRoutes from './document.routes';
 import collateralRoutes from './collateral.routes';
 import aiRoutes from './ai.routes';
 import clientDraftRoutes from './client-drafts.routes';
+// Currency management
+import currencyRoutes from './currency.routes';
 
 const router = Router();
 
@@ -94,6 +96,9 @@ router.use(`${apiVersion}/documents`, documentRoutes);
 router.use(`${apiVersion}/collaterals`, collateralRoutes);
 router.use(`${apiVersion}/ai`, aiRoutes);
 router.use(`${apiVersion}/client-drafts`, clientDraftRoutes);
+
+// Currency management
+router.use(`${apiVersion}/currencies`, currencyRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

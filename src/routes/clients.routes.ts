@@ -127,8 +127,15 @@ router.post(
       const createdBy = req.userContext?.id;
       const branchId = req.userContext?.branchId;
 
-      console.log('[Client Create] Request body:', JSON.stringify(req.body, null, 2));
-      console.log('[Client Create] User context:', { organizationId, createdBy, branchId });
+      console.log(
+        '[Client Create] Request body:',
+        JSON.stringify(req.body, null, 2)
+      );
+      console.log('[Client Create] User context:', {
+        organizationId,
+        createdBy,
+        branchId,
+      });
 
       if (!organizationId || !createdBy) {
         return res.status(400).json({
@@ -151,7 +158,7 @@ router.post(
           userId: createdBy,
           organizationId,
           branchId: req.body.branchId || branchId,
-          ipAddress: req.ip || req.headers['x-forwarded-for'] as string,
+          ipAddress: req.ip || (req.headers['x-forwarded-for'] as string),
           userAgent: req.headers['user-agent'] as string,
           requestId: req.auditContext?.requestId,
         });
@@ -169,7 +176,7 @@ router.post(
       });
     } catch (error: any) {
       console.error('Create client error:', error);
-      
+
       // Handle specific Prisma errors
       if (error.code === 'P2002') {
         // Unique constraint violation
@@ -182,17 +189,18 @@ router.post(
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (error.code === 'P2003') {
         // Foreign key constraint failure
         return res.status(400).json({
           success: false,
-          message: 'Invalid reference: branch or other related entity not found',
+          message:
+            'Invalid reference: branch or other related entity not found',
           error: 'INVALID_REFERENCE',
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',

@@ -89,7 +89,10 @@ export const clientDraftDataSchema = z
         z.object({
           currency_id: z.number().nullable().optional(),
           currency: z.string().nullable().optional(),
-          max_loan_amount: z.union([z.string(), z.number()]).nullable().optional(),
+          max_loan_amount: z
+            .union([z.string(), z.number()])
+            .nullable()
+            .optional(),
           credit_score: z.string().nullable().optional(),
         })
       )
