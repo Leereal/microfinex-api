@@ -80,14 +80,15 @@ class AuthService {
       };
     }
 
-    // Get user from database with organization
+    // Get user from database with organization and branch
     console.log('🔍 Looking up user:', email);
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select(
         `
         *,
-        organization:organizations(*)
+        organization:organizations(*),
+        branch:branches!users_branchId_fkey(*)
       `
       )
       .eq('email', email)
@@ -170,6 +171,8 @@ class AuthService {
           lastName: user.lastName,
           role: user.role,
           organization: user.organization,
+          branchId: user.branchId,
+          branch: user.branch,
           lastLoginAt: user.lastLoginAt,
         },
         token: token,
@@ -306,7 +309,8 @@ class AuthService {
       .select(
         `
         *,
-        organization:organizations(*)
+        organization:organizations(*),
+        branch:branches!users_branchId_fkey(*)
       `
       )
       .eq('id', userId)
@@ -331,6 +335,8 @@ class AuthService {
           lastName: user.lastName,
           role: user.role,
           organizationId: user.organizationId,
+          branchId: user.branchId,
+          branch: user.branch,
           isActive: user.isActive,
           lastLoginAt: user.lastLoginAt,
           createdAt: user.createdAt,

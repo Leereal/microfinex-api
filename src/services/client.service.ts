@@ -66,7 +66,7 @@ export const createClientSchema = z
     lastName: z.string().min(1).optional(),
     businessName: z.string().min(1).optional(),
     email: z.string().email().optional(),
-    phone: z.string().min(10, 'Phone number must be at least 10 characters'),
+    phone: z.string().min(9, 'Phone number must be at least 9 characters'),
     dateOfBirth: z.string().datetime().optional(),
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
     maritalStatus: z

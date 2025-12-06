@@ -301,6 +301,97 @@ router.get(
 );
 
 /**
+ * Get user statistics
+ * GET /api/users/statistics
+ * NOTE: This route MUST be defined before /:id routes
+ */
+router.get(
+  '/statistics',
+  requirePermission('users:view'),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+
+    const [totalUsers, activeUsers, inactiveUsers, verifiedUsers, roleStats] = await Promise.all([
+      prisma.user.count({ where: { organizationId } }),
+      prisma.user.count({ where: { organizationId, isActive: true } }),
+      prisma.user.count({ where: { organizationId, isActive: false } }),
+      prisma.user.count({ where: { organizationId, isEmailVerified: true } }),
+      prisma.user.groupBy({
+        by: ['role'],
+        where: { organizationId },
+        _count: { role: true },
+      }),
+    ]);
+
+    const roleDistribution = roleStats.reduce((acc: Record<string, number>, item) => {
+      acc[item.role] = item._count.role;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      data: {
+        statistics: {
+          totalUsers,
+          activeUsers,
+          inactiveUsers,
+          verifiedUsers,
+          unverifiedUsers: totalUsers - verifiedUsers,
+          roleDistribution,
+        },
+      },
+    });
+  })
+);
+
+/**
+ * Get users pending email verification
+ * GET /api/users/pending-verification
+ * NOTE: This route MUST be defined before /:id routes
+ */
+router.get(
+  '/pending-verification',
+  requirePermission('users:view'),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Only SUPER_ADMIN, ORG_ADMIN, or ADMIN can view pending verifications
+    if (!['SUPER_ADMIN', 'ORG_ADMIN', 'ADMIN'].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions to view pending verifications',
+      });
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isEmailVerified: false,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        isEmailVerified: true,
+        role: true,
+        branch: { select: { id: true, name: true } },
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({
+      success: true,
+      data: { users },
+    });
+  })
+);
+
+/**
  * Get user by ID
  * GET /api/users/:id
  */
@@ -765,6 +856,375 @@ router.get(
         total,
         totalPages: Math.ceil(total / limit),
       },
+    });
+  })
+);
+
+/**
+ * Update user status (activate/deactivate)
+ * PATCH /api/users/:id/status
+ */
+const updateStatusSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    isActive: z.boolean(),
+  }),
+});
+
+router.patch(
+  '/:id/status',
+  requirePermission('users:update'),
+  validateRequest(updateStatusSchema),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+    const currentUserId = req.user!.userId;
+
+    if (req.params.id === currentUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot change your own status',
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        isActive: req.body.isActive,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        isEmailVerified: true,
+        role: true,
+        branch: { select: { id: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: `User ${req.body.isActive ? 'activated' : 'deactivated'} successfully`,
+      data: { user: updated },
+    });
+  })
+);
+
+/**
+ * Assign branch to user (PATCH version for frontend compatibility)
+ * PATCH /api/users/:id/branch
+ */
+router.patch(
+  '/:id/branch',
+  requirePermission('users:assign_branch'),
+  validateRequest(assignBranchSchema),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Verify branch if provided
+    if (req.body.branchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: req.body.branchId, organizationId, isActive: true },
+      });
+
+      if (!branch) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid branch',
+        });
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        branchId: req.body.branchId,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        isEmailVerified: true,
+        role: true,
+        branch: { select: { id: true, name: true } },
+        branchId: true,
+        organization: { select: { id: true, name: true } },
+        organizationId: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Branch assigned successfully',
+      data: { user: updated },
+    });
+  })
+);
+
+/**
+ * Delete user
+ * DELETE /api/users/:id
+ */
+router.delete(
+  '/:id',
+  requirePermission('users:delete'),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+    const currentUserId = req.user!.userId;
+
+    if (req.params.id === currentUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete your own account',
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Soft delete by deactivating or hard delete based on your requirements
+    // Using soft delete here for data integrity
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        isActive: false,
+        email: `deleted_${Date.now()}_${user.email}`, // Prevent email conflicts
+        updatedAt: new Date(),
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully',
+    });
+  })
+);
+
+/**
+ * Reset user password (admin action)
+ * POST /api/users/:id/reset-password
+ */
+const resetPasswordSchema = z.object({
+  params: z.object({ id: z.string().uuid() }),
+  body: z.object({
+    newPassword: z.string().min(8, 'Password must be at least 8 characters').optional(),
+  }),
+});
+
+router.post(
+  '/:id/reset-password',
+  requirePermission('users:update'),
+  validateRequest(resetPasswordSchema),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Generate a temporary password if not provided
+    const newPassword = req.body.newPassword || Math.random().toString(36).slice(-10) + 'A1!';
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        password: hashedPassword,
+        updatedAt: new Date(),
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Password reset successfully',
+      data: req.body.newPassword ? {} : { tempPassword: newPassword },
+    });
+  })
+);
+
+/**
+ * Verify user email (Super Admin only)
+ * POST /api/users/:id/verify-email
+ */
+router.post(
+  '/:id/verify-email',
+  requirePermission('users:update'),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Only SUPER_ADMIN or ORG_ADMIN can verify emails manually
+    if (!['SUPER_ADMIN', 'ORG_ADMIN'].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Super Admin or Org Admin can verify user emails',
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        isEmailVerified: true,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        isEmailVerified: true,
+        role: true,
+        branch: { select: { id: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'User email verified successfully',
+      data: { user: updated },
+    });
+  })
+);
+
+/**
+ * Unverify user email (Super Admin only)
+ * POST /api/users/:id/unverify-email
+ */
+router.post(
+  '/:id/unverify-email',
+  requirePermission('users:update'),
+  handleAsync(async (req, res) => {
+    const organizationId = req.user!.organizationId;
+    const userRole = req.user!.role;
+
+    // Only SUPER_ADMIN or ORG_ADMIN can unverify emails
+    if (!['SUPER_ADMIN', 'ORG_ADMIN'].includes(userRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Only Super Admin or Org Admin can unverify user emails',
+      });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.params.id,
+        organizationId,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: req.params.id },
+      data: {
+        isEmailVerified: false,
+        updatedAt: new Date(),
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phone: true,
+        isActive: true,
+        isEmailVerified: true,
+        role: true,
+        branch: { select: { id: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'User email unverified successfully',
+      data: { user: updated },
     });
   })
 );

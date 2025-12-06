@@ -119,13 +119,13 @@ router.get(
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.STAFF),
+  authorize(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.ADMIN, UserRole.MANAGER, UserRole.STAFF),
   validateRequest(createClientSchema),
   async (req, res) => {
     try {
       const organizationId = req.userContext?.organizationId;
       const createdBy = req.userContext?.id;
-      const branchId = req.userContext?.branchId;
+      const branchId = req.userContext?.branchId || req.body.branchId;
 
       console.log(
         '[Client Create] Request body:',

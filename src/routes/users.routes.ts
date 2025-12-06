@@ -205,7 +205,7 @@ router.patch(
 router.patch(
   '/:id/branch',
   authenticate,
-  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.MANAGER),
+  authorize(UserRole.SUPER_ADMIN, UserRole.ORG_ADMIN, UserRole.ADMIN, UserRole.MANAGER),
   userController.assignToBranch.bind(userController)
 );
 

@@ -184,7 +184,11 @@ export const authenticateSupabase = async (
  */
 export const authorizeSupabase = (...allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
+    console.log('[Auth] authorizeSupabase called, allowedRoles:', allowedRoles);
+    console.log('[Auth] req.userContext:', req.userContext ? { role: req.userContext.role } : 'undefined');
+    
     if (!req.userContext) {
+      console.log('[Auth] No userContext, returning 401');
       res.status(401).json({
         success: false,
         message: 'Authentication required',
@@ -195,17 +199,21 @@ export const authorizeSupabase = (...allowedRoles: UserRole[]) => {
     }
 
     if (!allowedRoles.includes(req.userContext.role)) {
-      res.status(403).json({
+      const errorResponse = {
         success: false,
         message: 'Insufficient permissions',
         error: 'FORBIDDEN',
         requiredRoles: allowedRoles,
         userRole: req.userContext.role,
         timestamp: new Date().toISOString(),
-      });
+      };
+      console.log('[Auth] Role not allowed, returning 403');
+      console.log('[Auth] 403 Forbidden response:', JSON.stringify(errorResponse));
+      res.status(403).json(errorResponse);
       return;
     }
 
+    console.log('[Auth] Role allowed, calling next()');
     next();
   };
 };
