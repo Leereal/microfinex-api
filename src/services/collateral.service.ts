@@ -221,7 +221,11 @@ class CollateralService {
 
     return prisma.clientCollateral.create({
       data: {
-        ...data,
+        clientId: data.clientId,
+        collateralTypeId: data.collateralTypeId,
+        description: data.description,
+        estimatedValue: new Prisma.Decimal(data.estimatedValue),
+        currency: data.currency || 'USD',
         valuationDate: data.valuationDate
           ? new Date(data.valuationDate)
           : undefined,
@@ -229,6 +233,18 @@ class CollateralService {
           ? new Date(data.insuranceExpiryDate)
           : undefined,
         status: 'AVAILABLE',
+        registrationNumber: data.registrationNumber,
+        serialNumber: data.serialNumber,
+        make: data.make,
+        model: data.model,
+        year: data.year,
+        location: data.location,
+        ownershipStatus: data.ownershipStatus || 'FULLY_OWNED',
+        ownershipDetails: data.ownershipDetails,
+        insuranceProvider: data.insuranceProvider,
+        insurancePolicyNo: data.insurancePolicyNo,
+        notes: data.notes,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
       },
       include: {
         collateralType: true,
@@ -274,13 +290,27 @@ class CollateralService {
     return prisma.clientCollateral.update({
       where: { id: collateralId },
       data: {
-        ...data,
+        description: data.description,
+        estimatedValue: data.estimatedValue ? new Prisma.Decimal(data.estimatedValue) : undefined,
+        currency: data.currency,
         valuationDate: data.valuationDate
           ? new Date(data.valuationDate)
           : undefined,
         insuranceExpiryDate: data.insuranceExpiryDate
           ? new Date(data.insuranceExpiryDate)
           : undefined,
+        registrationNumber: data.registrationNumber,
+        serialNumber: data.serialNumber,
+        make: data.make,
+        model: data.model,
+        year: data.year,
+        location: data.location,
+        ownershipStatus: data.ownershipStatus,
+        ownershipDetails: data.ownershipDetails,
+        insuranceProvider: data.insuranceProvider,
+        insurancePolicyNo: data.insurancePolicyNo,
+        notes: data.notes,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
       },
       include: {
         collateralType: true,
@@ -712,8 +742,8 @@ class CollateralService {
 
     for (const c of collaterals) {
       const value =
-        c.estimatedValue instanceof Decimal
-          ? c.estimatedValue.toNumber()
+        typeof c.estimatedValue === 'object' && c.estimatedValue !== null && 'd' in c.estimatedValue
+          ? Number(c.estimatedValue)
           : Number(c.estimatedValue);
 
       totalValue[c.currency] += value;

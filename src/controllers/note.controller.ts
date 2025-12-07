@@ -11,7 +11,7 @@ export class NoteController {
     try {
       const { entityType, entityId } = req.params;
       const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -40,10 +40,10 @@ export class NoteController {
         ) || false;
 
       const notes = await noteService.getByEntity(
-        organizationId,
+        organizationId!,
         entityType as NoteEntityType,
         entityId,
-        userId,
+        userId!,
         canViewPrivate
       );
 
@@ -72,7 +72,7 @@ export class NoteController {
       const { entityType, entityId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
       const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -115,14 +115,14 @@ export class NoteController {
       }
 
       const note = await noteService.create({
-        organizationId,
+        organizationId: organizationId!,
         entityType: entityType as NoteEntityType,
         entityId,
         content: content.trim(),
         priority: priority as NotePriority,
         isPinned: isPinned || false,
         isPrivate: isPrivate || false,
-        createdBy: userId,
+        createdBy: userId!,
       });
 
       res.status(201).json({
@@ -147,10 +147,10 @@ export class NoteController {
    */
   async updateNote(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const { noteId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
       const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -171,9 +171,9 @@ export class NoteController {
       if (isPrivate !== undefined) updateData.isPrivate = isPrivate;
 
       const note = await noteService.update(
-        id,
-        organizationId,
-        userId,
+        noteId,
+        organizationId!,
+        userId!,
         updateData,
         canUpdateAny
       );
@@ -216,9 +216,9 @@ export class NoteController {
    */
   async deleteNote(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const { noteId } = req.params;
       const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -232,7 +232,7 @@ export class NoteController {
       const canDeleteAny =
         req.user?.permissions?.includes(PERMISSIONS.NOTES_DELETE_ANY) || false;
 
-      await noteService.delete(id, organizationId, userId, canDeleteAny);
+      await noteService.delete(noteId, organizationId!, userId!, canDeleteAny);
 
       res.json({
         success: true,
@@ -271,9 +271,9 @@ export class NoteController {
    */
   async togglePin(req: Request, res: Response) {
     try {
-      const { id } = req.params;
+      const { noteId } = req.params;
       const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -288,9 +288,9 @@ export class NoteController {
         req.user?.permissions?.includes(PERMISSIONS.NOTES_DELETE_ANY) || false;
 
       const note = await noteService.togglePin(
-        id,
-        organizationId,
-        userId,
+        noteId,
+        organizationId!,
+        userId!,
         canUpdateAny
       );
 
@@ -349,7 +349,7 @@ export class NoteController {
       }
 
       const count = await noteService.getCount(
-        organizationId,
+        organizationId!,
         entityType as NoteEntityType,
         entityId
       );

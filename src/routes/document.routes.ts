@@ -223,16 +223,22 @@ router.post(
     }
 
     // Upload file to storage
-    const fileName = `documents/${req.params.clientId}/${Date.now()}_${req.file.originalname}`;
-    const uploadResult = await storageService.uploadFile(
-      organizationId,
+    const fileName = `${Date.now()}_${req.file.originalname}`;
+    const uploadResult = await storageService.upload(
       req.file.buffer,
-      fileName,
-      req.file.mimetype
+      req.file.originalname,
+      req.file.mimetype,
+      req.file.size,
+      {
+        organizationId: organizationId!,
+        entityType: 'clients',
+        entityId: req.params.clientId,
+        fileType: 'DOCUMENT',
+      }
     );
 
     // Add file info to request body for controller
-    req.body.file = {
+    (req.body as any).file = {
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
       size: req.file.size,

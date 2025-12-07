@@ -56,10 +56,8 @@ class ImportController {
       const extension = fileName.toLowerCase().split('.').pop();
       let type: ImportType;
 
-      if (extension === 'csv') {
-        type = ImportType.CSV;
-      } else if (['xlsx', 'xls'].includes(extension || '')) {
-        type = ImportType.EXCEL;
+      if (extension === 'csv' || extension === 'xlsx' || extension === 'xls') {
+        type = ImportType.CLIENTS; // Map file imports to CLIENTS type
       } else {
         return res.status(400).json({
           success: false,
@@ -70,25 +68,25 @@ class ImportController {
       }
 
       // Create import job record
-      const importJob = await prisma.importJob.create({
+        const importJob = await prisma.importJob.create({
         data: {
           organizationId,
-          type,
+          importType: type,
           fileName,
+          originalFileName: fileName,
+          storagePath: '',
           status: ImportStatus.PENDING,
-          createdBy: userId,
-          metadata: {
+          createdBy: userId!,
+          mapping: {
             branchId,
             dryRun: dryRun ?? false,
           },
         },
-      });
-
-      // Parse and process file
+      });      // Parse and process file
       try {
         let rows: ImportRow[];
 
-        if (type === ImportType.CSV) {
+        if (extension === 'csv') {
           // Decode base64 content if needed
           const content = fileContent.startsWith('data:')
             ? Buffer.from(fileContent.split(',')[1], 'base64').toString('utf-8')
@@ -140,20 +138,14 @@ class ImportController {
             failedRows: results.failed,
             status:
               results.failed > 0
-                ? ImportStatus.COMPLETED_WITH_ERRORS
+                ? ImportStatus.PARTIALLY_COMPLETED
                 : ImportStatus.COMPLETED,
             completedAt: new Date(),
           },
         });
 
         const updatedJob = await prisma.importJob.findUnique({
-          where: { id: importJob.id },
-          include: {
-            errors: {
-              take: 50, // Limit errors returned
-              orderBy: { rowNumber: 'asc' },
-            },
-          },
+          where: { id: importJobId },
         });
 
         res.status(201).json({
@@ -170,20 +162,17 @@ class ImportController {
       } catch (parseError: any) {
         // Update job with error status
         await prisma.importJob.update({
-          where: { id: importJob.id },
+          where: { id: importJobId },
           data: {
             status: ImportStatus.FAILED,
             completedAt: new Date(),
-          },
-        });
-
-        await prisma.importError.create({
-          data: {
-            importJobId: importJob.id,
-            rowNumber: 0,
-            rowData: {},
-            errorMessage: `File parsing error: ${parseError.message}`,
-            errorField: 'file',
+            errorLog: [
+              {
+                rowNumber: 0,
+                rowData: {},
+                errorMessage: `File parsing error: ${parseError.message}`,
+              },
+            ],
           },
         });
 
@@ -191,7 +180,7 @@ class ImportController {
           success: false,
           message: `Failed to parse file: ${parseError.message}`,
           error: 'PARSE_ERROR',
-          data: { jobId: importJob.id },
+          data: { jobId: importJobId },
           timestamp: new Date().toISOString(),
         });
       }
@@ -229,7 +218,7 @@ class ImportController {
     };
 
     for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
+      const row = rows[i]!; // Assert defined since we're iterating array.length
       const rowNumber = i + 1; // 1-indexed for user display
       results.processed++;
 
@@ -302,28 +291,20 @@ class ImportController {
         }
 
         if (errors.length > 0) {
-          // Record errors
+          // Store errors in errorLog for the import job
+          const currentErrors = importJob.errorLog as any || [];
           for (const errorMessage of errors) {
-            await prisma.importError.create({
-              data: {
-                importJobId,
-                rowNumber,
-                rowData: row as any,
-                errorMessage,
-                errorField: errorMessage.toLowerCase().includes('email')
-                  ? 'email'
-                  : errorMessage.toLowerCase().includes('name')
-                    ? 'name'
-                    : errorMessage.toLowerCase().includes('date')
-                      ? 'dateOfBirth'
-                      : errorMessage.toLowerCase().includes('gender')
-                        ? 'gender'
-                        : errorMessage.toLowerCase().includes('id number')
-                          ? 'idNumber'
-                          : 'unknown',
-              },
+            currentErrors.push({
+              rowNumber,
+              rowData: row,
+              errorMessage,
             });
           }
+          // Update import job with errors
+          await prisma.importJob.update({
+            where: { id: importJobId },
+            data: { errorLog: currentErrors },
+          });
           results.failed++;
           continue;
         }
@@ -354,7 +335,7 @@ class ImportController {
             await prisma.clientAddress.create({
               data: {
                 clientId: client.id,
-                type: 'RESIDENTIAL',
+                addressType: 'RESIDENTIAL',
                 addressLine1: row.address?.trim() || '',
                 city: row.city?.trim() || '',
                 country: row.country?.trim() || 'Zimbabwe',
@@ -368,8 +349,8 @@ class ImportController {
             await prisma.clientContact.create({
               data: {
                 clientId: client.id,
-                type: 'MOBILE',
-                value: row.phone.trim(),
+                contactType: 'MOBILE',
+                contactValue: row.phone.trim(),
                 isPrimary: true,
               },
             });
@@ -380,15 +361,16 @@ class ImportController {
 
         results.successful++;
       } catch (error: any) {
-        // Record error
-        await prisma.importError.create({
-          data: {
-            importJobId,
-            rowNumber,
-            rowData: row as any,
-            errorMessage: error.message || 'Unknown error',
-            errorField: 'unknown',
-          },
+        // Record error in import job errorLog
+        const currentErrors = importJob.errorLog as any || [];
+        currentErrors.push({
+          rowNumber,
+          rowData: row,
+          errorMessage: error.message || 'Unknown error',
+        });
+        await prisma.importJob.update({
+          where: { id: importJobId },
+          data: { errorLog: currentErrors },
         });
         results.failed++;
       }
@@ -419,19 +401,6 @@ class ImportController {
         where: {
           id: jobId,
           organizationId,
-        },
-        include: {
-          errors: {
-            orderBy: { rowNumber: 'asc' },
-          },
-          createdByUser: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
-            },
-          },
         },
       });
 
@@ -686,7 +655,7 @@ class ImportController {
       const updatedJob = await prisma.importJob.update({
         where: { id: jobId },
         data: {
-          status: ImportStatus.CANCELLED,
+          status: ImportStatus.FAILED,
           completedAt: new Date(),
         },
       });
@@ -742,12 +711,7 @@ class ImportController {
         });
       }
 
-      // Delete errors first (cascade)
-      await prisma.importError.deleteMany({
-        where: { importJobId: jobId },
-      });
-
-      // Delete job
+      // Delete job (errors are stored in errorLog field, so no cascade needed)
       await prisma.importJob.delete({
         where: { id: jobId },
       });

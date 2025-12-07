@@ -189,7 +189,9 @@ class ClientDraftService {
     for (const fieldPath of ALL_FIELDS) {
       if (fieldPath.includes('.')) {
         // Nested field
-        const [parent, child] = fieldPath.split('.');
+        const parts = fieldPath.split('.');
+        const parent = parts[0]!; // Assert defined
+        const child = parts[1]!; // Assert defined
         if (data[parent] && data[parent][child]) {
           filledFields++;
         }
@@ -333,14 +335,16 @@ class ClientDraftService {
     // Update the field (supports nested paths like "employer.name")
     if (fieldPath.includes('.')) {
       const parts = fieldPath.split('.');
-      let current = draftData;
+      let current: any = draftData;
       for (let i = 0; i < parts.length - 1; i++) {
-        if (!current[parts[i]]) {
-          current[parts[i]] = {};
+        const part = parts[i]!; // Assert defined
+        if (!current[part]) {
+          current[part] = {};
         }
-        current = current[parts[i]];
+        current = current[part];
       }
-      current[parts[parts.length - 1]] = value;
+      const lastPart = parts[parts.length - 1]!; // Assert defined
+      current[lastPart] = value;
     } else {
       draftData[fieldPath] = value;
     }

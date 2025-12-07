@@ -420,7 +420,7 @@ class DocumentService {
     return prisma.clientDocument.update({
       where: { id: documentId },
       data: {
-        aiExtractionData: extractionData,
+        aiExtractionData: JSON.stringify(extractionData),
         aiConfidence: confidence,
         extractedAt: new Date(),
       },
