@@ -937,7 +937,10 @@ class CollateralService {
   /**
    * Remove document from collateral (alias for deleteCollateralDocument)
    */
-  async removeDocumentFromCollateral(documentId: string, organizationId: string) {
+  async removeDocumentFromCollateral(
+    documentId: string,
+    organizationId: string
+  ) {
     return this.deleteCollateralDocument(documentId, organizationId);
   }
 

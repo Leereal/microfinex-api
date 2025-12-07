@@ -221,7 +221,7 @@ router.post(
         timestamp: new Date().toISOString(),
       });
     }
-    
+
     const organizationId: string = rawOrganizationId;
 
     // Upload file to storage

@@ -153,7 +153,7 @@ class CollateralController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawTypeId) {
         return res.status(400).json({
           success: false,
@@ -162,7 +162,7 @@ class CollateralController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const typeId: string = rawTypeId;
 

@@ -11,7 +11,8 @@ export class NoteController {
     try {
       const { entityType: rawEntityType, entityId: rawEntityId } = req.params;
       const rawOrganizationId = (req.user as any)?.organizationId;
-      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawUserId =
+        (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
@@ -21,7 +22,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawEntityType || !rawEntityId) {
         return res.status(400).json({
           success: false,
@@ -30,7 +31,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const userId: string = rawUserId;
       const entityType: string = rawEntityType;
@@ -86,7 +87,8 @@ export class NoteController {
       const { entityType: rawEntityType, entityId: rawEntityId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
       const rawOrganizationId = (req.user as any)?.organizationId;
-      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawUserId =
+        (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
@@ -96,7 +98,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawEntityType || !rawEntityId) {
         return res.status(400).json({
           success: false,
@@ -105,7 +107,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const userId: string = rawUserId;
       const entityType: string = rawEntityType;
@@ -178,7 +180,8 @@ export class NoteController {
       const { noteId: rawNoteId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
       const rawOrganizationId = (req.user as any)?.organizationId;
-      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawUserId =
+        (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
@@ -188,7 +191,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawNoteId) {
         return res.status(400).json({
           success: false,
@@ -197,7 +200,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const userId: string = rawUserId;
       const noteId: string = rawNoteId;
@@ -259,7 +262,8 @@ export class NoteController {
     try {
       const { noteId: rawNoteId } = req.params;
       const rawOrganizationId = (req.user as any)?.organizationId;
-      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawUserId =
+        (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
@@ -269,7 +273,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawNoteId) {
         return res.status(400).json({
           success: false,
@@ -278,7 +282,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const userId: string = rawUserId;
       const noteId: string = rawNoteId;
@@ -327,7 +331,8 @@ export class NoteController {
     try {
       const { noteId: rawNoteId } = req.params;
       const rawOrganizationId = (req.user as any)?.organizationId;
-      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawUserId =
+        (req.user as any)?.userId || (req.user as any)?.id || '';
 
       if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
@@ -337,7 +342,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawNoteId) {
         return res.status(400).json({
           success: false,
@@ -346,7 +351,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const userId: string = rawUserId;
       const noteId: string = rawNoteId;
@@ -402,7 +407,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       if (!rawEntityType || !rawEntityId) {
         return res.status(400).json({
           success: false,
@@ -411,7 +416,7 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
-      
+
       const organizationId: string = rawOrganizationId;
       const entityType: string = rawEntityType;
       const entityId: string = rawEntityId;

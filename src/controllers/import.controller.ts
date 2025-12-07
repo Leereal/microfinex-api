@@ -298,7 +298,9 @@ class ImportController {
 
         if (errors.length > 0) {
           // Store errors in errorLog for the import job
-          const job = await prisma.importJob.findUnique({ where: { id: importJobId } });
+          const job = await prisma.importJob.findUnique({
+            where: { id: importJobId },
+          });
           const currentErrors = (job?.errorLog as any[]) || [];
           for (const errorMessage of errors) {
             currentErrors.push({
@@ -319,12 +321,14 @@ class ImportController {
         // Create client if not dry run
         if (!dryRun) {
           // Generate unique client number
-          const clientCount = await prisma.client.count({ where: { organizationId } });
+          const clientCount = await prisma.client.count({
+            where: { organizationId },
+          });
           const clientNumber = `CLT-${Date.now().toString(36).toUpperCase()}-${(clientCount + 1).toString().padStart(5, '0')}`;
-          
+
           // Phone is required, generate placeholder if not provided
           const phone = row.phone?.trim() || `IMPORT-${Date.now()}-${i}`;
-          
+
           const client = await prisma.client.create({
             data: {
               organizationId,
@@ -373,7 +377,9 @@ class ImportController {
         results.successful++;
       } catch (error: any) {
         // Record error in import job errorLog
-        const job = await prisma.importJob.findUnique({ where: { id: importJobId } });
+        const job = await prisma.importJob.findUnique({
+          where: { id: importJobId },
+        });
         const currentErrors = (job?.errorLog as any[]) || [];
         currentErrors.push({
           rowNumber,
