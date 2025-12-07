@@ -302,6 +302,8 @@ model User {
   processedTransactions FinancialTransaction[] @relation("TransactionProcessor")
   approvedTransactions  FinancialTransaction[] @relation("TransactionApprover")
   voidedTransactions    FinancialTransaction[] @relation("TransactionVoider")
+  // Notes Relations
+  notes           Note[]
 
   @@map("users")
 }
@@ -1669,4 +1671,65 @@ model ClientDraft {
   @@index([userId])
   @@index([updatedAt])
   @@map("client_drafts")
+}
+
+// ============================================
+// NOTES MODULE - Attachable notes to entities
+// ============================================
+enum NoteEntityType {
+  CLIENT
+  LOAN
+  PAYMENT
+  DISBURSEMENT
+  LOAN_APPLICATION
+  COLLATERAL
+  GROUP
+}
+
+enum NotePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model Note {
+  id             String         @id @default(uuid())
+  organizationId String
+  entityType     NoteEntityType
+  entityId       String
+  content        String         @db.Text
+  priority       NotePriority   @default(NORMAL)
+  isPinned       Boolean        @default(false)
+  isPrivate      Boolean        @default(false) // Only visible to creator and admins
+  createdBy      String
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  creator     User             @relation(fields: [createdBy], references: [id])
+  attachments NoteAttachment[]
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([createdBy])
+  @@index([createdAt])
+  @@map("notes")
+}
+
+model NoteAttachment {
+  id           String   @id @default(uuid())
+  noteId       String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  storagePath  String   // MinIO path
+  uploadedBy   String
+  uploadedAt   DateTime @default(now())
+
+  // Relations
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+  @@map("note_attachments")
 }

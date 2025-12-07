@@ -36,6 +36,8 @@ export const PERMISSION_MODULES = {
   INCOME_CATEGORIES: 'income_categories',
   EXPENSE_CATEGORIES: 'expense_categories',
   FINANCIAL_TRANSACTIONS: 'financial_transactions',
+  // Notes Module
+  NOTES: 'notes',
 } as const;
 
 // Permission interface
@@ -1152,6 +1154,46 @@ export const FINANCIAL_TRANSACTION_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== NOTE PERMISSIONS ====================
+export const NOTE_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'notes:view',
+    name: 'View Notes',
+    description: 'View notes on entities',
+    module: PERMISSION_MODULES.NOTES,
+  },
+  {
+    code: 'notes:create',
+    name: 'Create Note',
+    description: 'Create notes on entities',
+    module: PERMISSION_MODULES.NOTES,
+  },
+  {
+    code: 'notes:update',
+    name: 'Update Note',
+    description: 'Update own notes',
+    module: PERMISSION_MODULES.NOTES,
+  },
+  {
+    code: 'notes:delete',
+    name: 'Delete Note',
+    description: 'Delete own notes',
+    module: PERMISSION_MODULES.NOTES,
+  },
+  {
+    code: 'notes:delete_any',
+    name: 'Delete Any Note',
+    description: 'Delete any note (admin)',
+    module: PERMISSION_MODULES.NOTES,
+  },
+  {
+    code: 'notes:view_private',
+    name: 'View Private Notes',
+    description: 'View private notes from other users',
+    module: PERMISSION_MODULES.NOTES,
+  },
+];
+
 // ==================== ALL PERMISSIONS ====================
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
@@ -1185,6 +1227,8 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...INCOME_CATEGORY_PERMISSIONS,
   ...EXPENSE_CATEGORY_PERMISSIONS,
   ...FINANCIAL_TRANSACTION_PERMISSIONS,
+  // Notes Module
+  ...NOTE_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -1420,6 +1464,14 @@ export const PERMISSIONS = {
   FINANCIAL_TRANSACTIONS_VOID: 'financial_transactions:void',
   FINANCIAL_TRANSACTIONS_EXPORT: 'financial_transactions:export',
   FINANCIAL_TRANSACTIONS_SUMMARY: 'financial_transactions:summary',
+
+  // Notes
+  NOTES_VIEW: 'notes:view',
+  NOTES_CREATE: 'notes:create',
+  NOTES_UPDATE: 'notes:update',
+  NOTES_DELETE: 'notes:delete',
+  NOTES_DELETE_ANY: 'notes:delete_any',
+  NOTES_VIEW_PRIVATE: 'notes:view_private',
 } as const;
 
 // ==================== DEFAULT ROLE PERMISSIONS ====================
@@ -1454,6 +1506,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...INCOME_CATEGORY_PERMISSIONS.map(p => p.code),
     ...EXPENSE_CATEGORY_PERMISSIONS.map(p => p.code),
     ...FINANCIAL_TRANSACTION_PERMISSIONS.map(p => p.code),
+    // Notes Module
+    ...NOTE_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
@@ -1515,6 +1569,13 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.FINANCIAL_TRANSACTIONS_UPDATE,
     PERMISSIONS.FINANCIAL_TRANSACTIONS_VOID,
     PERMISSIONS.FINANCIAL_TRANSACTIONS_SUMMARY,
+    // Notes - Managers can view, create, update and delete any
+    PERMISSIONS.NOTES_VIEW,
+    PERMISSIONS.NOTES_CREATE,
+    PERMISSIONS.NOTES_UPDATE,
+    PERMISSIONS.NOTES_DELETE,
+    PERMISSIONS.NOTES_DELETE_ANY,
+    PERMISSIONS.NOTES_VIEW_PRIVATE,
   ],
 
   LOAN_ASSESSOR: [
@@ -1532,6 +1593,11 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.PLEDGES_CREATE,
     PERMISSIONS.PLEDGES_UPDATE,
     PERMISSIONS.DASHBOARD_VIEW,
+    // Notes
+    PERMISSIONS.NOTES_VIEW,
+    PERMISSIONS.NOTES_CREATE,
+    PERMISSIONS.NOTES_UPDATE,
+    PERMISSIONS.NOTES_DELETE,
   ],
 
   LOAN_OFFICER: [
@@ -1553,6 +1619,11 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.GROUPS_UPDATE,
     PERMISSIONS.GROUPS_MEMBERS_MANAGE,
     PERMISSIONS.DASHBOARD_VIEW,
+    // Notes
+    PERMISSIONS.NOTES_VIEW,
+    PERMISSIONS.NOTES_CREATE,
+    PERMISSIONS.NOTES_UPDATE,
+    PERMISSIONS.NOTES_DELETE,
   ],
 
   CASHIER: [
@@ -1569,6 +1640,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.EXPENSE_CATEGORIES_VIEW,
     PERMISSIONS.FINANCIAL_TRANSACTIONS_VIEW,
     PERMISSIONS.FINANCIAL_TRANSACTIONS_CREATE,
+    // Notes - Cashiers can view and create
+    PERMISSIONS.NOTES_VIEW,
+    PERMISSIONS.NOTES_CREATE,
   ],
 
   VIEWER: [
@@ -1578,6 +1652,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.PAYMENTS_VIEW,
     PERMISSIONS.REPORTS_VIEW,
     PERMISSIONS.DASHBOARD_VIEW,
+    // Notes - Viewers can only view
+    PERMISSIONS.NOTES_VIEW,
   ],
 };
 

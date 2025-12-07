@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, authorize } from '../middleware/auth-supabase';
+import { authenticate } from '../middleware/auth-supabase';
+import { loadPermissions, requirePermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import { validateRequest } from '../middleware/validation';
-import { UserRole } from '../types';
 import { loanProductService } from '../services/loan-product.service';
 
 const router = Router();
@@ -219,7 +220,8 @@ router.get('/calculator', authenticate, async (req, res) => {
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PRODUCTS_CREATE),
   validateRequest(createProductSchema),
   async (req, res) => {
     try {
@@ -348,7 +350,8 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PRODUCTS_UPDATE),
   validateRequest(updateProductSchema),
   async (req, res) => {
     try {
@@ -416,7 +419,8 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
   async (req, res) => {
     try {
       const id = req.params.id;
@@ -478,7 +482,8 @@ router.delete(
 router.post(
   '/:id/duplicate',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PRODUCTS_CREATE),
   async (req, res) => {
     try {
       const id = req.params.id;

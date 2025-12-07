@@ -51,6 +51,8 @@ import paymentMethodRoutes from './payment-method.routes';
 import incomeCategoryRoutes from './income-category.routes';
 import expenseCategoryRoutes from './expense-category.routes';
 import financialTransactionRoutes from './financial-transaction.routes';
+// Notes module
+import notesRoutes from './notes.routes';
 
 const router = Router();
 
@@ -110,6 +112,9 @@ router.use(`${apiVersion}/payment-methods`, paymentMethodRoutes);
 router.use(`${apiVersion}/income-categories`, incomeCategoryRoutes);
 router.use(`${apiVersion}/expense-categories`, expenseCategoryRoutes);
 router.use(`${apiVersion}/financial-transactions`, financialTransactionRoutes);
+
+// Notes module
+router.use(`${apiVersion}/notes`, notesRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

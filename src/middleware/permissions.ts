@@ -1,6 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { prisma } from '../config/database';
-import { PERMISSIONS, isValidPermission } from '../constants/permissions';
+import {
+  PERMISSIONS,
+  isValidPermission,
+  DEFAULT_ROLE_PERMISSIONS,
+} from '../constants/permissions';
 
 // Cache for user permissions (with TTL)
 const permissionCache = new Map<
@@ -8,6 +12,18 @@ const permissionCache = new Map<
   { permissions: Set<string>; timestamp: number }
 >();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * Helper function to extract user ID from request
+ * Handles different auth middleware patterns:
+ * - auth.ts sets req.user.userId
+ * - auth-supabase.ts sets req.user.id and req.userContext.id
+ */
+function getUserId(req: Request): string | undefined {
+  return (
+    req.userContext?.id || (req as any).user?.id || (req as any).user?.userId
+  );
+}
 
 /**
  * Load all permissions for a user from their roles and direct assignments
@@ -141,6 +157,12 @@ export async function loadUserPermissions(
         permissions.add(PERMISSIONS.PRODUCTS_UPDATE);
         permissions.add(PERMISSIONS.PRODUCTS_DELETE);
 
+        // Categories
+        permissions.add(PERMISSIONS.CATEGORIES_VIEW);
+        permissions.add(PERMISSIONS.CATEGORIES_CREATE);
+        permissions.add(PERMISSIONS.CATEGORIES_UPDATE);
+        permissions.add(PERMISSIONS.CATEGORIES_DELETE);
+
         // Reports
         permissions.add(PERMISSIONS.REPORTS_VIEW);
         permissions.add(PERMISSIONS.REPORTS_GENERATE);
@@ -158,23 +180,16 @@ export async function loadUserPermissions(
         permissions.add(PERMISSIONS.ORGANIZATIONS_VIEW);
         permissions.add(PERMISSIONS.ORGANIZATIONS_UPDATE);
       } else if (user.role === 'MANAGER') {
-        // Managers get operational permissions
-        permissions.add(PERMISSIONS.USERS_VIEW);
-        permissions.add(PERMISSIONS.ROLES_VIEW);
-        permissions.add(PERMISSIONS.CLIENTS_VIEW);
-        permissions.add(PERMISSIONS.CLIENTS_CREATE);
-        permissions.add(PERMISSIONS.CLIENTS_UPDATE);
-        permissions.add(PERMISSIONS.LOANS_VIEW);
-        permissions.add(PERMISSIONS.LOANS_CREATE);
-        permissions.add(PERMISSIONS.LOANS_UPDATE);
-        permissions.add(PERMISSIONS.LOANS_APPROVE);
-        permissions.add(PERMISSIONS.LOANS_REJECT);
-        permissions.add(PERMISSIONS.BRANCHES_VIEW);
-        permissions.add(PERMISSIONS.PRODUCTS_VIEW);
-        permissions.add(PERMISSIONS.REPORTS_VIEW);
-        permissions.add(PERMISSIONS.REPORTS_GENERATE);
-        permissions.add(PERMISSIONS.AUDIT_VIEW);
-        permissions.add(PERMISSIONS.SETTINGS_VIEW);
+        // Managers get operational permissions from DEFAULT_ROLE_PERMISSIONS
+        DEFAULT_ROLE_PERMISSIONS.MANAGER.forEach(p => permissions.add(p));
+      } else if (user.role === 'LOAN_ASSESSOR') {
+        DEFAULT_ROLE_PERMISSIONS.LOAN_ASSESSOR.forEach(p => permissions.add(p));
+      } else if (user.role === 'LOAN_OFFICER') {
+        DEFAULT_ROLE_PERMISSIONS.LOAN_OFFICER.forEach(p => permissions.add(p));
+      } else if (user.role === 'CASHIER') {
+        DEFAULT_ROLE_PERMISSIONS.CASHIER.forEach(p => permissions.add(p));
+      } else if (user.role === 'VIEWER') {
+        DEFAULT_ROLE_PERMISSIONS.VIEWER.forEach(p => permissions.add(p));
       }
     }
 
@@ -248,7 +263,7 @@ export function requirePermission(...permissionCodes: string[]) {
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = req.userContext?.id;
+      const userId = getUserId(req);
 
       if (!userId) {
         return res.status(401).json({
@@ -309,7 +324,7 @@ export function requireAnyPermission(...permissionCodes: string[]) {
 
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = req.userContext?.id;
+      const userId = getUserId(req);
 
       if (!userId) {
         return res.status(401).json({
@@ -357,7 +372,7 @@ export function requireAnyPermission(...permissionCodes: string[]) {
 export function checkPermissions() {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = req.userContext?.id;
+      const userId = getUserId(req);
 
       if (userId) {
         const permissions = await loadUserPermissions(userId);
@@ -393,7 +408,7 @@ export function requireResourcePermission(
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const userId = req.userContext?.id;
+      const userId = getUserId(req);
       const resourceId = req.params[resourceIdParam];
 
       if (!userId) {
@@ -438,6 +453,50 @@ export function requireResourcePermission(
       });
     }
   };
+}
+
+/**
+ * Middleware to load and attach user permissions to the request
+ * Call this after authentication middleware to ensure req.user is set
+ * Handles both `id` and `userId` property names for compatibility
+ */
+export async function loadPermissions(
+  req: any,
+  res: Response,
+  next: NextFunction
+) {
+  try {
+    // Handle both `id` and `userId` for compatibility with different auth middlewares
+    // auth.ts uses `userId`, auth-supabase.ts uses `id`
+    const userId = req.user?.id || req.user?.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not authenticated',
+        error: 'UNAUTHORIZED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Load user permissions
+    const permissions = await loadUserPermissions(userId);
+
+    // Attach permissions to request for easy access
+    // Normalize the user object to always have `id` for downstream middleware
+    req.user.id = userId;
+    req.user.permissions = Array.from(permissions);
+
+    next();
+  } catch (error) {
+    console.error('Error loading permissions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error loading permissions',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
 }
 
 // Extend Express Request type

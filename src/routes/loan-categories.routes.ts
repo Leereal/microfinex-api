@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, authorize } from '../middleware/auth-supabase';
+import { authenticate } from '../middleware/auth-supabase';
 import { validateRequest } from '../middleware/validation';
-import { UserRole } from '../types';
+import { requirePermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import { loanCategoryService } from '../services/loan-category.service';
 
 const router = Router();
@@ -83,7 +84,7 @@ router.get('/', authenticate, async (req, res) => {
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.CATEGORIES_CREATE),
   validateRequest(createCategorySchema),
   async (req, res) => {
     try {
@@ -184,7 +185,7 @@ router.get('/:id', authenticate, async (req, res) => {
 router.put(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.CATEGORIES_UPDATE),
   validateRequest(updateCategorySchema),
   async (req, res) => {
     try {
@@ -244,7 +245,7 @@ router.put(
 router.delete(
   '/:id',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  requirePermission(PERMISSIONS.CATEGORIES_DELETE),
   async (req, res) => {
     try {
       const id = req.params.id;
