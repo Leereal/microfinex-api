@@ -48,6 +48,9 @@ coverage/
 ehthumbs.db
 Thumbs.db
 
+# Postman collection files (contain API keys)
+*.postman_collection.json
+8KrL1tb6*
 # Uploads
 uploads/
 temp/
