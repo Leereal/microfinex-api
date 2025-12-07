@@ -836,6 +836,117 @@ class CollateralService {
       ),
     };
   }
+
+  /**
+   * Delete client collateral (alias for deleteCollateral)
+   * @deprecated Use deleteCollateral instead
+   */
+  async deleteClientCollateral(collateralId: string, organizationId: string) {
+    return this.deleteCollateral(collateralId, organizationId);
+  }
+
+  /**
+   * Update collateral valuation
+   * TODO: Implement full valuation tracking
+   */
+  async updateValuation(
+    collateralId: string,
+    organizationId: string,
+    valuationData: {
+      valuedAmount: number;
+      valuedBy?: string;
+      valuationNotes?: string;
+      valuationDocumentId?: string;
+    }
+  ) {
+    return this.updateClientCollateral(collateralId, organizationId, {
+      estimatedValue: valuationData.valuedAmount,
+      metadata: {
+        lastValuation: {
+          date: new Date().toISOString(),
+          valuedBy: valuationData.valuedBy,
+          notes: valuationData.valuationNotes,
+          documentId: valuationData.valuationDocumentId,
+        },
+      },
+    });
+  }
+
+  /**
+   * Link collateral to loan (alias for pledgeCollateral)
+   */
+  async linkToLoan(
+    collateralId: string,
+    organizationId: string,
+    loanId: string
+  ) {
+    return this.pledgeCollateral(collateralId, organizationId, loanId);
+  }
+
+  /**
+   * Unlink collateral from loan (alias for releaseCollateral)
+   */
+  async unlinkFromLoan(collateralId: string, organizationId: string) {
+    return this.releaseCollateral(collateralId, organizationId);
+  }
+
+  /**
+   * Add document to collateral
+   * Simplified wrapper for uploadCollateralDocument
+   */
+  async addDocumentToCollateral(
+    collateralId: string,
+    organizationId: string,
+    documentData: {
+      documentType: string;
+      fileName: string;
+      fileUrl: string;
+      fileSize?: number;
+      mimeType?: string;
+      uploadedBy: string;
+    }
+  ) {
+    // Validate collateral belongs to organization
+    const collateral = await prisma.clientCollateral.findFirst({
+      where: {
+        id: collateralId,
+        client: {
+          organizationId,
+        },
+      },
+    });
+
+    if (!collateral) {
+      throw new Error('Collateral not found');
+    }
+
+    // Create document record directly (no file upload, URL already provided)
+    return prisma.collateralDocument.create({
+      data: {
+        collateralId,
+        fileName: documentData.fileName,
+        fileSize: documentData.fileSize || 0,
+        mimeType: documentData.mimeType || 'application/octet-stream',
+        storagePath: documentData.fileUrl,
+        documentType: documentData.documentType,
+        notes: `Uploaded by: ${documentData.uploadedBy}`,
+      },
+    });
+  }
+
+  /**
+   * Remove document from collateral (alias for deleteCollateralDocument)
+   */
+  async removeDocumentFromCollateral(documentId: string, organizationId: string) {
+    return this.deleteCollateralDocument(documentId, organizationId);
+  }
+
+  /**
+   * Get collateral statistics (alias for getOrganizationCollateralStats)
+   */
+  async getCollateralStatistics(organizationId: string) {
+    return this.getOrganizationCollateralStats(organizationId);
+  }
 }
 
 export const collateralService = new CollateralService();

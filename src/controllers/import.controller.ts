@@ -106,7 +106,13 @@ class ImportController {
           const buffer = Buffer.from(content, 'base64');
           const workbook = XLSX.read(buffer, { type: 'buffer' });
           const sheetName = workbook.SheetNames[0];
+          if (!sheetName) {
+            throw new Error('Excel file has no sheets');
+          }
           const worksheet = workbook.Sheets[sheetName];
+          if (!worksheet) {
+            throw new Error('Worksheet not found');
+          }
           rows = XLSX.utils.sheet_to_json<ImportRow>(worksheet);
         }
 
@@ -145,7 +151,7 @@ class ImportController {
         });
 
         const updatedJob = await prisma.importJob.findUnique({
-          where: { id: importJobId },
+          where: { id: importJob.id },
         });
 
         res.status(201).json({
@@ -162,7 +168,7 @@ class ImportController {
       } catch (parseError: any) {
         // Update job with error status
         await prisma.importJob.update({
-          where: { id: importJobId },
+          where: { id: importJob.id },
           data: {
             status: ImportStatus.FAILED,
             completedAt: new Date(),
@@ -180,7 +186,7 @@ class ImportController {
           success: false,
           message: `Failed to parse file: ${parseError.message}`,
           error: 'PARSE_ERROR',
-          data: { jobId: importJobId },
+          data: { jobId: importJob.id },
           timestamp: new Date().toISOString(),
         });
       }
@@ -292,7 +298,8 @@ class ImportController {
 
         if (errors.length > 0) {
           // Store errors in errorLog for the import job
-          const currentErrors = (importJob.errorLog as any) || [];
+          const job = await prisma.importJob.findUnique({ where: { id: importJobId } });
+          const currentErrors = (job?.errorLog as any[]) || [];
           for (const errorMessage of errors) {
             currentErrors.push({
               rowNumber,
@@ -311,22 +318,26 @@ class ImportController {
 
         // Create client if not dry run
         if (!dryRun) {
+          // Generate unique client number
+          const clientCount = await prisma.client.count({ where: { organizationId } });
+          const clientNumber = `CLT-${Date.now().toString(36).toUpperCase()}-${(clientCount + 1).toString().padStart(5, '0')}`;
+          
+          // Phone is required, generate placeholder if not provided
+          const phone = row.phone?.trim() || `IMPORT-${Date.now()}-${i}`;
+          
           const client = await prisma.client.create({
             data: {
               organizationId,
-              branchId,
+              branchId: branchId || '',
+              clientNumber,
               firstName: row.firstName.trim(),
               lastName: row.lastName.trim(),
               email: row.email?.trim() || null,
-              phone: row.phone?.trim() || null,
+              phone,
               dateOfBirth: dateOfBirth,
               gender: (row.gender?.toUpperCase() as any) || null,
               idNumber: row.idNumber?.trim() || null,
-              status: 'ACTIVE',
-              metadata: {
-                importedAt: new Date().toISOString(),
-                importJobId,
-              },
+              createdBy: 'SYSTEM', // Required field
             },
           });
 
@@ -362,7 +373,8 @@ class ImportController {
         results.successful++;
       } catch (error: any) {
         // Record error in import job errorLog
-        const currentErrors = (importJob.errorLog as any) || [];
+        const job = await prisma.importJob.findUnique({ where: { id: importJobId } });
+        const currentErrors = (job?.errorLog as any[]) || [];
         currentErrors.push({
           rowNumber,
           rowData: row,
@@ -455,21 +467,6 @@ class ImportController {
           where: {
             organizationId,
             ...(status && { status: status as ImportStatus }),
-          },
-          include: {
-            createdByUser: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-            _count: {
-              select: {
-                errors: true,
-              },
-            },
           },
           orderBy: {
             createdAt: 'desc',

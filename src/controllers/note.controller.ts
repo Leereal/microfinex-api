@@ -9,11 +9,11 @@ export class NoteController {
    */
   async getNotes(req: Request, res: Response) {
     try {
-      const { entityType, entityId } = req.params;
-      const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const { entityType: rawEntityType, entityId: rawEntityId } = req.params;
+      const rawOrganizationId = (req.user as any)?.organizationId;
+      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
-      if (!organizationId || !userId) {
+      if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
           success: false,
           message: 'User organization or ID not found',
@@ -21,6 +21,20 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
+      
+      if (!rawEntityType || !rawEntityId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Entity type and ID are required',
+          error: 'MISSING_PARAMS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const organizationId: string = rawOrganizationId;
+      const userId: string = rawUserId;
+      const entityType: string = rawEntityType;
+      const entityId: string = rawEntityId;
 
       // Validate entity type
       if (
@@ -40,10 +54,10 @@ export class NoteController {
         ) || false;
 
       const notes = await noteService.getByEntity(
-        organizationId!,
+        organizationId,
         entityType as NoteEntityType,
         entityId,
-        userId!,
+        userId,
         canViewPrivate
       );
 
@@ -69,12 +83,12 @@ export class NoteController {
    */
   async createNote(req: Request, res: Response) {
     try {
-      const { entityType, entityId } = req.params;
+      const { entityType: rawEntityType, entityId: rawEntityId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
-      const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawOrganizationId = (req.user as any)?.organizationId;
+      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
-      if (!organizationId || !userId) {
+      if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
           success: false,
           message: 'User organization or ID not found',
@@ -82,6 +96,20 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
+      
+      if (!rawEntityType || !rawEntityId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Entity type and ID are required',
+          error: 'MISSING_PARAMS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const organizationId: string = rawOrganizationId;
+      const userId: string = rawUserId;
+      const entityType: string = rawEntityType;
+      const entityId: string = rawEntityId;
 
       if (!content || content.trim().length === 0) {
         return res.status(400).json({
@@ -115,14 +143,14 @@ export class NoteController {
       }
 
       const note = await noteService.create({
-        organizationId: organizationId!,
+        organizationId,
         entityType: entityType as NoteEntityType,
         entityId,
         content: content.trim(),
         priority: priority as NotePriority,
         isPinned: isPinned || false,
         isPrivate: isPrivate || false,
-        createdBy: userId!,
+        createdBy: userId,
       });
 
       res.status(201).json({
@@ -147,12 +175,12 @@ export class NoteController {
    */
   async updateNote(req: Request, res: Response) {
     try {
-      const { noteId } = req.params;
+      const { noteId: rawNoteId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
-      const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const rawOrganizationId = (req.user as any)?.organizationId;
+      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
-      if (!organizationId || !userId) {
+      if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
           success: false,
           message: 'User organization or ID not found',
@@ -160,6 +188,19 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
+      
+      if (!rawNoteId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note ID is required',
+          error: 'MISSING_NOTE_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const organizationId: string = rawOrganizationId;
+      const userId: string = rawUserId;
+      const noteId: string = rawNoteId;
 
       const canUpdateAny =
         req.user?.permissions?.includes(PERMISSIONS.NOTES_DELETE_ANY) || false;
@@ -172,8 +213,8 @@ export class NoteController {
 
       const note = await noteService.update(
         noteId,
-        organizationId!,
-        userId!,
+        organizationId,
+        userId,
         updateData,
         canUpdateAny
       );
@@ -216,11 +257,11 @@ export class NoteController {
    */
   async deleteNote(req: Request, res: Response) {
     try {
-      const { noteId } = req.params;
-      const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const { noteId: rawNoteId } = req.params;
+      const rawOrganizationId = (req.user as any)?.organizationId;
+      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
-      if (!organizationId || !userId) {
+      if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
           success: false,
           message: 'User organization or ID not found',
@@ -228,11 +269,24 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
+      
+      if (!rawNoteId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note ID is required',
+          error: 'MISSING_NOTE_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const organizationId: string = rawOrganizationId;
+      const userId: string = rawUserId;
+      const noteId: string = rawNoteId;
 
       const canDeleteAny =
         req.user?.permissions?.includes(PERMISSIONS.NOTES_DELETE_ANY) || false;
 
-      await noteService.delete(noteId, organizationId!, userId!, canDeleteAny);
+      await noteService.delete(noteId, organizationId, userId, canDeleteAny);
 
       res.json({
         success: true,
@@ -271,11 +325,11 @@ export class NoteController {
    */
   async togglePin(req: Request, res: Response) {
     try {
-      const { noteId } = req.params;
-      const organizationId = (req.user as any)?.organizationId;
-      const userId = (req.user as any)?.userId || (req.user as any)?.id || '';
+      const { noteId: rawNoteId } = req.params;
+      const rawOrganizationId = (req.user as any)?.organizationId;
+      const rawUserId = (req.user as any)?.userId || (req.user as any)?.id || '';
 
-      if (!organizationId || !userId) {
+      if (!rawOrganizationId || !rawUserId) {
         return res.status(400).json({
           success: false,
           message: 'User organization or ID not found',
@@ -283,14 +337,27 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
+      
+      if (!rawNoteId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note ID is required',
+          error: 'MISSING_NOTE_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const organizationId: string = rawOrganizationId;
+      const userId: string = rawUserId;
+      const noteId: string = rawNoteId;
 
       const canUpdateAny =
         req.user?.permissions?.includes(PERMISSIONS.NOTES_DELETE_ANY) || false;
 
       const note = await noteService.togglePin(
         noteId,
-        organizationId!,
-        userId!,
+        organizationId,
+        userId,
         canUpdateAny
       );
 
@@ -324,10 +391,10 @@ export class NoteController {
    */
   async getNotesCount(req: Request, res: Response) {
     try {
-      const { entityType, entityId } = req.params;
-      const organizationId = req.user?.organizationId;
+      const { entityType: rawEntityType, entityId: rawEntityId } = req.params;
+      const rawOrganizationId = req.user?.organizationId;
 
-      if (!organizationId) {
+      if (!rawOrganizationId) {
         return res.status(400).json({
           success: false,
           message: 'User organization not found',
@@ -335,6 +402,19 @@ export class NoteController {
           timestamp: new Date().toISOString(),
         });
       }
+      
+      if (!rawEntityType || !rawEntityId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Entity type and ID are required',
+          error: 'MISSING_PARAMS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+      
+      const organizationId: string = rawOrganizationId;
+      const entityType: string = rawEntityType;
+      const entityId: string = rawEntityId;
 
       // Validate entity type
       if (
@@ -349,7 +429,7 @@ export class NoteController {
       }
 
       const count = await noteService.getCount(
-        organizationId!,
+        organizationId,
         entityType as NoteEntityType,
         entityId
       );

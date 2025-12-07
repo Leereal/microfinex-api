@@ -212,8 +212,8 @@ router.post(
       });
     }
 
-    const organizationId = req.user?.organizationId;
-    if (!organizationId) {
+    const rawOrganizationId = req.user?.organizationId;
+    if (!rawOrganizationId) {
       return res.status(400).json({
         success: false,
         message: 'Organization context required',
@@ -221,6 +221,8 @@ router.post(
         timestamp: new Date().toISOString(),
       });
     }
+    
+    const organizationId: string = rawOrganizationId;
 
     // Upload file to storage
     const fileName = `${Date.now()}_${req.file.originalname}`;
@@ -230,9 +232,9 @@ router.post(
       req.file.mimetype,
       req.file.size,
       {
-        organizationId: organizationId!,
+        organizationId,
         entityType: 'clients',
-        entityId: req.params.clientId,
+        entityId: req.params.clientId || '',
         fileType: 'DOCUMENT',
       }
     );
