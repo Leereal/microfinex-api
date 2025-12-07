@@ -10,9 +10,9 @@ export interface AuditLogEntry {
   action: string;
   resource: string; // Entity type (CLIENT, LOAN, etc.)
   resourceId: string; // Entity ID
-  userId: string;
-  organizationId?: string;
-  branchId?: string;
+  userId: string | null;
+  organizationId?: string | null;
+  branchId?: string | null;
   previousValue?: any;
   newValue?: any;
   changes?: any;

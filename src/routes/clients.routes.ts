@@ -131,7 +131,7 @@ router.post(
     try {
       const organizationId = req.userContext?.organizationId;
       const createdBy = req.userContext?.id;
-      const branchId = req.userContext?.branchId || req.body.branchId;
+      const branchId = (req.userContext as any)?.branchId || req.body.branchId;
 
       console.log(
         '[Client Create] Request body:',

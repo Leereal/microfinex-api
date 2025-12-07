@@ -10,8 +10,8 @@ export class NoteController {
   async getNotes(req: Request, res: Response) {
     try {
       const { entityType, entityId } = req.params;
-      const organizationId = req.user?.organizationId;
-      const userId = req.user?.id;
+      const organizationId = (req.user as any)?.organizationId;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id;
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -35,7 +35,7 @@ export class NoteController {
       }
 
       const canViewPrivate =
-        req.user?.permissions?.includes(PERMISSIONS.NOTES_VIEW_PRIVATE) ||
+        (req.user as any)?.permissions?.includes(PERMISSIONS.NOTES_VIEW_PRIVATE) ||
         false;
 
       const notes = await noteService.getByEntity(
@@ -70,8 +70,8 @@ export class NoteController {
     try {
       const { entityType, entityId } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
-      const organizationId = req.user?.organizationId;
-      const userId = req.user?.id;
+      const organizationId = (req.user as any)?.organizationId;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id;
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -148,8 +148,8 @@ export class NoteController {
     try {
       const { id } = req.params;
       const { content, priority, isPinned, isPrivate } = req.body;
-      const organizationId = req.user?.organizationId;
-      const userId = req.user?.id;
+      const organizationId = (req.user as any)?.organizationId;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id;
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -216,8 +216,8 @@ export class NoteController {
   async deleteNote(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const organizationId = req.user?.organizationId;
-      const userId = req.user?.id;
+      const organizationId = (req.user as any)?.organizationId;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id;
 
       if (!organizationId || !userId) {
         return res.status(400).json({
@@ -271,8 +271,8 @@ export class NoteController {
   async togglePin(req: Request, res: Response) {
     try {
       const { id } = req.params;
-      const organizationId = req.user?.organizationId;
-      const userId = req.user?.id;
+      const organizationId = (req.user as any)?.organizationId;
+      const userId = (req.user as any)?.userId || (req.user as any)?.id;
 
       if (!organizationId || !userId) {
         return res.status(400).json({

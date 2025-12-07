@@ -137,7 +137,7 @@ export async function loadUserPermissions(
 
         // Loans
         permissions.add(PERMISSIONS.LOANS_VIEW);
-        permissions.add(PERMISSIONS.LOANS_CREATE);
+        permissions.add(PERMISSIONS.LOANS_APPLY);
         permissions.add(PERMISSIONS.LOANS_UPDATE);
         permissions.add(PERMISSIONS.LOANS_DELETE);
         permissions.add(PERMISSIONS.LOANS_APPROVE);
@@ -182,14 +182,28 @@ export async function loadUserPermissions(
       } else if (user.role === 'MANAGER') {
         // Managers get operational permissions from DEFAULT_ROLE_PERMISSIONS
         DEFAULT_ROLE_PERMISSIONS.MANAGER.forEach(p => permissions.add(p));
-      } else if (user.role === 'LOAN_ASSESSOR') {
-        DEFAULT_ROLE_PERMISSIONS.LOAN_ASSESSOR.forEach(p => permissions.add(p));
       } else if (user.role === 'LOAN_OFFICER') {
         DEFAULT_ROLE_PERMISSIONS.LOAN_OFFICER.forEach(p => permissions.add(p));
-      } else if (user.role === 'CASHIER') {
-        DEFAULT_ROLE_PERMISSIONS.CASHIER.forEach(p => permissions.add(p));
-      } else if (user.role === 'VIEWER') {
-        DEFAULT_ROLE_PERMISSIONS.VIEWER.forEach(p => permissions.add(p));
+      } else if (user.role === 'ACCOUNTANT') {
+        // Accountants get standard user viewing permissions
+        permissions.add(PERMISSIONS.DASHBOARD_VIEW);
+        permissions.add(PERMISSIONS.REPORTS_VIEW);
+        permissions.add(PERMISSIONS.AUDIT_VIEW);
+      } else if (user.role === 'TELLER') {
+        // Tellers get payment processing permissions
+        permissions.add(PERMISSIONS.PAYMENTS_VIEW);
+        permissions.add(PERMISSIONS.PAYMENTS_RECEIVE);
+        permissions.add(PERMISSIONS.DASHBOARD_VIEW);
+      } else if (user.role === 'STAFF') {
+        // Staff get basic view permissions
+        permissions.add(PERMISSIONS.DASHBOARD_VIEW);
+        permissions.add(PERMISSIONS.CLIENTS_VIEW);
+      } else if (user.role === 'CLIENT') {
+        // Clients can view their own information
+        permissions.add(PERMISSIONS.DASHBOARD_VIEW);
+      } else if (user.role === 'API_CLIENT') {
+        // API clients have specific API permissions
+        permissions.add(PERMISSIONS.API_KEYS_VIEW);
       }
     }
 

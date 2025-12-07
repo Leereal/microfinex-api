@@ -57,6 +57,15 @@ router.post(
         });
       }
 
+      if (!organizationIdParam) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID is required',
+          error: 'INVALID_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const organizationId: string = organizationIdParam;
 
       // Verify organization exists
@@ -146,6 +155,15 @@ router.delete(
           success: false,
           message: 'You can only delete your own organization logo',
           error: 'FORBIDDEN',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!organizationIdParam) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID is required',
+          error: 'INVALID_REQUEST',
           timestamp: new Date().toISOString(),
         });
       }
