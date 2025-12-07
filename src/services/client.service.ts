@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase-enhanced';
 import { prisma } from '../config/database';
+import { LoanStatus } from '@prisma/client';
 
 export interface ClientAddress {
   id: string;
@@ -60,6 +61,7 @@ export interface ClientProfile {
   id: string;
   clientNumber: string;
   type: 'INDIVIDUAL' | 'GROUP' | 'BUSINESS';
+  title?: string;
   firstName?: string;
   lastName?: string;
   businessName?: string;
@@ -68,7 +70,17 @@ export interface ClientProfile {
   dateOfBirth?: Date;
   gender?: string;
   maritalStatus?: string;
+  nationality?: string;
+  placeOfBirth?: string;
+  // Identification
+  idType?: string;
   idNumber?: string;
+  passportNumber?: string;
+  passportCountry?: string;
+  idIssueDate?: Date;
+  idExpiryDate?: Date;
+  issuingAuthority?: string;
+  // Address
   address?: string;
   city?: string;
   state?: string;
@@ -81,8 +93,11 @@ export interface ClientProfile {
   kycDocuments?: any;
   organizationId: string;
   branchId: string;
+  homeBranchId?: string;
   isActive: boolean;
   profileImage?: string;
+  thumbprintImage?: string;
+  signatureImage?: string;
   // Branch details
   branch?: {
     id: string;
@@ -139,6 +154,7 @@ export interface KYCDocument {
 export const createClientSchema = z
   .object({
     type: z.enum(['INDIVIDUAL', 'GROUP', 'BUSINESS']),
+    title: z.enum(['MR', 'MRS', 'MS', 'MISS', 'DR', 'PROF']).optional(),
     firstName: z.string().min(1).optional(),
     lastName: z.string().min(1).optional(),
     businessName: z.string().min(1).optional(),
@@ -147,19 +163,44 @@ export const createClientSchema = z
     dateOfBirth: z.string().datetime().optional(),
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
     maritalStatus: z
-      .enum(['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED'])
+      .enum(['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED'])
       .optional(),
+    nationality: z.string().optional().default('Zimbabwean'),
+    placeOfBirth: z.string().optional(),
+    // Identification fields
+    idType: z
+      .enum(['national_id', 'passport', 'drivers_license'])
+      .optional()
+      .default('national_id'),
     idNumber: z.string().optional(),
+    passportNumber: z.string().optional(),
+    passportCountry: z.string().optional(),
+    idIssueDate: z.string().datetime().optional(),
+    idExpiryDate: z.string().datetime().optional(),
+    issuingAuthority: z.string().optional(),
+    // Address fields
     address: z.string().optional(),
     city: z.string().optional(),
     state: z.string().optional(),
     zipCode: z.string().optional(),
     country: z.string().optional(),
     employmentStatus: z
-      .enum(['EMPLOYED', 'SELF_EMPLOYED', 'UNEMPLOYED', 'RETIRED', 'STUDENT'])
+      .enum([
+        'EMPLOYED',
+        'SELF_EMPLOYED',
+        'UNEMPLOYED',
+        'RETIRED',
+        'STUDENT',
+        'HOMEMAKER',
+      ])
       .optional(),
     monthlyIncome: z.number().min(0).optional(),
+    // Profile images
+    profileImage: z.string().optional(),
+    thumbprintImage: z.string().optional(),
+    signatureImage: z.string().optional(),
     branchId: z.string().uuid(),
+    homeBranchId: z.string().uuid().optional(),
   })
   .refine(
     data => {
@@ -179,30 +220,61 @@ export const createClientSchema = z
 
 export const updateClientSchema = z.object({
   type: z.enum(['INDIVIDUAL', 'GROUP', 'BUSINESS']).optional(),
+  title: z
+    .enum(['MR', 'MRS', 'MS', 'MISS', 'DR', 'PROF'])
+    .optional()
+    .nullable(),
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
   businessName: z.string().min(1).optional(),
-  email: z.string().email().optional(),
+  email: z.string().email().optional().nullable(),
   phone: z
     .string()
-    .min(10, 'Phone number must be at least 10 characters')
+    .min(9, 'Phone number must be at least 9 characters')
     .optional(),
-  dateOfBirth: z.string().datetime().optional(),
-  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  dateOfBirth: z.string().datetime().optional().nullable(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional().nullable(),
   maritalStatus: z
-    .enum(['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED'])
-    .optional(),
-  idNumber: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
-  country: z.string().optional(),
+    .enum(['SINGLE', 'MARRIED', 'DIVORCED', 'WIDOWED', 'SEPARATED'])
+    .optional()
+    .nullable(),
+  nationality: z.string().optional().nullable(),
+  placeOfBirth: z.string().optional().nullable(),
+  // Identification fields
+  idType: z
+    .enum(['national_id', 'passport', 'drivers_license'])
+    .optional()
+    .nullable(),
+  idNumber: z.string().optional().nullable(),
+  passportNumber: z.string().optional().nullable(),
+  passportCountry: z.string().optional().nullable(),
+  idIssueDate: z.string().datetime().optional().nullable(),
+  idExpiryDate: z.string().datetime().optional().nullable(),
+  issuingAuthority: z.string().optional().nullable(),
+  // Address fields
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  state: z.string().optional().nullable(),
+  zipCode: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
   employmentStatus: z
-    .enum(['EMPLOYED', 'SELF_EMPLOYED', 'UNEMPLOYED', 'RETIRED', 'STUDENT'])
-    .optional(),
-  monthlyIncome: z.number().min(0).optional(),
+    .enum([
+      'EMPLOYED',
+      'SELF_EMPLOYED',
+      'UNEMPLOYED',
+      'RETIRED',
+      'STUDENT',
+      'HOMEMAKER',
+    ])
+    .optional()
+    .nullable(),
+  monthlyIncome: z.number().min(0).optional().nullable(),
+  // Profile images
+  profileImage: z.string().optional().nullable(),
+  thumbprintImage: z.string().optional().nullable(),
+  signatureImage: z.string().optional().nullable(),
   branchId: z.string().uuid().optional(),
+  homeBranchId: z.string().uuid().optional().nullable(),
 });
 
 export const kycDocumentSchema = z.object({
@@ -257,20 +329,39 @@ class ClientService {
   ): Promise<ClientProfile> {
     // Check for duplicate phone number within the organization
     if (clientData.phone) {
-      const existingClient = await prisma.client.findFirst({
+      const existingByPhone = await prisma.client.findFirst({
         where: {
           organizationId,
           phone: clientData.phone,
         },
       });
 
-      if (existingClient) {
+      if (existingByPhone) {
         const clientName =
-          existingClient.firstName && existingClient.lastName
-            ? `${existingClient.firstName} ${existingClient.lastName}`
-            : existingClient.businessName || 'Unknown';
+          existingByPhone.firstName && existingByPhone.lastName
+            ? `${existingByPhone.firstName} ${existingByPhone.lastName}`
+            : existingByPhone.businessName || 'Unknown';
         throw new Error(
-          `A client with this phone number already exists: ${clientName} (${existingClient.clientNumber})`
+          `A client with this phone number already exists: ${clientName} (${existingByPhone.clientNumber})`
+        );
+      }
+    }
+
+    // Check for duplicate ID number (globally unique, not per organization)
+    if (clientData.idNumber) {
+      const existingByIdNumber = await prisma.client.findFirst({
+        where: {
+          idNumber: clientData.idNumber,
+        },
+      });
+
+      if (existingByIdNumber) {
+        const clientName =
+          existingByIdNumber.firstName && existingByIdNumber.lastName
+            ? `${existingByIdNumber.firstName} ${existingByIdNumber.lastName}`
+            : existingByIdNumber.businessName || 'Unknown';
+        throw new Error(
+          `A client with this ID number already exists: ${clientName} (${existingByIdNumber.clientNumber})`
         );
       }
     }
@@ -662,6 +753,7 @@ class ClientService {
       id: client.id,
       clientNumber: client.clientNumber,
       type: client.type,
+      title: client.title,
       firstName: client.firstName,
       lastName: client.lastName,
       businessName: client.businessName,
@@ -670,7 +762,17 @@ class ClientService {
       dateOfBirth: client.dateOfBirth,
       gender: client.gender,
       maritalStatus: client.maritalStatus,
+      nationality: client.nationality,
+      placeOfBirth: client.placeOfBirth,
+      // Identification
+      idType: client.idType,
       idNumber: client.idNumber,
+      passportNumber: client.passportNumber,
+      passportCountry: client.passportCountry,
+      idIssueDate: client.idIssueDate,
+      idExpiryDate: client.idExpiryDate,
+      issuingAuthority: client.issuingAuthority,
+      // Address
       address: client.address,
       city: client.city,
       state: client.state,
@@ -685,8 +787,11 @@ class ClientService {
       kycDocuments: client.kycDocuments,
       organizationId: client.organizationId,
       branchId: client.branchId,
+      homeBranchId: client.homeBranchId,
       isActive: client.isActive,
       profileImage: client.profileImage,
+      thumbprintImage: client.thumbprintImage,
+      signatureImage: client.signatureImage,
       // Include branch details if available
       branch: client.branch
         ? {
@@ -760,6 +865,243 @@ class ClientService {
         isActive: limit.isActive,
       })),
     };
+  }
+
+  /**
+   * Delete (soft delete) a client
+   * Sets isActive to false instead of actually deleting
+   */
+  async deleteClient(
+    clientId: string,
+    organizationId: string
+  ): Promise<ClientProfile> {
+    // Check if client has active loans
+    const activeLoans = await prisma.loan.count({
+      where: {
+        clientId,
+        status: {
+          in: [
+            LoanStatus.ACTIVE,
+            LoanStatus.PENDING,
+            LoanStatus.PENDING_ASSESSMENT,
+            LoanStatus.PENDING_VISIT,
+            LoanStatus.PENDING_APPROVAL,
+            LoanStatus.APPROVED,
+            LoanStatus.PENDING_DISBURSEMENT,
+          ],
+        },
+      },
+    });
+
+    if (activeLoans > 0) {
+      throw new Error('Cannot delete client with active loans');
+    }
+
+    const client = await prisma.client.update({
+      where: {
+        id: clientId,
+        organizationId,
+      },
+      data: {
+        isActive: false,
+        updatedAt: new Date(),
+      },
+      include: {
+        organization: true,
+        branch: true,
+        creator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    return this.mapClientToProfile(client);
+  }
+
+  /**
+   * Get all clients across all organizations (Super Admin only)
+   */
+  async getAllClientsGlobal(filters: {
+    search?: string;
+    organizationId?: string;
+    isActive?: boolean;
+    page?: number;
+    limit?: number;
+  }): Promise<{
+    clients: (ClientProfile & { organizationName?: string })[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const page = filters.page || 1;
+    const limit = filters.limit || 50;
+    const skip = (page - 1) * limit;
+
+    // Build where clause
+    const where: any = {};
+
+    if (filters.search) {
+      where.OR = [
+        { firstName: { contains: filters.search, mode: 'insensitive' } },
+        { lastName: { contains: filters.search, mode: 'insensitive' } },
+        { businessName: { contains: filters.search, mode: 'insensitive' } },
+        { email: { contains: filters.search, mode: 'insensitive' } },
+        { phone: { contains: filters.search } },
+        { clientNumber: { contains: filters.search } },
+        { idNumber: { contains: filters.search } },
+      ];
+    }
+
+    if (filters.organizationId) {
+      where.organizationId = filters.organizationId;
+    }
+
+    if (filters.isActive !== undefined) {
+      where.isActive = filters.isActive;
+    }
+
+    const [clients, total] = await Promise.all([
+      prisma.client.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          contacts: true,
+          addresses: true,
+          nextOfKins: true,
+          employers: true,
+          clientLimits: true,
+          documents: true,
+          branch: { select: { id: true, name: true } },
+          creator: { select: { firstName: true, lastName: true } },
+          organization: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.client.count({ where }),
+    ]);
+
+    return {
+      clients: clients.map(client => ({
+        ...this.mapClientToProfile(client),
+        organizationName: (client as any).organization?.name,
+        organizationId: client.organizationId,
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  /**
+   * Permanently delete a client for Super Admin (can delete from any organization)
+   */
+  async permanentlyDeleteClientGlobal(clientId: string): Promise<void> {
+    // Check if client has any loans
+    const loans = await prisma.loan.count({
+      where: { clientId },
+    });
+
+    if (loans > 0) {
+      throw new Error('Cannot permanently delete client with loan history');
+    }
+
+    // Delete related records first
+    await prisma.$transaction([
+      prisma.clientContact.deleteMany({ where: { clientId } }),
+      prisma.clientAddress.deleteMany({ where: { clientId } }),
+      prisma.nextOfKin.deleteMany({ where: { clientId } }),
+      prisma.clientEmployer.deleteMany({ where: { clientId } }),
+      prisma.clientLimit.deleteMany({ where: { clientId } }),
+      prisma.clientDocument.deleteMany({ where: { clientId } }),
+      prisma.client.delete({ where: { id: clientId } }),
+    ]);
+  }
+
+  /**
+   * Bulk permanently delete clients for Super Admin
+   */
+  async bulkPermanentlyDeleteClientsGlobal(
+    clientIds: string[]
+  ): Promise<{ deleted: string[]; failed: { id: string; reason: string }[] }> {
+    const deleted: string[] = [];
+    const failed: { id: string; reason: string }[] = [];
+
+    for (const clientId of clientIds) {
+      try {
+        // Check if client exists and is inactive
+        const client = await prisma.client.findUnique({
+          where: { id: clientId },
+          select: { id: true, isActive: true },
+        });
+
+        if (!client) {
+          failed.push({ id: clientId, reason: 'Client not found' });
+          continue;
+        }
+
+        if (client.isActive) {
+          failed.push({ id: clientId, reason: 'Client is still active' });
+          continue;
+        }
+
+        // Check for loans
+        const loans = await prisma.loan.count({ where: { clientId } });
+        if (loans > 0) {
+          failed.push({ id: clientId, reason: 'Client has loan history' });
+          continue;
+        }
+
+        // Delete
+        await this.permanentlyDeleteClientGlobal(clientId);
+        deleted.push(clientId);
+      } catch (error: any) {
+        failed.push({ id: clientId, reason: error.message || 'Unknown error' });
+      }
+    }
+
+    return { deleted, failed };
+  }
+
+  /**
+   * Permanently delete a client (use with caution)
+   * Only for clients with no loans and no documents
+   */
+  async permanentlyDeleteClient(
+    clientId: string,
+    organizationId: string
+  ): Promise<void> {
+    // Check if client has any loans
+    const loans = await prisma.loan.count({
+      where: { clientId },
+    });
+
+    if (loans > 0) {
+      throw new Error('Cannot permanently delete client with loan history');
+    }
+
+    // Delete related records first
+    await prisma.$transaction([
+      prisma.clientContact.deleteMany({ where: { clientId } }),
+      prisma.clientAddress.deleteMany({ where: { clientId } }),
+      prisma.nextOfKin.deleteMany({ where: { clientId } }),
+      prisma.clientEmployer.deleteMany({ where: { clientId } }),
+      prisma.clientLimit.deleteMany({ where: { clientId } }),
+      prisma.clientDocument.deleteMany({ where: { clientId } }),
+      prisma.client.delete({
+        where: {
+          id: clientId,
+          organizationId,
+        },
+      }),
+    ]);
   }
 }
 

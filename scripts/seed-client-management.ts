@@ -6,12 +6,10 @@
  * 2. Document Types (per organization)
  * 3. Collateral Types (per organization)
  *
- * Run with: npx ts-node scripts/seed-client-management.ts
+ * Run with: npx tsx scripts/seed-client-management.ts
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/config/database';
 
 const AI_PROVIDERS = [
   {
@@ -123,11 +121,27 @@ const DEFAULT_DOCUMENT_TYPES = [
     validityDays: 30,
   },
   {
+    name: 'Employment Letter',
+    code: 'EMPLOYMENT_LETTER',
+    description: 'Employment confirmation letter from employer',
+    isRequired: false,
+    sortOrder: 6,
+    validityDays: 90,
+  },
+  {
+    name: 'Tax Clearance',
+    code: 'TAX_CLEARANCE',
+    description: 'Tax clearance certificate from ZIMRA',
+    isRequired: false,
+    sortOrder: 7,
+    validityDays: 365,
+  },
+  {
     name: 'Business Registration',
     code: 'BIZ_REG',
     description: 'CR6 or Certificate of Incorporation',
     isRequired: false,
-    sortOrder: 6,
+    sortOrder: 8,
     validityDays: null,
   },
   {
@@ -135,7 +149,15 @@ const DEFAULT_DOCUMENT_TYPES = [
     code: 'PROFILE_PIC',
     description: 'Client photograph',
     isRequired: true,
-    sortOrder: 7,
+    sortOrder: 9,
+    validityDays: null,
+  },
+  {
+    name: 'Collateral Document',
+    code: 'COLLATERAL',
+    description: 'Document related to pledged collateral',
+    isRequired: false,
+    sortOrder: 10,
     validityDays: null,
   },
   {
@@ -143,7 +165,15 @@ const DEFAULT_DOCUMENT_TYPES = [
     code: 'APPLICATION',
     description: 'Signed loan application form',
     isRequired: false,
-    sortOrder: 8,
+    sortOrder: 11,
+    validityDays: null,
+  },
+  {
+    name: 'Other Document',
+    code: 'OTHER',
+    description: 'Other supporting documents',
+    isRequired: false,
+    sortOrder: 12,
     validityDays: null,
   },
 ];

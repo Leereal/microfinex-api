@@ -346,6 +346,7 @@ model Client {
   id               String     @id @default(uuid())
   clientNumber     String     @unique
   type             ClientType @default(INDIVIDUAL)
+  title            String?    // MR, MRS, MS, DR, etc.
   firstName        String?
   lastName         String?
   businessName     String?
@@ -354,7 +355,17 @@ model Client {
   dateOfBirth      DateTime?
   gender           String?
   maritalStatus    String?
+  nationality      String?    @default("Zimbabwean")
+  placeOfBirth     String?
+  // Identification
+  idType           String?    @default("national_id") // national_id, passport, drivers_license
   idNumber         String?    @unique
+  passportNumber   String?
+  passportCountry  String?
+  idIssueDate      DateTime?
+  idExpiryDate     DateTime?
+  issuingAuthority String?
+  // Address
   address          String?
   city             String?
   state            String?

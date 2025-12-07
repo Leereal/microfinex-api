@@ -11,6 +11,7 @@ import {
 } from '../middleware/auth.middleware';
 import {
   validateRequest,
+  validateParams,
   handleAsync,
 } from '../middleware/validation.middleware';
 import { aiController } from '../controllers/ai.controller';
@@ -30,7 +31,7 @@ router.use(authenticateToken);
  */
 router.get(
   '/providers',
-  requirePermission('settings:view'),
+  requirePermission('ai:view'),
   handleAsync(aiController.getAvailableProviders.bind(aiController))
 );
 
@@ -40,7 +41,7 @@ router.get(
  */
 router.get(
   '/configs',
-  requirePermission('settings:view'),
+  requirePermission('ai:view'),
   handleAsync(aiController.getOrganizationConfigs.bind(aiController))
 );
 
@@ -49,21 +50,19 @@ router.get(
  * POST /api/v1/ai/configs
  */
 const configureProviderSchema = z.object({
-  body: z.object({
-    aiProviderId: z.string().uuid('Invalid provider ID'),
-    apiKey: z.string().min(1).optional(),
-    modelName: z.string().optional(),
-    isEnabled: z.boolean().optional(),
-    isPrimary: z.boolean().optional(),
-    maxTokens: z.number().int().positive().optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    settings: z.record(z.unknown()).optional(),
-  }),
+  aiProviderId: z.string().uuid('Invalid provider ID'),
+  apiKey: z.string().min(1).optional(),
+  modelName: z.string().optional(),
+  isEnabled: z.boolean().optional(),
+  isPrimary: z.boolean().optional(),
+  maxTokens: z.number().int().positive().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  settings: z.record(z.unknown()).optional(),
 });
 
 router.post(
   '/configs',
-  requirePermission('settings:manage'),
+  requirePermission('ai:manage'),
   validateRequest(configureProviderSchema),
   handleAsync(aiController.configureProvider.bind(aiController))
 );
@@ -73,23 +72,18 @@ router.post(
  * PUT /api/v1/ai/configs/:configId
  */
 const updateConfigSchema = z.object({
-  params: z.object({
-    configId: z.string().uuid('Invalid config ID'),
-  }),
-  body: z.object({
-    apiKey: z.string().min(1).optional(),
-    modelName: z.string().optional(),
-    isEnabled: z.boolean().optional(),
-    isPrimary: z.boolean().optional(),
-    maxTokens: z.number().int().positive().optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    settings: z.record(z.unknown()).optional(),
-  }),
+  apiKey: z.string().min(1).optional(),
+  modelName: z.string().optional(),
+  isEnabled: z.boolean().optional(),
+  isPrimary: z.boolean().optional(),
+  maxTokens: z.number().int().positive().optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  settings: z.record(z.unknown()).optional(),
 });
 
 router.put(
   '/configs/:configId',
-  requirePermission('settings:manage'),
+  requirePermission('ai:manage'),
   validateRequest(updateConfigSchema),
   handleAsync(aiController.updateConfig.bind(aiController))
 );
@@ -98,16 +92,14 @@ router.put(
  * Delete AI provider configuration
  * DELETE /api/v1/ai/configs/:configId
  */
-const deleteConfigSchema = z.object({
-  params: z.object({
-    configId: z.string().uuid('Invalid config ID'),
-  }),
+const deleteConfigParamsSchema = z.object({
+  configId: z.string().uuid('Invalid config ID'),
 });
 
 router.delete(
   '/configs/:configId',
-  requirePermission('settings:manage'),
-  validateRequest(deleteConfigSchema),
+  requirePermission('ai:manage'),
+  validateParams(deleteConfigParamsSchema),
   handleAsync(aiController.deleteConfig.bind(aiController))
 );
 
@@ -115,16 +107,14 @@ router.delete(
  * Test AI provider connection
  * POST /api/v1/ai/configs/:configId/test
  */
-const testConnectionSchema = z.object({
-  params: z.object({
-    configId: z.string().uuid('Invalid config ID'),
-  }),
+const testConnectionParamsSchema = z.object({
+  configId: z.string().uuid('Invalid config ID'),
 });
 
 router.post(
   '/configs/:configId/test',
-  requirePermission('settings:manage'),
-  validateRequest(testConnectionSchema),
+  requirePermission('ai:manage'),
+  validateParams(testConnectionParamsSchema),
   handleAsync(aiController.testConnection.bind(aiController))
 );
 
@@ -132,22 +122,20 @@ router.post(
  * Extract data from document using AI
  * POST /api/v1/ai/extract
  */
-const extractSchema = z.object({
-  body: z
-    .object({
-      documentType: z.string().min(1, 'Document type is required'),
-      imageBase64: z.string().optional(),
-      pdfUrl: z.string().url().optional(),
-      mimeType: z.string().optional(),
-    })
-    .refine(data => data.imageBase64 || data.pdfUrl, {
-      message: 'Either imageBase64 or pdfUrl is required',
-    }),
-});
+const extractSchema = z
+  .object({
+    documentType: z.string().min(1, 'Document type is required'),
+    imageBase64: z.string().optional(),
+    pdfUrl: z.string().url().optional(),
+    mimeType: z.string().optional(),
+  })
+  .refine(data => data.imageBase64 || data.pdfUrl, {
+    message: 'Either imageBase64 or pdfUrl is required',
+  });
 
 router.post(
   '/extract',
-  requirePermission('documents:view'),
+  requirePermission('ai:extract'),
   validateRequest(extractSchema),
   handleAsync(aiController.extractFromDocument.bind(aiController))
 );
@@ -158,7 +146,7 @@ router.post(
  */
 router.get(
   '/usage',
-  requirePermission('settings:view'),
+  requirePermission('ai:view'),
   handleAsync(aiController.getUsageStats.bind(aiController))
 );
 

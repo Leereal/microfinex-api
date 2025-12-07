@@ -38,6 +38,8 @@ export const PERMISSION_MODULES = {
   FINANCIAL_TRANSACTIONS: 'financial_transactions',
   // Notes Module
   NOTES: 'notes',
+  // AI Module
+  AI: 'ai',
 } as const;
 
 // Permission interface
@@ -1194,6 +1196,29 @@ export const NOTE_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== AI PERMISSIONS ====================
+export const AI_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'ai:view',
+    name: 'View AI Settings',
+    description: 'View AI provider configurations and usage statistics',
+    module: PERMISSION_MODULES.AI,
+  },
+  {
+    code: 'ai:manage',
+    name: 'Manage AI Settings',
+    description:
+      'Configure AI providers, update settings, and test connections',
+    module: PERMISSION_MODULES.AI,
+  },
+  {
+    code: 'ai:extract',
+    name: 'AI Document Extraction',
+    description: 'Use AI to extract data from documents',
+    module: PERMISSION_MODULES.AI,
+  },
+];
+
 // ==================== ALL PERMISSIONS ====================
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
@@ -1229,6 +1254,8 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...FINANCIAL_TRANSACTION_PERMISSIONS,
   // Notes Module
   ...NOTE_PERMISSIONS,
+  // AI Module
+  ...AI_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -1472,6 +1499,11 @@ export const PERMISSIONS = {
   NOTES_DELETE: 'notes:delete',
   NOTES_DELETE_ANY: 'notes:delete_any',
   NOTES_VIEW_PRIVATE: 'notes:view_private',
+
+  // AI
+  AI_VIEW: 'ai:view',
+  AI_MANAGE: 'ai:manage',
+  AI_EXTRACT: 'ai:extract',
 } as const;
 
 // ==================== DEFAULT ROLE PERMISSIONS ====================
@@ -1508,6 +1540,43 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...FINANCIAL_TRANSACTION_PERMISSIONS.map(p => p.code),
     // Notes Module
     ...NOTE_PERMISSIONS.map(p => p.code),
+    // AI Module - ADMIN can manage AI settings
+    ...AI_PERMISSIONS.map(p => p.code),
+  ],
+
+  // Organization Admin - same as ADMIN but specifically for organization-level management
+  ORG_ADMIN: [
+    // Full access except organization and super-admin management
+    ...CLIENT_PERMISSIONS.map(p => p.code),
+    ...LOAN_PERMISSIONS.map(p => p.code),
+    ...PAYMENT_PERMISSIONS.map(p => p.code),
+    ...VISIT_PERMISSIONS.map(p => p.code),
+    ...ASSESSMENT_PERMISSIONS.map(p => p.code),
+    ...PLEDGE_PERMISSIONS.map(p => p.code),
+    ...REPORT_PERMISSIONS.map(p => p.code),
+    ...SETTINGS_PERMISSIONS.map(p => p.code),
+    ...USER_PERMISSIONS.map(p => p.code),
+    ...ROLE_PERMISSIONS.map(p => p.code),
+    ...AUDIT_PERMISSIONS.map(p => p.code),
+    ...BRANCH_PERMISSIONS.map(p => p.code),
+    ...PRODUCT_PERMISSIONS.map(p => p.code),
+    ...CATEGORY_PERMISSIONS.map(p => p.code),
+    ...GROUP_PERMISSIONS.map(p => p.code),
+    ...EMPLOYER_PERMISSIONS.map(p => p.code),
+    ...SHOP_PERMISSIONS.map(p => p.code),
+    ...EXCHANGE_RATE_PERMISSIONS.map(p => p.code),
+    ...ONLINE_APPLICATION_PERMISSIONS.map(p => p.code),
+    ...API_KEY_PERMISSIONS.map(p => p.code),
+    ...DASHBOARD_PERMISSIONS.map(p => p.code),
+    // Financial Management
+    ...PAYMENT_METHOD_PERMISSIONS.map(p => p.code),
+    ...INCOME_CATEGORY_PERMISSIONS.map(p => p.code),
+    ...EXPENSE_CATEGORY_PERMISSIONS.map(p => p.code),
+    ...FINANCIAL_TRANSACTION_PERMISSIONS.map(p => p.code),
+    // Notes Module
+    ...NOTE_PERMISSIONS.map(p => p.code),
+    // AI Module - ORG_ADMIN can manage AI settings
+    ...AI_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
@@ -1576,6 +1645,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_DELETE,
     PERMISSIONS.NOTES_DELETE_ANY,
     PERMISSIONS.NOTES_VIEW_PRIVATE,
+    // AI - Managers can view settings and use AI extraction
+    PERMISSIONS.AI_VIEW,
+    PERMISSIONS.AI_EXTRACT,
   ],
 
   LOAN_ASSESSOR: [
@@ -1598,6 +1670,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_CREATE,
     PERMISSIONS.NOTES_UPDATE,
     PERMISSIONS.NOTES_DELETE,
+    // AI - Loan Assessors can use AI extraction for documents
+    PERMISSIONS.AI_EXTRACT,
   ],
 
   LOAN_OFFICER: [
@@ -1624,6 +1698,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_CREATE,
     PERMISSIONS.NOTES_UPDATE,
     PERMISSIONS.NOTES_DELETE,
+    // AI - Loan Officers can use AI extraction for documents
+    PERMISSIONS.AI_EXTRACT,
   ],
 
   CASHIER: [

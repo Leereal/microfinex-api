@@ -18,6 +18,16 @@ class DocumentController {
   /**
    * Upload a document for a client
    * POST /api/v1/documents/:clientId
+   *
+   * Body:
+   * - documentTypeId: string (required)
+   * - file: string (base64 encoded file data, required)
+   * - fileName: string (required)
+   * - mimeType: string (required)
+   * - fileSize: number (required)
+   * - documentNumber?: string
+   * - expiryDate?: string (ISO date)
+   * - notes?: string
    */
   async uploadDocument(req: Request, res: Response) {
     try {
@@ -52,13 +62,32 @@ class DocumentController {
       }
 
       // Extract document data from request
-      const { documentTypeId, expiryDate, notes, file } = req.body;
+      const {
+        documentTypeId,
+        file,
+        fileName,
+        mimeType,
+        fileSize,
+        documentNumber,
+        expiryDate,
+        notes,
+      } = req.body;
 
+      // Validate required fields
       if (!file || !documentTypeId) {
         return res.status(400).json({
           success: false,
           message: 'File and document type are required',
           error: 'MISSING_FIELDS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!fileName || !mimeType || !fileSize) {
+        return res.status(400).json({
+          success: false,
+          message: 'File name, mime type, and file size are required',
+          error: 'MISSING_FILE_METADATA',
           timestamp: new Date().toISOString(),
         });
       }
@@ -81,12 +110,29 @@ class DocumentController {
         });
       }
 
-      const document = await documentService.uploadDocument({
+      // Convert base64 to Buffer
+      let fileBuffer: Buffer;
+      try {
+        // Handle both data URL format and plain base64
+        const base64Data = file.includes(',') ? file.split(',')[1] : file;
+        fileBuffer = Buffer.from(base64Data, 'base64');
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid file data - could not decode base64',
+          error: 'INVALID_FILE_DATA',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const document = await documentService.uploadDocument(organizationId, {
         clientId,
         documentTypeId,
-        organizationId,
-        file,
-        uploadedBy: userId!,
+        file: fileBuffer,
+        fileName,
+        mimeType,
+        fileSize: Number(fileSize),
+        documentNumber,
         expiryDate: expiryDate ? new Date(expiryDate) : undefined,
         notes,
       });
@@ -158,7 +204,7 @@ class DocumentController {
       res.json({
         success: true,
         message: 'Documents retrieved successfully',
-        data: documents,
+        data: { documents },
         timestamp: new Date().toISOString(),
       });
     } catch (error) {

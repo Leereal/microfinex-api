@@ -282,10 +282,11 @@ class DocumentService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Refresh URLs for documents
+    // Refresh URLs for documents and flatten documentType
     return Promise.all(
       documents.map(async doc => ({
         ...doc,
+        documentTypeName: doc.documentType?.name || 'Document',
         storageUrl: await storageService.getSignedUrl(doc.storagePath),
       }))
     );

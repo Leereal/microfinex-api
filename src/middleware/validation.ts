@@ -3,13 +3,42 @@ import { z, ZodError, ZodSchema } from 'zod';
 
 /**
  * Middleware to validate request data against a Zod schema
+ * Supports schemas with nested { params, body, query } structure
+ * or flat body-only schemas
  */
 export const validateRequest = (schema: ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
-      // Validate request body
-      req.body = schema.parse(req.body);
-      next();
+      // Check if schema has params/body/query structure by attempting to parse
+      // the full request object first
+      const fullRequest = {
+        params: req.params,
+        body: req.body,
+        query: req.query,
+      };
+
+      // Try parsing the full structure
+      const result = schema.safeParse(fullRequest);
+
+      if (result.success) {
+        // Schema expects { params, body, query } structure
+        if (result.data.params) req.params = result.data.params;
+        if (result.data.body) req.body = result.data.body;
+        if (result.data.query) req.query = result.data.query;
+        next();
+        return;
+      }
+
+      // If that failed, try parsing just the body (for simple body-only schemas)
+      const bodyResult = schema.safeParse(req.body);
+      if (bodyResult.success) {
+        req.body = bodyResult.data;
+        next();
+        return;
+      }
+
+      // Neither worked, throw the error from the full request parse
+      throw result.error;
     } catch (error) {
       if (error instanceof ZodError) {
         const validationErrors = error.errors.map(err => ({

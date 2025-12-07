@@ -253,6 +253,43 @@ router.post(
 );
 
 /**
+ * Upload document for a client (JSON with base64 file data)
+ * POST /api/v1/documents/:clientId/base64
+ *
+ * Body:
+ * - documentTypeId: string (required)
+ * - file: string (base64 encoded file data, required)
+ * - fileName: string (required)
+ * - mimeType: string (required)
+ * - fileSize: number (required)
+ * - documentNumber?: string
+ * - expiryDate?: string (ISO date)
+ * - notes?: string
+ */
+const uploadBase64Schema = z.object({
+  params: z.object({
+    clientId: z.string().uuid(),
+  }),
+  body: z.object({
+    documentTypeId: z.string().uuid(),
+    file: z.string().min(1, 'File data is required'),
+    fileName: z.string().min(1, 'File name is required'),
+    mimeType: z.string().min(1, 'MIME type is required'),
+    fileSize: z.number().positive(),
+    documentNumber: z.string().optional(),
+    expiryDate: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+});
+
+router.post(
+  '/:clientId/base64',
+  requirePermission('documents:create'),
+  validateRequest(uploadBase64Schema),
+  handleAsync(documentController.uploadDocument.bind(documentController))
+);
+
+/**
  * Get document by ID
  * GET /api/v1/documents/:documentId
  */

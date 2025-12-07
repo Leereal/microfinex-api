@@ -107,6 +107,148 @@ router.get(
   }
 );
 
+// ============================================
+// SUPER ADMIN ROUTES - Global Client Management
+// These must be defined BEFORE /:clientId routes
+// ============================================
+
+/**
+ * @swagger
+ * /api/v1/clients/admin/all:
+ *   get:
+ *     summary: Get all clients across all organizations (Super Admin only)
+ *     tags: [Clients - Super Admin]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/admin/all',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN),
+  async (req, res) => {
+    try {
+      const filters = {
+        search: req.query.search as string | undefined,
+        organizationId: req.query.organizationId as string | undefined,
+        isActive:
+          req.query.isActive === 'true'
+            ? true
+            : req.query.isActive === 'false'
+              ? false
+              : undefined,
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit
+          ? Math.min(parseInt(req.query.limit as string), 100)
+          : 50,
+      };
+
+      const result = await clientService.getAllClientsGlobal(filters);
+
+      res.json({
+        success: true,
+        message: 'All clients retrieved successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Get all clients error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/clients/admin/bulk/permanent:
+ *   delete:
+ *     summary: Bulk permanently delete inactive clients (Super Admin only)
+ *     tags: [Clients - Super Admin]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/admin/bulk/permanent',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN),
+  async (req, res) => {
+    try {
+      const { clientIds } = req.body;
+
+      if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Client IDs array is required',
+          error: 'MISSING_CLIENT_IDS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result =
+        await clientService.bulkPermanentlyDeleteClientsGlobal(clientIds);
+
+      res.json({
+        success: true,
+        message: `Deleted ${result.deleted.length} of ${clientIds.length} clients`,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Super admin bulk delete error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/clients/admin/{clientId}:
+ *   delete:
+ *     summary: Permanently delete a client (Super Admin only)
+ *     tags: [Clients - Super Admin]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/admin/:clientId',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN),
+  async (req, res) => {
+    try {
+      const { clientId } = req.params;
+
+      await clientService.permanentlyDeleteClientGlobal(clientId);
+
+      res.json({
+        success: true,
+        message: 'Client permanently deleted',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Super admin delete client error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+// ============================================
+// END SUPER ADMIN ROUTES
+// ============================================
+
 /**
  * @swagger
  * /api/v1/clients:
@@ -217,6 +359,17 @@ router.post(
           message: error.message,
           error: 'DUPLICATE_PHONE',
           field: 'phone',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Handle duplicate ID number error
+      if (error.message && error.message.includes('ID number already exists')) {
+        return res.status(409).json({
+          success: false,
+          message: error.message,
+          error: 'DUPLICATE_ID_NUMBER',
+          field: 'idNumber',
           timestamp: new Date().toISOString(),
         });
       }
@@ -518,5 +671,273 @@ router.get('/statistics/summary', authenticate, async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/clients/{clientId}:
+ *   delete:
+ *     summary: Delete (deactivate) a client
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: clientId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Client deleted successfully
+ *       400:
+ *         description: Cannot delete client with active loans
+ *       404:
+ *         description: Client not found
+ */
+router.delete(
+  '/:clientId',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.ORG_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER
+  ),
+  async (req, res) => {
+    try {
+      const clientId = req.params.clientId!;
+      const organizationId = req.userContext?.organizationId;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const client = await clientService.deleteClient(clientId, organizationId);
+
+      res.json({
+        success: true,
+        message: 'Client deleted successfully',
+        data: { client },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Delete client error:', error);
+
+      if (error.message === 'Cannot delete client with active loans') {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'ACTIVE_LOANS_EXIST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if ((error as any).code === 'P2025') {
+        return res.status(404).json({
+          success: false,
+          message: 'Client not found',
+          error: 'CLIENT_NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/clients/{clientId}/permanent:
+ *   delete:
+ *     summary: Permanently delete a client (SUPER_ADMIN only)
+ *     description: Permanently removes a client and all related data. Client must be inactive and have no loan history.
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/:clientId/permanent',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN),
+  async (req, res) => {
+    try {
+      const clientId = req.params.clientId!;
+      const organizationId = req.userContext?.organizationId;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Check if client is inactive first
+      const client = await clientService.getClientById(
+        clientId,
+        organizationId
+      );
+      if (!client) {
+        return res.status(404).json({
+          success: false,
+          message: 'Client not found',
+          error: 'CLIENT_NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (client.isActive) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'Cannot permanently delete an active client. Deactivate the client first.',
+          error: 'CLIENT_STILL_ACTIVE',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      await clientService.permanentlyDeleteClient(clientId, organizationId);
+
+      res.json({
+        success: true,
+        message: 'Client permanently deleted',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Permanent delete client error:', error);
+
+      if (
+        error.message === 'Cannot permanently delete client with loan history'
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: error.message,
+          error: 'HAS_LOAN_HISTORY',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if ((error as any).code === 'P2025') {
+        return res.status(404).json({
+          success: false,
+          message: 'Client not found',
+          error: 'CLIENT_NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/clients/bulk/permanent:
+ *   delete:
+ *     summary: Bulk permanently delete inactive clients (SUPER_ADMIN only)
+ *     description: Permanently removes multiple inactive clients. Only clients without loan history will be deleted.
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.delete(
+  '/bulk/permanent',
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN),
+  async (req, res) => {
+    try {
+      const organizationId = req.userContext?.organizationId;
+      const { clientIds } = req.body;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Client IDs array is required',
+          error: 'MISSING_CLIENT_IDS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const results = {
+        deleted: [] as string[],
+        failed: [] as { id: string; reason: string }[],
+      };
+
+      for (const clientId of clientIds) {
+        try {
+          // Check if client exists and is inactive
+          const client = await clientService.getClientById(
+            clientId,
+            organizationId
+          );
+
+          if (!client) {
+            results.failed.push({ id: clientId, reason: 'Client not found' });
+            continue;
+          }
+
+          if (client.isActive) {
+            results.failed.push({
+              id: clientId,
+              reason: 'Client is still active',
+            });
+            continue;
+          }
+
+          await clientService.permanentlyDeleteClient(clientId, organizationId);
+          results.deleted.push(clientId);
+        } catch (error: any) {
+          results.failed.push({
+            id: clientId,
+            reason: error.message || 'Unknown error',
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `Deleted ${results.deleted.length} of ${clientIds.length} clients`,
+        data: results,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error('Bulk permanent delete error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
 
 export default router;

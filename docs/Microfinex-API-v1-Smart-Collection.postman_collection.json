@@ -165,6 +165,11 @@
       "key": "noteId",
       "value": "",
       "description": "Last created/retrieved note ID"
+    },
+    {
+      "key": "aiConfigId",
+      "value": "",
+      "description": "Last created/retrieved AI configuration ID"
     }
   ],
   "auth": {
@@ -1471,6 +1476,161 @@
               "path": ["clients", "statistics", "summary"]
             },
             "description": "Get client statistics for the organization including total counts, active counts, and KYC status breakdown"
+          }
+        },
+        {
+          "name": "👑 Super Admin - Get All Clients (Global)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Global clients list retrieved', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data && response.data.clients && response.data.clients.length > 0) {",
+                  "        const firstClient = response.data.clients[0];",
+                  "        pm.collectionVariables.set('clientId', firstClient.id);",
+                  "        console.log('✅ First client ID set: ' + firstClient.id);",
+                  "        console.log('📊 Total clients across all orgs: ' + response.data.total);",
+                  "        console.log('📄 Page ' + response.data.page + ' of ' + response.data.totalPages);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clients/admin/all?page=1&limit=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "admin", "all"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "25"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search by name, email, phone, client number",
+                  "disabled": true
+                },
+                {
+                  "key": "organizationId",
+                  "value": "{{organizationId}}",
+                  "description": "Filter by specific organization",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "false",
+                  "description": "Filter by active status (true/false)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**Super Admin Only** - Get all clients across ALL organizations with filtering and pagination.\n\n**Query Parameters:**\n- page: Page number (default: 1)\n- limit: Items per page (default: 50)\n- search: Search by name, email, phone, or client number\n- organizationId: Filter by specific organization\n- isActive: Filter by active status (true/false)\n\n**Use Case:** Super Admin dashboard to view and manage clients across all organizations, including finding inactive clients for cleanup."
+          }
+        },
+        {
+          "name": "👑 Super Admin - Permanently Delete Client",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Client permanently deleted', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('🗑️ Client permanently deleted');",
+                  "    console.log('⚠️ This action cannot be undone');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/clients/admin/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "admin", "{{clientId}}"]
+            },
+            "description": "**Super Admin Only** - Permanently delete a client from ANY organization.\n\n⚠️ **WARNING**: This is a HARD DELETE that cannot be undone!\n\n**Restrictions:**\n- Cannot delete clients with loan history\n- All related records (contacts, addresses, documents, etc.) will be deleted\n\n**Use Case:** Removing test data or clients that were created in error and have no loan history."
+          }
+        },
+        {
+          "name": "👑 Super Admin - Bulk Permanently Delete Clients",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Bulk delete completed', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('🗑️ Bulk delete completed');",
+                  "        console.log('✅ Deleted: ' + (response.data.deleted || 0));",
+                  "        console.log('❌ Skipped (have loans): ' + (response.data.skipped || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientIds\": [\"client-id-1\", \"client-id-2\", \"client-id-3\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/clients/admin/bulk/permanent",
+              "host": ["{{baseUrl}}"],
+              "path": ["clients", "admin", "bulk", "permanent"]
+            },
+            "description": "**Super Admin Only** - Permanently delete multiple clients from ANY organization in one request.\n\n⚠️ **WARNING**: This is a HARD DELETE that cannot be undone!\n\n**Request Body:**\n```json\n{\n  \"clientIds\": [\"uuid-1\", \"uuid-2\", \"uuid-3\"]\n}\n```\n\n**Behavior:**\n- Clients WITH loan history will be SKIPPED (not deleted)\n- Clients WITHOUT loans will be permanently deleted\n- Response includes count of deleted and skipped clients\n\n**Use Case:** Cleanup of inactive test clients or bulk removal of clients without loan history."
           }
         }
       ]
@@ -7551,6 +7711,302 @@
                   "query": [{ "key": "days", "value": "7" }]
                 },
                 "description": "Get summary of security events for the specified period"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🤖 AI & Document Intelligence",
+      "description": "AI provider management and document extraction using machine learning models",
+      "item": [
+        {
+          "name": "Providers",
+          "description": "Manage AI service providers",
+          "item": [
+            {
+              "name": "Get Available Providers",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('🤖 Available AI Providers:');",
+                      "    response.data.forEach(provider => {",
+                      "        console.log('  - ' + provider.name + ' (' + provider.id + ')');",
+                      "    });",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ai/providers",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "providers"]
+                },
+                "description": "🌐 **GET ALL AVAILABLE AI PROVIDERS**\n\nRetrieve all available AI providers in the system (OpenAI, Anthropic, Google, etc.)\n\n**Permissions Required:** ai:view\n\n**Response includes:**\n- Provider ID and name\n- Available models\n- Supported capabilities\n- Configuration requirements"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Configuration",
+          "description": "Configure AI providers for your organization",
+          "item": [
+            {
+              "name": "Get Organization AI Configs",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('⚙️ Organization AI Configurations:');",
+                      "    response.data.forEach(config => {",
+                      "        console.log('  - ' + config.aiProvider.name + ' (Primary: ' + config.isPrimary + ')');",
+                      "    });",
+                      "    if (response.data.length > 0) {",
+                      "        pm.collectionVariables.set('aiConfigId', response.data[0].id);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ai/configs",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "configs"]
+                },
+                "description": "📋 **GET ORGANIZATION AI CONFIGURATIONS**\n\nRetrieve all AI provider configurations for your organization.\n\n**Permissions Required:** ai:view\n\n**Response includes:**\n- Configuration ID\n- Provider details\n- Model settings\n- Primary provider flag\n- Enabled status"
+              }
+            },
+            {
+              "name": "Configure AI Provider",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 201', function () {",
+                      "    pm.response.to.have.status(201);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 201) {",
+                      "    const response = pm.response.json();",
+                      "    pm.collectionVariables.set('aiConfigId', response.data.id);",
+                      "    console.log('✅ AI Provider configured successfully');",
+                      "    console.log('🔑 Config ID: ' + response.data.id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"aiProviderId\": \"550e8400-e29b-41d4-a716-446655440001\",\n  \"apiKey\": \"sk-...\",\n  \"modelName\": \"gpt-4\",\n  \"isEnabled\": true,\n  \"isPrimary\": true,\n  \"maxTokens\": 4096,\n  \"temperature\": 0.7,\n  \"settings\": {}\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/ai/configs",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "configs"]
+                },
+                "description": "⚙️ **CONFIGURE AI PROVIDER FOR ORGANIZATION**\n\nAdd or update an AI provider configuration for your organization.\n\n**Permissions Required:** ai:manage\n\n**Parameters:**\n- aiProviderId: UUID of the AI provider (required)\n- apiKey: API key for authentication (optional)\n- modelName: Specific model to use (optional)\n- isEnabled: Enable/disable this configuration (optional)\n- isPrimary: Set as primary provider (optional)\n- maxTokens: Maximum tokens per request (optional)\n- temperature: Response temperature/creativity (0-2, optional)\n- settings: Additional provider-specific settings (optional)"
+              }
+            },
+            {
+              "name": "Update AI Config",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"apiKey\": \"sk-...\",\n  \"modelName\": \"gpt-4-turbo\",\n  \"isEnabled\": true,\n  \"isPrimary\": true,\n  \"maxTokens\": 8192,\n  \"temperature\": 0.5,\n  \"settings\": {}\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/ai/configs/{{aiConfigId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "configs", "{{aiConfigId}}"]
+                },
+                "description": "✏️ **UPDATE AI PROVIDER CONFIGURATION**\n\nUpdate settings for an existing AI provider configuration.\n\n**Permissions Required:** ai:manage\n\n**URL Parameters:**\n- aiConfigId: Configuration UUID (required)\n\n**Body Parameters:** All optional\n- apiKey: Updated API key\n- modelName: Updated model name\n- isEnabled: Enable/disable status\n- isPrimary: Primary provider flag\n- maxTokens: Maximum tokens\n- temperature: Response temperature\n- settings: Additional settings"
+              }
+            },
+            {
+              "name": "Test Connection",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    if (response.data.success) {",
+                      "        console.log('✅ AI Provider connection test successful');",
+                      "        console.log('⏱️ Response time: ' + response.data.responseTime + 'ms');",
+                      "    } else {",
+                      "        console.log('❌ Connection test failed: ' + response.data.error);",
+                      "    }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ai/configs/{{aiConfigId}}/test",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "configs", "{{aiConfigId}}", "test"]
+                },
+                "description": "🧪 **TEST AI PROVIDER CONNECTION**\n\nVerify that the AI provider is properly configured and accessible.\n\n**Permissions Required:** ai:manage\n\n**URL Parameters:**\n- aiConfigId: Configuration UUID (required)\n\n**Response includes:**\n- Connection status\n- Response time\n- Error details if connection fails"
+              }
+            },
+            {
+              "name": "Delete AI Config",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ai/configs/{{aiConfigId}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "configs", "{{aiConfigId}}"]
+                },
+                "description": "🗑️ **DELETE AI PROVIDER CONFIGURATION**\n\nRemove an AI provider configuration from your organization.\n\n**Permissions Required:** ai:manage\n\n**URL Parameters:**\n- aiConfigId: Configuration UUID (required)\n\n**Note:** Deleting a configuration will disable any AI features that depend on it."
+              }
+            }
+          ]
+        },
+        {
+          "name": "Document Extraction",
+          "description": "Extract data from documents using AI",
+          "item": [
+            {
+              "name": "Extract from Document",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('📄 Document Extraction Results:');",
+                      "    console.log('  Document Type: ' + response.data.documentType);",
+                      "    console.log('  Confidence: ' + (response.data.confidence * 100).toFixed(2) + '%');",
+                      "    console.log('  Extracted Fields: ' + Object.keys(response.data.extractedData).length);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"documentType\": \"national_id\",\n  \"imageBase64\": \"iVBORw0KGgoAAAANSUhEUgAAA...\",\n  \"mimeType\": \"image/png\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/ai/extract",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "extract"]
+                },
+                "description": "📋 **EXTRACT DATA FROM DOCUMENT USING AI**\n\nUse AI to extract structured data from documents (IDs, receipts, invoices, etc.)\n\n**Permissions Required:** ai:extract\n\n**Parameters:**\n- documentType: Type of document (national_id, passport, invoice, receipt, etc.) - required\n- imageBase64: Base64 encoded image data (optional if pdfUrl provided)\n- pdfUrl: URL to PDF document (optional if imageBase64 provided)\n- mimeType: MIME type of the image (image/png, image/jpeg, etc.)\n\n**Response includes:**\n- Extracted fields and values\n- Confidence scores\n- Document validation status\n- Recommended actions"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usage & Analytics",
+          "description": "Monitor AI usage and costs",
+          "item": [
+            {
+              "name": "Get AI Usage Statistics",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "",
+                      "if (pm.response.code === 200) {",
+                      "    const response = pm.response.json();",
+                      "    console.log('📊 AI Usage Statistics:');",
+                      "    console.log('  Total Requests: ' + response.data.totalRequests);",
+                      "    console.log('  Total Tokens Used: ' + response.data.totalTokensUsed);",
+                      "    console.log('  Estimated Cost: $' + response.data.estimatedCost.toFixed(2));",
+                      "    console.log('  Active Providers: ' + response.data.activeProviders);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "Authorization", "value": "Bearer {{authToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/ai/usage",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["ai", "usage"]
+                },
+                "description": "📈 **GET AI USAGE STATISTICS**\n\nView usage metrics and costs for AI services.\n\n**Permissions Required:** ai:view\n\n**Response includes:**\n- Total API requests made\n- Token usage by provider\n- Estimated costs\n- Usage trends\n- Most used providers"
               }
             }
           ]
