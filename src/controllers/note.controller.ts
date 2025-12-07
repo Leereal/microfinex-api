@@ -35,8 +35,9 @@ export class NoteController {
       }
 
       const canViewPrivate =
-        (req.user as any)?.permissions?.includes(PERMISSIONS.NOTES_VIEW_PRIVATE) ||
-        false;
+        (req.user as any)?.permissions?.includes(
+          PERMISSIONS.NOTES_VIEW_PRIVATE
+        ) || false;
 
       const notes = await noteService.getByEntity(
         organizationId,
