@@ -68,7 +68,7 @@ class ImportController {
       }
 
       // Create import job record
-        const importJob = await prisma.importJob.create({
+      const importJob = await prisma.importJob.create({
         data: {
           organizationId,
           importType: type,
@@ -82,7 +82,7 @@ class ImportController {
             dryRun: dryRun ?? false,
           },
         },
-      });      // Parse and process file
+      }); // Parse and process file
       try {
         let rows: ImportRow[];
 
@@ -292,7 +292,7 @@ class ImportController {
 
         if (errors.length > 0) {
           // Store errors in errorLog for the import job
-          const currentErrors = importJob.errorLog as any || [];
+          const currentErrors = (importJob.errorLog as any) || [];
           for (const errorMessage of errors) {
             currentErrors.push({
               rowNumber,
@@ -362,7 +362,7 @@ class ImportController {
         results.successful++;
       } catch (error: any) {
         // Record error in import job errorLog
-        const currentErrors = importJob.errorLog as any || [];
+        const currentErrors = (importJob.errorLog as any) || [];
         currentErrors.push({
           rowNumber,
           rowData: row,

@@ -291,7 +291,9 @@ class CollateralService {
       where: { id: collateralId },
       data: {
         description: data.description,
-        estimatedValue: data.estimatedValue ? new Prisma.Decimal(data.estimatedValue) : undefined,
+        estimatedValue: data.estimatedValue
+          ? new Prisma.Decimal(data.estimatedValue)
+          : undefined,
         currency: data.currency,
         valuationDate: data.valuationDate
           ? new Date(data.valuationDate)
@@ -742,7 +744,9 @@ class CollateralService {
 
     for (const c of collaterals) {
       const value =
-        typeof c.estimatedValue === 'object' && c.estimatedValue !== null && 'd' in c.estimatedValue
+        typeof c.estimatedValue === 'object' &&
+        c.estimatedValue !== null &&
+        'd' in c.estimatedValue
           ? Number(c.estimatedValue)
           : Number(c.estimatedValue);
 
