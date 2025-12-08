@@ -52,6 +52,8 @@ model Organization {
   incomeCategories      IncomeCategory[]
   expenseCategories     ExpenseCategory[]
   financialTransactions FinancialTransaction[]
+  // Loan Configuration
+  loanPurposes          LoanPurpose[]
 
   @@map("organizations")
 }
@@ -107,22 +109,24 @@ model CurrencyRecord {
 
 // Payment Methods - Cash, EcoCash, Bank Transfer, PayShap, etc.
 model PaymentMethod {
-  id             String   @id @default(uuid())
-  organizationId String
-  name           String   // e.g., "Main Cash", "EcoCash", "FNB Account"
-  code           String   // e.g., "CASH", "ECOCASH", "BANK_FNB"
-  type           PaymentMethodType
-  accountNumber  String?  // Bank account number or mobile money number
-  description    String?
-  initialBalance Decimal  @default(0) @db.Decimal(15, 2)
-  currentBalance Decimal  @default(0) @db.Decimal(15, 2)
-  currency       String   @default("USD")
-  isActive       Boolean  @default(true)
-  isDefault      Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdBy      String?
-  updatedBy      String?
+  id               String   @id @default(uuid())
+  organizationId   String
+  name             String   // e.g., "Main Cash", "EcoCash", "FNB Account"
+  code             String   // e.g., "CASH", "ECOCASH", "BANK_FNB"
+  type             PaymentMethodType
+  accountNumber    String?  // Bank account number or mobile money number
+  description      String?
+  initialBalance   Decimal  @default(0) @db.Decimal(15, 2)
+  currentBalance   Decimal  @default(0) @db.Decimal(15, 2)
+  currency         String   @default("USD")
+  isActive         Boolean  @default(true)
+  isDefault        Boolean  @default(false)
+  allowDisbursement Boolean @default(true) // Can be used for loan disbursements
+  allowRepayment    Boolean @default(true) // Can be used for loan repayments
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  createdBy        String?
+  updatedBy        String?
 
   // Relations
   organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -443,6 +447,25 @@ model GroupMember {
 
   @@unique([groupId, clientId])
   @@map("group_members")
+}
+
+// Loan Purpose - Configurable purposes for loan applications
+model LoanPurpose {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  code           String   // Short code like "BUS", "EDU", "MED"
+  description    String?
+  isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@map("loan_purposes")
 }
 
 model LoanProduct {

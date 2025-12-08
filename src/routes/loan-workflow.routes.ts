@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { authenticate, authorize } from '../middleware/auth-supabase';
+import { authenticate } from '../middleware/auth-supabase';
+import { requirePermission } from '../middleware/permissions';
 import { validateRequest } from '../middleware/validation';
-import { UserRole } from '../types';
 import {
   loanAssessmentService,
   loanVisitService,
@@ -39,11 +39,12 @@ const updateAssessmentSchema = z.object({
 router.post(
   '/assessments',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('assessments:create'),
   validateRequest(createAssessmentSchema),
   async (req, res) => {
     try {
-      const userId = req.user?.userId;
+      // Auth middleware sets req.user.id, not req.user.userId
+      const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -84,7 +85,7 @@ router.post(
  */
 router.get('/assessments/pending', authenticate, async (req, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id || req.user?.userId;
     const { mine } = req.query;
 
     const assessments = await loanAssessmentService.getPendingAssessments(
@@ -162,7 +163,7 @@ router.get('/assessments/:id', authenticate, async (req, res) => {
 router.put(
   '/assessments/:id',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('assessments:update'),
   validateRequest(updateAssessmentSchema),
   async (req, res) => {
     try {
@@ -264,11 +265,11 @@ const updateVisitSchema = z.object({
 router.post(
   '/visits',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('visits:create'),
   validateRequest(createVisitSchema),
   async (req, res) => {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -312,7 +313,7 @@ router.post(
  */
 router.get('/visits/pending', authenticate, async (req, res) => {
   try {
-    const userId = req.user?.userId;
+    const userId = req.user?.id || req.user?.userId;
     const { mine } = req.query;
 
     const visits = await loanVisitService.getPendingVisits(
@@ -390,7 +391,7 @@ router.get('/visits/:id', authenticate, async (req, res) => {
 router.put(
   '/visits/:id',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('visits:update'),
   validateRequest(updateVisitSchema),
   async (req, res) => {
     try {
@@ -541,7 +542,7 @@ const updatePledgeSchema = z.object({
 router.post(
   '/pledges',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('pledges:create'),
   validateRequest(createPledgeSchema),
   async (req, res) => {
     try {
@@ -619,7 +620,7 @@ router.get('/pledges/:id', authenticate, async (req, res) => {
 router.put(
   '/pledges/:id',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('pledges:update'),
   validateRequest(updatePledgeSchema),
   async (req, res) => {
     try {
@@ -661,7 +662,7 @@ router.put(
 router.post(
   '/pledges/:id/verify',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('pledges:update'),
   async (req, res) => {
     try {
       const id = req.params.id;
@@ -702,7 +703,7 @@ router.post(
 router.post(
   '/pledges/:id/release',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('pledges:release'),
   async (req, res) => {
     try {
       const id = req.params.id;
@@ -803,12 +804,12 @@ const transitionStatusSchema = z.object({
 router.post(
   '/loans/:loanId/transition',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:update'),
   validateRequest(transitionStatusSchema),
   async (req, res) => {
     try {
       const loanId = req.params.loanId;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!loanId) {
         return res.status(400).json({
@@ -1010,12 +1011,12 @@ const submitForAssessmentSchema = z.object({
 router.post(
   '/loans/:loanId/submit-assessment',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:assess'),
   validateRequest(submitForAssessmentSchema),
   async (req, res) => {
     try {
       const loanId = req.params.loanId;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!loanId || !userId) {
         return res.status(400).json({
@@ -1065,12 +1066,12 @@ const completeAssessmentSchema = z.object({
 router.post(
   '/assessments/:id/complete',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('assessments:approve'),
   validateRequest(completeAssessmentSchema),
   async (req, res) => {
     try {
       const assessmentId = req.params.id;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!assessmentId || !userId) {
         return res.status(400).json({
@@ -1123,12 +1124,12 @@ const completeVisitSchema = z.object({
 router.post(
   '/visits/:id/complete',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('visits:update'),
   validateRequest(completeVisitSchema),
   async (req, res) => {
     try {
       const visitId = req.params.id;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!visitId || !userId) {
         return res.status(400).json({
@@ -1172,11 +1173,11 @@ router.post(
 router.post(
   '/pledges/:id/verify-and-check',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('pledges:update'),
   async (req, res) => {
     try {
       const pledgeId = req.params.id;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!pledgeId || !userId) {
         return res.status(400).json({
@@ -1228,12 +1229,12 @@ const rejectSchema = z.object({
 router.post(
   '/loans/:loanId/approve',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:approve'),
   validateRequest(approveRejectSchema),
   async (req, res) => {
     try {
       const loanId = req.params.loanId;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!loanId || !userId) {
         return res.status(400).json({
@@ -1286,12 +1287,12 @@ router.post(
 router.post(
   '/loans/:loanId/reject',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:reject'),
   validateRequest(rejectSchema),
   async (req, res) => {
     try {
       const loanId = req.params.loanId;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!loanId || !userId) {
         return res.status(400).json({
@@ -1344,12 +1345,12 @@ router.post(
 router.post(
   '/loans/:loanId/mark-for-disbursement',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:disburse'),
   validateRequest(approveRejectSchema),
   async (req, res) => {
     try {
       const loanId = req.params.loanId;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!loanId || !userId) {
         return res.status(400).json({
@@ -1406,7 +1407,7 @@ router.post(
 router.get(
   '/disbursements/pending',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:disburse'),
   async (req, res) => {
     try {
       const organizationId = req.user?.organizationId;
@@ -1466,12 +1467,12 @@ const disburseSchema = z.object({
 router.post(
   '/loans/:loanId/disburse',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:disburse'),
   validateRequest(disburseSchema),
   async (req, res) => {
     try {
       const loanId = req.params.loanId;
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!loanId || !userId) {
         return res.status(400).json({
@@ -1540,11 +1541,11 @@ const batchDisburseSchema = z.object({
 router.post(
   '/disbursements/batch',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  requirePermission('loans:disburse'),
   validateRequest(batchDisburseSchema),
   async (req, res) => {
     try {
-      const userId = req.user?.userId;
+      const userId = req.user?.id || req.user?.userId;
 
       if (!userId) {
         return res.status(401).json({

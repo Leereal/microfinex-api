@@ -32,6 +32,8 @@ const createPaymentMethodSchema = z.object({
   currency: z.string().max(10).default('USD'),
   isActive: z.boolean().default(true),
   isDefault: z.boolean().default(false),
+  allowDisbursement: z.boolean().default(true),
+  allowRepayment: z.boolean().default(true),
 });
 
 const updatePaymentMethodSchema = z.object({
@@ -48,6 +50,8 @@ const updatePaymentMethodSchema = z.object({
   currency: z.string().max(10).optional(),
   isActive: z.boolean().optional(),
   isDefault: z.boolean().optional(),
+  allowDisbursement: z.boolean().optional(),
+  allowRepayment: z.boolean().optional(),
 });
 
 const transferFundsSchema = z.object({

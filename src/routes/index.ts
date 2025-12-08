@@ -53,6 +53,8 @@ import expenseCategoryRoutes from './expense-category.routes';
 import financialTransactionRoutes from './financial-transaction.routes';
 // Notes module
 import notesRoutes from './notes.routes';
+// Loan configuration
+import loanPurposeRoutes from './loan-purposes.routes';
 
 const router = Router();
 
@@ -115,6 +117,9 @@ router.use(`${apiVersion}/financial-transactions`, financialTransactionRoutes);
 
 // Notes module
 router.use(`${apiVersion}/notes`, notesRoutes);
+
+// Loan configuration
+router.use(`${apiVersion}/loan-purposes`, loanPurposeRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

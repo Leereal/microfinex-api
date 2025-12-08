@@ -11,10 +11,14 @@ export interface LoanApplication {
   id: string;
   loanNumber: string;
   clientId: string;
+  clientName?: string;
   productId: string;
+  productName?: string;
   organizationId: string;
   branchId: string;
+  branchName?: string;
   loanOfficerId: string;
+  loanOfficerName?: string;
   amount: number;
   interestRate: number;
   calculationMethod: string;
@@ -33,6 +37,9 @@ export interface LoanApplication {
   collateralDescription?: string;
   guarantorInfo?: any;
   notes?: string;
+  outstandingBalance?: number;
+  principalBalance?: number;
+  interestBalance?: number;
 }
 
 export interface LoanApplicationFilters {
@@ -53,13 +60,17 @@ export interface LoanApplicationFilters {
 export const createLoanApplicationSchema = z.object({
   clientId: z.string().uuid('Invalid client ID'),
   productId: z.string().uuid('Invalid product ID'),
-  amount: z.number().positive('Loan amount must be positive'),
-  termInMonths: z.number().int().positive('Term must be a positive integer'),
+  amount: z.coerce.number().positive('Loan amount must be positive'),
+  termInMonths: z.coerce
+    .number()
+    .int()
+    .positive('Term must be a positive integer'),
   purpose: z.string().min(1, 'Loan purpose is required'),
-  collateralValue: z.number().min(0).optional(),
+  collateralValue: z.coerce.number().min(0).optional(),
   collateralDescription: z.string().optional(),
   guarantorInfo: z.any().optional(),
   notes: z.string().optional(),
+  branchId: z.string().uuid('Invalid branch ID').optional(),
 });
 
 export const approveLoanSchema = z.object({
@@ -635,14 +646,28 @@ class LoanApplicationService {
    * Map Prisma loan to LoanApplication
    */
   private mapLoanToApplication(loan: any): LoanApplication {
+    // Build client name from client relation if available
+    const clientName = loan.client
+      ? `${loan.client.firstName || ''} ${loan.client.lastName || ''}`.trim()
+      : undefined;
+
+    // Build loan officer name from loanOfficer relation if available
+    const loanOfficerName = loan.loanOfficer
+      ? `${loan.loanOfficer.firstName || ''} ${loan.loanOfficer.lastName || ''}`.trim()
+      : undefined;
+
     return {
       id: loan.id,
       loanNumber: loan.loanNumber,
       clientId: loan.clientId,
+      clientName,
       productId: loan.productId,
+      productName: loan.product?.name,
       organizationId: loan.organizationId,
       branchId: loan.branchId,
+      branchName: loan.branch?.name,
       loanOfficerId: loan.loanOfficerId,
+      loanOfficerName,
       amount: parseFloat(loan.amount.toString()),
       interestRate: parseFloat(loan.interestRate.toString()),
       calculationMethod: loan.calculationMethod,
@@ -663,6 +688,15 @@ class LoanApplicationService {
       collateralDescription: loan.collateralDescription,
       guarantorInfo: loan.guarantorInfo,
       notes: loan.notes,
+      outstandingBalance: loan.outstandingBalance
+        ? parseFloat(loan.outstandingBalance.toString())
+        : undefined,
+      principalBalance: loan.principalBalance
+        ? parseFloat(loan.principalBalance.toString())
+        : undefined,
+      interestBalance: loan.interestBalance
+        ? parseFloat(loan.interestBalance.toString())
+        : undefined,
     };
   }
 }

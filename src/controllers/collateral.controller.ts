@@ -346,6 +346,72 @@ class CollateralController {
   }
 
   /**
+   * Get collateral summary for a client
+   * GET /api/v1/collaterals/client/:clientId/summary
+   */
+  async getClientCollateralSummary(req: Request, res: Response) {
+    try {
+      const { clientId } = req.params;
+      const organizationId = req.user?.organizationId;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization context required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!clientId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Client ID is required',
+          error: 'MISSING_CLIENT_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Verify client belongs to organization
+      const client = await prisma.client.findFirst({
+        where: {
+          id: clientId,
+          organizationId,
+        },
+      });
+
+      if (!client) {
+        return res.status(404).json({
+          success: false,
+          message: 'Client not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const summary = await collateralService.getClientCollateralSummary(
+        clientId,
+        organizationId
+      );
+
+      res.json({
+        success: true,
+        message: 'Client collateral summary retrieved successfully',
+        data: summary,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get client collateral summary error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve client collateral summary',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
    * Create collateral for client
    * POST /api/v1/collaterals/client/:clientId
    */
@@ -356,14 +422,21 @@ class CollateralController {
       const userId = req.user?.userId;
       const {
         collateralTypeId,
-        name,
         description,
         estimatedValue,
         currency,
         ownershipStatus,
+        ownershipDetails,
         registrationNumber,
         serialNumber,
+        make,
+        model,
+        year,
         location,
+        insuranceProvider,
+        insurancePolicyNo,
+        insuranceExpiryDate,
+        notes,
         metadata,
       } = req.body;
 
@@ -411,20 +484,29 @@ class CollateralController {
         });
       }
 
-      const collateral = await collateralService.createClientCollateral({
-        clientId,
-        collateralTypeId,
-        name,
-        description,
-        estimatedValue,
-        currency: currency || 'USD',
-        ownershipStatus: ownershipStatus || 'OWNED',
-        registrationNumber,
-        serialNumber,
-        location,
-        metadata,
-        createdBy: userId,
-      });
+      const collateral = await collateralService.createClientCollateral(
+        organizationId,
+        {
+          clientId,
+          collateralTypeId,
+          description,
+          estimatedValue,
+          currency: currency || 'USD',
+          ownershipStatus: ownershipStatus || 'FULLY_OWNED',
+          ownershipDetails,
+          registrationNumber,
+          serialNumber,
+          make,
+          model,
+          year,
+          location,
+          insuranceProvider,
+          insurancePolicyNo,
+          insuranceExpiryDate,
+          notes,
+          metadata,
+        }
+      );
 
       res.status(201).json({
         success: true,
@@ -1078,6 +1160,136 @@ class CollateralController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve statistics',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Seed default collateral types for organization
+   * POST /api/v1/collaterals/types/seed
+   * Requires ORG_ADMIN or higher role
+   */
+  async seedCollateralTypes(req: Request, res: Response) {
+    try {
+      const organizationId = req.user?.organizationId;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization context required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Default collateral types to seed
+      const DEFAULT_COLLATERAL_TYPES = [
+        {
+          name: 'Motor Vehicle',
+          code: 'VEHICLE',
+          description: 'Cars, trucks, motorcycles',
+          sortOrder: 1,
+          requiredFields: ['registration_number', 'make', 'model', 'year'],
+        },
+        {
+          name: 'Real Estate Property',
+          code: 'PROPERTY',
+          description: 'Land, houses, commercial buildings',
+          sortOrder: 2,
+          requiredFields: ['location', 'title_deed_number'],
+        },
+        {
+          name: 'Equipment',
+          code: 'EQUIPMENT',
+          description: 'Machinery, tools, office equipment',
+          sortOrder: 3,
+          requiredFields: ['serial_number', 'make', 'model'],
+        },
+        {
+          name: 'Inventory',
+          code: 'INVENTORY',
+          description: 'Stock, raw materials, finished goods',
+          sortOrder: 4,
+          requiredFields: ['description', 'quantity'],
+        },
+        {
+          name: 'Accounts Receivable',
+          code: 'RECEIVABLES',
+          description: 'Outstanding invoices, debtors',
+          sortOrder: 5,
+          requiredFields: ['debtor_name', 'invoice_details'],
+        },
+        {
+          name: 'Securities',
+          code: 'SECURITIES',
+          description: 'Shares, bonds, investments',
+          sortOrder: 6,
+          requiredFields: ['security_type', 'certificate_number'],
+        },
+        {
+          name: 'Livestock',
+          code: 'LIVESTOCK',
+          description: 'Cattle, goats, poultry',
+          sortOrder: 7,
+          requiredFields: ['animal_type', 'quantity', 'brand'],
+        },
+        {
+          name: 'Other',
+          code: 'OTHER',
+          description: 'Other valuable assets',
+          sortOrder: 8,
+          requiredFields: ['description'],
+        },
+      ];
+
+      const results: { created: string[]; skipped: string[] } = {
+        created: [],
+        skipped: [],
+      };
+
+      for (const type of DEFAULT_COLLATERAL_TYPES) {
+        // Check if already exists
+        const existing = await prisma.collateralType.findFirst({
+          where: {
+            organizationId,
+            code: type.code,
+          },
+        });
+
+        if (existing) {
+          results.skipped.push(type.name);
+          continue;
+        }
+
+        // Create the collateral type
+        await prisma.collateralType.create({
+          data: {
+            organizationId,
+            name: type.name,
+            code: type.code,
+            description: type.description,
+            sortOrder: type.sortOrder,
+            requiredFields: type.requiredFields,
+            isActive: true,
+          },
+        });
+
+        results.created.push(type.name);
+      }
+
+      res.status(201).json({
+        success: true,
+        message: `Seeded ${results.created.length} collateral types, ${results.skipped.length} already existed`,
+        data: results,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Seed collateral types error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to seed collateral types',
         error: 'INTERNAL_ERROR',
         timestamp: new Date().toISOString(),
       });

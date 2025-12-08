@@ -131,6 +131,18 @@ router.get(
 );
 
 /**
+ * Get collateral summary for a client
+ * GET /api/v1/collaterals/client/:clientId/summary
+ */
+router.get(
+  '/client/:clientId/summary',
+  requirePermission('collaterals:view'),
+  handleAsync(
+    collateralController.getClientCollateralSummary.bind(collateralController)
+  )
+);
+
+/**
  * Create collateral for a client
  * POST /api/v1/collaterals/client/:clientId
  */
@@ -140,16 +152,23 @@ const createCollateralSchema = z.object({
   }),
   body: z.object({
     collateralTypeId: z.string().uuid(),
-    name: z.string().min(1, 'Name is required'),
-    description: z.string().optional(),
+    description: z.string().min(1, 'Description is required'),
     estimatedValue: z.number().positive('Value must be positive'),
     currency: z.enum(['USD', 'ZWG', 'ZAR', 'BWP']).optional(),
     ownershipStatus: z
-      .enum(['OWNED', 'FINANCED', 'LEASED', 'SHARED'])
+      .enum(['FULLY_OWNED', 'FINANCED', 'LEASED', 'JOINT_OWNERSHIP'])
       .optional(),
+    ownershipDetails: z.string().optional(),
     registrationNumber: z.string().optional(),
     serialNumber: z.string().optional(),
+    make: z.string().optional(),
+    model: z.string().optional(),
+    year: z.number().int().positive().optional(),
     location: z.string().optional(),
+    insuranceProvider: z.string().optional(),
+    insurancePolicyNo: z.string().optional(),
+    insuranceExpiryDate: z.string().optional(),
+    notes: z.string().optional(),
     metadata: z.record(z.any()).optional(),
   }),
 });
@@ -182,19 +201,26 @@ const updateCollateralSchema = z.object({
     collateralId: z.string().uuid(),
   }),
   body: z.object({
-    name: z.string().min(1).optional(),
-    description: z.string().optional(),
+    description: z.string().min(1).optional(),
     estimatedValue: z.number().positive().optional(),
     currency: z.enum(['USD', 'ZWG', 'ZAR', 'BWP']).optional(),
     ownershipStatus: z
-      .enum(['OWNED', 'FINANCED', 'LEASED', 'SHARED'])
+      .enum(['FULLY_OWNED', 'FINANCED', 'LEASED', 'JOINT_OWNERSHIP'])
       .optional(),
+    ownershipDetails: z.string().optional(),
     status: z
-      .enum(['PENDING', 'VERIFIED', 'RELEASED', 'SEIZED', 'SOLD'])
+      .enum(['AVAILABLE', 'PLEDGED', 'RELEASED', 'REPOSSESSED', 'SOLD'])
       .optional(),
     registrationNumber: z.string().optional(),
     serialNumber: z.string().optional(),
+    make: z.string().optional(),
+    model: z.string().optional(),
+    year: z.number().int().positive().optional(),
     location: z.string().optional(),
+    insuranceProvider: z.string().optional(),
+    insurancePolicyNo: z.string().optional(),
+    insuranceExpiryDate: z.string().optional(),
+    notes: z.string().optional(),
     metadata: z.record(z.any()).optional(),
   }),
 });
@@ -297,6 +323,23 @@ router.delete(
   '/:collateralId/documents/:documentId',
   requirePermission('collaterals:update'),
   handleAsync(collateralController.removeDocument.bind(collateralController))
+);
+
+// ===================
+// Seed Routes (ORG_ADMIN only)
+// ===================
+
+/**
+ * Seed default collateral types for organization
+ * POST /api/v1/collaterals/types/seed
+ * Requires ORG_ADMIN role
+ */
+router.post(
+  '/types/seed',
+  requirePermission('system:manage'),
+  handleAsync(
+    collateralController.seedCollateralTypes.bind(collateralController)
+  )
 );
 
 export default router;

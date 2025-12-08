@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authenticate, authorize } from '../middleware/auth-supabase';
+import { authenticate } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
 import { Prisma } from '@prisma/client';
@@ -21,6 +21,8 @@ import {
   LoanApplicationFilters,
 } from '../services/loan-application.service';
 import { productCreditService } from '../services/product-credit.service';
+import { loadPermissions, requirePermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 
@@ -508,28 +510,51 @@ router.get('/methods', authenticate, (req, res) => {
 router.post(
   '/applications',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.STAFF),
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_APPLY),
   validateRequest(createLoanApplicationSchema),
   async (req, res) => {
     try {
-      const organizationId = req.userContext?.organizationId;
-      const branchId = req.body.branchId;
+      const organizationId = req.user!.organizationId!;
       const loanOfficerId = req.userContext?.id;
 
-      if (!organizationId || !branchId || !loanOfficerId) {
+      // Get branchId from request body, or fallback to user's assigned branch
+      let branchId = req.body.branchId;
+      if (!branchId && loanOfficerId) {
+        // Try to get user's branch from database
+        const user = await prisma.user.findUnique({
+          where: { id: loanOfficerId },
+          select: { branchId: true },
+        });
+        branchId = user?.branchId;
+      }
+
+      // Provide specific error messages for missing fields
+      const missingFields: string[] = [];
+      if (!organizationId) missingFields.push('Organization ID');
+      if (!branchId) missingFields.push('Branch ID');
+      if (!loanOfficerId) missingFields.push('Loan Officer ID');
+
+      if (missingFields.length > 0) {
         return res.status(400).json({
           success: false,
-          message: 'Organization ID, branch ID, and loan officer ID required',
+          message: `Missing required context: ${missingFields.join(', ')}`,
           error: 'MISSING_CONTEXT',
+          details: {
+            missing: missingFields,
+            hint: !branchId
+              ? 'Please select a branch or ensure your user account has a branch assigned'
+              : undefined,
+          },
           timestamp: new Date().toISOString(),
         });
       }
 
       const application = await loanApplicationService.createLoanApplication(
         req.body,
-        organizationId,
-        branchId,
-        loanOfficerId
+        organizationId!,
+        branchId!,
+        loanOfficerId!
       );
 
       res.status(201).json({
@@ -681,7 +706,8 @@ router.get('/applications/:loanId', authenticate, async (req, res) => {
 router.post(
   '/applications/:loanId/approve',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_APPROVE),
   validateRequest(approveLoanSchema),
   async (req, res) => {
     try {
@@ -743,7 +769,8 @@ router.post(
 router.post(
   '/applications/:loanId/reject',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_REJECT),
   async (req, res) => {
     try {
       const loanId = req.params.loanId!;
@@ -814,7 +841,8 @@ router.post(
 router.post(
   '/applications/:loanId/disburse',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_DISBURSE),
   validateRequest(disburseLoanSchema),
   async (req, res) => {
     try {
@@ -959,7 +987,8 @@ const disburseToshopSchema = z.object({
 router.post(
   '/product-credit',
   authenticate,
-  authorize(UserRole.STAFF, UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_APPLY),
   validateRequest(productCreditSchema),
   async (req, res) => {
     try {
@@ -1030,7 +1059,8 @@ router.post(
 router.post(
   '/:id/disburse-to-shop',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_DISBURSE),
   validateRequest(disburseToshopSchema),
   async (req, res) => {
     try {

@@ -170,6 +170,21 @@
       "key": "aiConfigId",
       "value": "",
       "description": "Last created/retrieved AI configuration ID"
+    },
+    {
+      "key": "collateralId",
+      "value": "",
+      "description": "Last created/retrieved collateral ID"
+    },
+    {
+      "key": "collateralTypeId",
+      "value": "",
+      "description": "Last created/retrieved collateral type ID"
+    },
+    {
+      "key": "loanPurposeId",
+      "value": "",
+      "description": "Last created/retrieved loan purpose ID"
     }
   ],
   "auth": {
@@ -1836,6 +1851,370 @@
       ]
     },
     {
+      "name": "🛡️ Collaterals",
+      "description": "Collateral management - types, client collaterals, and loan linking",
+      "item": [
+        {
+          "name": "Get Collateral Types",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data && response.data.collateralTypes && response.data.collateralTypes.length > 0) {",
+                  "        pm.collectionVariables.set('collateralTypeId', response.data.collateralTypes[0].id);",
+                  "        console.log('🛡️ First collateral type ID set: ' + response.data.collateralTypes[0].id);",
+                  "        console.log('📊 Total collateral types: ' + response.data.collateralTypes.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/types",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "types"]
+            },
+            "description": "Get all collateral types for the organization"
+          }
+        },
+        {
+          "name": "Create Collateral Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data && response.data.collateralType) {",
+                  "        pm.collectionVariables.set('collateralTypeId', response.data.collateralType.id);",
+                  "        console.log('✅ Created collateral type: ' + response.data.collateralType.name);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Electronics\",\n  \"description\": \"Electronic devices and gadgets\",\n  \"requiredDocuments\": [\"receipt\", \"warranty\"],\n  \"depreciationRate\": 20,\n  \"maxLoanToValue\": 60\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/types",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "types"]
+            },
+            "description": "Create a new collateral type. Requires collaterals:manage permission."
+          }
+        },
+        {
+          "name": "Seed Default Collateral Types",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ ' + response.message);",
+                  "    if (response.data) {",
+                  "        console.log('Created: ' + response.data.created.join(', '));",
+                  "        console.log('Skipped: ' + response.data.skipped.join(', '));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/types/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "types", "seed"]
+            },
+            "description": "Seed default collateral types (Vehicle, Property, Equipment, Inventory, Securities, Livestock, etc). Requires ORG_ADMIN or system:manage permission."
+          }
+        },
+        {
+          "name": "Update Collateral Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Motor Vehicles\",\n  \"description\": \"Updated description for vehicles\",\n  \"depreciationRate\": 15,\n  \"maxLoanToValue\": 70,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/types/{{collateralTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "types", "{{collateralTypeId}}"]
+            },
+            "description": "Update an existing collateral type"
+          }
+        },
+        {
+          "name": "Delete Collateral Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/types/{{collateralTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "types", "{{collateralTypeId}}"]
+            },
+            "description": "Delete a collateral type"
+          }
+        },
+        {
+          "name": "Get Client Collaterals",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data && response.data.collaterals && response.data.collaterals.length > 0) {",
+                  "        pm.collectionVariables.set('collateralId', response.data.collaterals[0].id);",
+                  "        console.log('🛡️ First collateral ID set: ' + response.data.collaterals[0].id);",
+                  "        console.log('💰 Total value: ' + response.data.collaterals.reduce((sum, c) => sum + c.estimatedValue, 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/client/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "client", "{{clientId}}"]
+            },
+            "description": "Get all collaterals for a specific client"
+          }
+        },
+        {
+          "name": "Get Client Collateral Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/client/{{clientId}}/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "client", "{{clientId}}", "summary"]
+            },
+            "description": "Get collateral summary including total value for a client"
+          }
+        },
+        {
+          "name": "Create Client Collateral",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data && response.data.collateral) {",
+                  "        pm.collectionVariables.set('collateralId', response.data.collateral.id);",
+                  "        console.log('✅ Created collateral: ' + response.data.collateral.description);",
+                  "        console.log('💰 Value: ' + response.data.collateral.estimatedValue);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"collateralTypeId\": \"{{collateralTypeId}}\",\n  \"description\": \"2020 Toyota Hilux Double Cab\",\n  \"estimatedValue\": 25000,\n  \"currency\": \"USD\",\n  \"ownershipStatus\": \"FULLY_OWNED\",\n  \"registrationNumber\": \"ABC 1234\",\n  \"make\": \"Toyota\",\n  \"model\": \"Hilux\",\n  \"year\": 2020,\n  \"location\": \"Harare\",\n  \"notes\": \"Good condition, service history available\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/client/{{clientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "client", "{{clientId}}"]
+            },
+            "description": "Create a new collateral for a client"
+          }
+        },
+        {
+          "name": "Get Collateral by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/{{collateralId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "{{collateralId}}"]
+            },
+            "description": "Get a specific collateral by ID"
+          }
+        },
+        {
+          "name": "Update Collateral",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"2020 Toyota Hilux Double Cab - Updated\",\n  \"estimatedValue\": 23000,\n  \"status\": \"PLEDGED\",\n  \"notes\": \"Pledged as security for loan\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/{{collateralId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "{{collateralId}}"]
+            },
+            "description": "Update a collateral's details or status"
+          }
+        },
+        {
+          "name": "Update Collateral Valuation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"valuedAmount\": 22000,\n  \"valuedBy\": \"John Valuator\",\n  \"valuationNotes\": \"Market depreciation considered\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/{{collateralId}}/valuation",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "{{collateralId}}", "valuation"]
+            },
+            "description": "Update the valuation of a collateral"
+          }
+        },
+        {
+          "name": "Link Collateral to Loan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"loanId\": \"{{loanId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/{{collateralId}}/link-loan",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "{{collateralId}}", "link-loan"]
+            },
+            "description": "Link/pledge a collateral to a loan"
+          }
+        },
+        {
+          "name": "Unlink Collateral from Loan",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/{{collateralId}}/unlink-loan",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "{{collateralId}}", "unlink-loan"]
+            },
+            "description": "Unlink/release a collateral from a loan"
+          }
+        },
+        {
+          "name": "Get Collateral Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "statistics"]
+            },
+            "description": "Get collateral statistics for the organization"
+          }
+        },
+        {
+          "name": "Delete Collateral",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/collaterals/{{collateralId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["collaterals", "{{collateralId}}"]
+            },
+            "description": "Delete a collateral"
+          }
+        }
+      ]
+    },
+    {
       "name": "💰 Loans & Payments",
       "description": "Loan and payment management endpoints",
       "item": [
@@ -2950,6 +3329,178 @@
               "path": ["loan-products", "{{productId}}"]
             },
             "description": "Delete a loan product (soft delete)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "🎯 Loan Purposes",
+      "description": "Loan purpose management - CRUD operations and seeding",
+      "item": [
+        {
+          "name": "Get All Loan Purposes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data && response.data.purposes && response.data.purposes.length > 0) {",
+                  "        pm.collectionVariables.set('loanPurposeId', response.data.purposes[0].id);",
+                  "        console.log('🎯 First loan purpose ID set: ' + response.data.purposes[0].id);",
+                  "        console.log('📊 Total loan purposes: ' + response.data.purposes.length);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes"]
+            },
+            "description": "Get all loan purposes for the organization"
+          }
+        },
+        {
+          "name": "Get Active Loan Purposes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes?activeOnly=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes"],
+              "query": [{ "key": "activeOnly", "value": "true" }]
+            },
+            "description": "Get only active loan purposes"
+          }
+        },
+        {
+          "name": "Get Loan Purpose by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes/{{loanPurposeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes", "{{loanPurposeId}}"]
+            },
+            "description": "Get a specific loan purpose by ID"
+          }
+        },
+        {
+          "name": "Create Loan Purpose",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data && response.data.purpose) {",
+                  "        pm.collectionVariables.set('loanPurposeId', response.data.purpose.id);",
+                  "        console.log('🎯 Created loan purpose ID: ' + response.data.purpose.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vehicle Purchase\",\n  \"code\": \"VEHICLE\",\n  \"description\": \"Loans for purchasing vehicles\",\n  \"sortOrder\": 15\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes"]
+            },
+            "description": "Create a new loan purpose"
+          }
+        },
+        {
+          "name": "Update Loan Purpose",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vehicle Purchase/Financing\",\n  \"description\": \"Loans for purchasing or financing vehicles\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes/{{loanPurposeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes", "{{loanPurposeId}}"]
+            },
+            "description": "Update an existing loan purpose"
+          }
+        },
+        {
+          "name": "Seed Default Loan Purposes (ORG_ADMIN)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.success && response.data) {",
+                  "        console.log('🎯 Seeded ' + response.data.count + ' loan purposes');",
+                  "        if (response.data.purposes && response.data.purposes.length > 0) {",
+                  "            pm.collectionVariables.set('loanPurposeId', response.data.purposes[0].id);",
+                  "        }",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes", "seed"]
+            },
+            "description": "Seed default loan purposes. Requires ORG_ADMIN or SUPER_ADMIN role. Seeds: BUSINESS, EDUCATION, MEDICAL, AGRICULTURE, HOME_IMPROVEMENT, EMERGENCY, PERSONAL, DEBT_CONSOLIDATION, ASSET_PURCHASE, HOUSING, WEDDING, TRAVEL, OTHER"
+          }
+        },
+        {
+          "name": "Delete Loan Purpose",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-purposes/{{loanPurposeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-purposes", "{{loanPurposeId}}"]
+            },
+            "description": "Delete a loan purpose permanently"
           }
         }
       ]

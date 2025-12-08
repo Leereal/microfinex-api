@@ -1056,12 +1056,15 @@ class CategoryAwareWorkflowEngine {
 
   /**
    * Get pending disbursements
+   * Returns loans that are either APPROVED or PENDING_DISBURSEMENT
    */
   async getPendingDisbursements(organizationId: string, branchId?: string) {
     return prisma.loan.findMany({
       where: {
         organizationId,
-        status: LoanStatus.PENDING_DISBURSEMENT,
+        status: {
+          in: [LoanStatus.APPROVED, LoanStatus.PENDING_DISBURSEMENT],
+        },
         ...(branchId && { branchId }),
       },
       include: {

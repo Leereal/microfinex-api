@@ -12,6 +12,8 @@ export interface CreatePaymentMethodInput {
   currency?: string;
   isActive?: boolean;
   isDefault?: boolean;
+  allowDisbursement?: boolean;
+  allowRepayment?: boolean;
   createdBy?: string;
 }
 
@@ -24,6 +26,8 @@ export interface UpdatePaymentMethodInput {
   currency?: string;
   isActive?: boolean;
   isDefault?: boolean;
+  allowDisbursement?: boolean;
+  allowRepayment?: boolean;
   updatedBy?: string;
 }
 
@@ -174,6 +178,8 @@ class PaymentMethodService {
       currency = 'USD',
       isActive = true,
       isDefault = false,
+      allowDisbursement = true,
+      allowRepayment = true,
       createdBy,
     } = input;
 
@@ -215,6 +221,8 @@ class PaymentMethodService {
         currency,
         isActive,
         isDefault,
+        allowDisbursement,
+        allowRepayment,
         createdBy,
       },
     });
