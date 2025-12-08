@@ -615,6 +615,108 @@ class FinancialTransactionService {
   }
 
   /**
+   * Record multiple loan repayment transactions - one for each category (penalty, interest, principal)
+   * This creates separate FinancialTransaction records for each component
+   */
+  async recordLoanRepaymentComponents(
+    organizationId: string,
+    branchId: string,
+    loanId: string,
+    loanNumber: string,
+    paymentId: string,
+    components: {
+      penaltyAmount: number;
+      interestAmount: number;
+      principalAmount: number;
+    },
+    currency: string,
+    paymentMethodId: string,
+    processedBy: string
+  ): Promise<{ penalty?: any; interest?: any; principal?: any }> {
+    const results: { penalty?: any; interest?: any; principal?: any } = {};
+
+    // Record penalty income if any
+    if (components.penaltyAmount > 0) {
+      const penaltyCategory = await prisma.incomeCategory.findFirst({
+        where: {
+          organizationId,
+          code: 'PENALTY_INCOME',
+        },
+      });
+
+      if (penaltyCategory) {
+        results.penalty = await this.create({
+          organizationId,
+          branchId,
+          type: 'INCOME',
+          incomeCategoryId: penaltyCategory.id,
+          paymentMethodId,
+          amount: components.penaltyAmount,
+          currency,
+          description: `Penalty payment for loan ${loanNumber}`,
+          relatedLoanId: loanId,
+          relatedPaymentId: paymentId,
+          processedBy,
+        });
+      }
+    }
+
+    // Record interest income if any
+    if (components.interestAmount > 0) {
+      const interestCategory = await prisma.incomeCategory.findFirst({
+        where: {
+          organizationId,
+          code: 'INTEREST_INCOME',
+        },
+      });
+
+      if (interestCategory) {
+        results.interest = await this.create({
+          organizationId,
+          branchId,
+          type: 'INCOME',
+          incomeCategoryId: interestCategory.id,
+          paymentMethodId,
+          amount: components.interestAmount,
+          currency,
+          description: `Interest payment for loan ${loanNumber}`,
+          relatedLoanId: loanId,
+          relatedPaymentId: paymentId,
+          processedBy,
+        });
+      }
+    }
+
+    // Record principal repayment income if any
+    if (components.principalAmount > 0) {
+      const principalCategory = await prisma.incomeCategory.findFirst({
+        where: {
+          organizationId,
+          code: 'LOAN_REPAYMENT',
+        },
+      });
+
+      if (principalCategory) {
+        results.principal = await this.create({
+          organizationId,
+          branchId,
+          type: 'INCOME',
+          incomeCategoryId: principalCategory.id,
+          paymentMethodId,
+          amount: components.principalAmount,
+          currency,
+          description: `Principal repayment for loan ${loanNumber}`,
+          relatedLoanId: loanId,
+          relatedPaymentId: paymentId,
+          processedBy,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
    * Get balance history for a payment method
    */
   async getPaymentMethodHistory(
@@ -666,6 +768,132 @@ class FinancialTransactionService {
         total,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  /**
+   * Void all financial transactions associated with a payment
+   * Used when reversing/cancelling a payment to maintain ledger consistency
+   */
+  async voidByPaymentId(
+    paymentId: string,
+    voidedBy: string,
+    reason?: string
+  ): Promise<{ voidedCount: number; restoredAmount: number }> {
+    // Find all transactions linked to this payment
+    const transactions = await prisma.financialTransaction.findMany({
+      where: {
+        relatedPaymentId: paymentId,
+        status: 'COMPLETED',
+      },
+      include: {
+        paymentMethod: true,
+      },
+    });
+
+    if (transactions.length === 0) {
+      return { voidedCount: 0, restoredAmount: 0 };
+    }
+
+    let totalRestoredAmount = 0;
+
+    // Void each transaction and reverse the balance change
+    for (const transaction of transactions) {
+      const amount = parseFloat(transaction.amount.toString());
+
+      // Update transaction status to VOIDED
+      await prisma.financialTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'VOIDED',
+          notes: `${transaction.notes || ''}\n\nVOIDED by ${voidedBy}: ${reason || 'Payment reversal'}`,
+        },
+      });
+
+      // Reverse the balance change on the payment method
+      // INCOME transactions increased the balance, so we decrease it
+      // EXPENSE transactions decreased the balance, so we increase it
+      if (transaction.paymentMethodId) {
+        const balanceAdjustment =
+          transaction.type === 'INCOME' ? -amount : amount;
+
+        await paymentMethodService.adjustBalanceInternal(
+          transaction.paymentMethodId,
+          balanceAdjustment,
+          `Reversal of transaction ${transaction.transactionNumber} - ${reason || 'Payment voided'}`
+        );
+
+        totalRestoredAmount += Math.abs(balanceAdjustment);
+      }
+    }
+
+    return {
+      voidedCount: transactions.length,
+      restoredAmount: totalRestoredAmount,
+    };
+  }
+
+  /**
+   * Void all financial transactions associated with a loan disbursement
+   * Used when cancelling/reversing a loan disbursement
+   */
+  async voidByLoanId(
+    loanId: string,
+    transactionType: 'DISBURSEMENT' | 'ALL',
+    voidedBy: string,
+    reason?: string
+  ): Promise<{ voidedCount: number; restoredAmount: number }> {
+    const where: Prisma.FinancialTransactionWhereInput = {
+      relatedLoanId: loanId,
+      status: 'COMPLETED',
+    };
+
+    // If only voiding disbursement, filter by EXPENSE type (disbursements are expenses)
+    if (transactionType === 'DISBURSEMENT') {
+      where.type = 'EXPENSE';
+    }
+
+    const transactions = await prisma.financialTransaction.findMany({
+      where,
+      include: {
+        paymentMethod: true,
+      },
+    });
+
+    if (transactions.length === 0) {
+      return { voidedCount: 0, restoredAmount: 0 };
+    }
+
+    let totalRestoredAmount = 0;
+
+    for (const transaction of transactions) {
+      const amount = parseFloat(transaction.amount.toString());
+
+      await prisma.financialTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'VOIDED',
+          notes: `${transaction.notes || ''}\n\nVOIDED by ${voidedBy}: ${reason || 'Loan reversal'}`,
+        },
+      });
+
+      if (transaction.paymentMethodId) {
+        const balanceAdjustment =
+          transaction.type === 'INCOME' ? -amount : amount;
+
+        await paymentMethodService.adjustBalanceInternal(
+          transaction.paymentMethodId,
+          balanceAdjustment,
+          `Reversal of transaction ${transaction.transactionNumber} - ${reason || 'Loan voided'}`
+        );
+
+        totalRestoredAmount += Math.abs(balanceAdjustment);
+      }
+    }
+
+    return {
+      voidedCount: transactions.length,
+      restoredAmount: totalRestoredAmount,
     };
   }
 }

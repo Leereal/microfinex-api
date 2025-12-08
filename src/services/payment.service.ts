@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 const Decimal = Prisma.Decimal;
+import { financialTransactionService } from './financial-transaction.service';
 
 export interface PaymentRecord {
   id: string;
@@ -52,6 +53,9 @@ export const createPaymentSchema = z.object({
     'CHECK',
     'CARD',
   ]),
+  paymentMethodId: z
+    .string()
+    .uuid('Payment method ID is required for financial tracking'),
   transactionRef: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -68,6 +72,9 @@ export const bulkPaymentSchema = z.object({
         'CHECK',
         'CARD',
       ]),
+      paymentMethodId: z
+        .string()
+        .uuid('Payment method ID is required for financial tracking'),
       transactionRef: z.string().optional(),
       notes: z.string().optional(),
     })
@@ -138,6 +145,8 @@ class PaymentService {
             dueDate: 'asc',
           },
         },
+        product: { select: { currency: true } },
+        branch: { select: { id: true } },
       },
     });
 
@@ -173,6 +182,23 @@ class PaymentService {
         notes: paymentData.notes,
       },
     });
+
+    // Create financial transactions for each payment component (penalty, interest, principal)
+    await financialTransactionService.recordLoanRepaymentComponents(
+      organizationId,
+      loan.branchId,
+      paymentData.loanId,
+      loan.loanNumber,
+      payment.id,
+      {
+        penaltyAmount: allocation.penaltyAmount,
+        interestAmount: allocation.interestAmount,
+        principalAmount: allocation.principalAmount,
+      },
+      loan.product?.currency || 'USD',
+      paymentData.paymentMethodId,
+      receivedBy
+    );
 
     // Update loan balances
     const newPenaltyBalance = Math.max(
@@ -555,6 +581,13 @@ class PaymentService {
         status: 'ACTIVE', // Revert to active if it was marked as completed
       },
     });
+
+    // Void corresponding financial transactions and restore payment method balances
+    await financialTransactionService.voidByPaymentId(
+      paymentId,
+      reversedBy,
+      reversalData.reason
+    );
 
     // TODO: Update repayment schedule to reverse payment allocation
 

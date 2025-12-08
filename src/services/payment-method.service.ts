@@ -595,6 +595,42 @@ class PaymentMethodService {
       })),
     };
   }
+
+  /**
+   * Internal method to adjust payment method balance
+   * Used by financial transaction service when voiding transactions
+   * Does not create a new transaction record, just updates the balance
+   */
+  async adjustBalanceInternal(
+    paymentMethodId: string,
+    amount: number,
+    reason: string
+  ): Promise<void> {
+    const paymentMethod = await prisma.paymentMethod.findUnique({
+      where: { id: paymentMethodId },
+    });
+
+    if (!paymentMethod) {
+      console.warn(
+        `Payment method ${paymentMethodId} not found for balance adjustment: ${reason}`
+      );
+      return;
+    }
+
+    const currentBalance = parseFloat(paymentMethod.currentBalance.toString());
+    const newBalance = currentBalance + amount;
+
+    await prisma.paymentMethod.update({
+      where: { id: paymentMethodId },
+      data: {
+        currentBalance: newBalance,
+      },
+    });
+
+    console.log(
+      `Payment method ${paymentMethod.name} balance adjusted by ${amount}: ${reason}. New balance: ${newBalance}`
+    );
+  }
 }
 
 export const paymentMethodService = new PaymentMethodService();

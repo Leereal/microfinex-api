@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { LoanStatus, VisitType, LoanCategory, Prisma } from '@prisma/client';
+import { financialTransactionService } from './financial-transaction.service';
 
 // ============================================
 // WORKFLOW STEP REQUIREMENTS
@@ -37,12 +38,32 @@ interface WorkflowStatus {
 interface CreateAssessmentInput {
   loanId: string;
   assessorId: string;
+  // 5C's Assessment
+  clientCharacter?: 'GOOD' | 'FAIR' | 'POOR';
+  clientCapacity?: 'ADEQUATE' | 'MARGINAL' | 'INADEQUATE';
+  collateralQuality?: 'SATISFACTORY' | 'FAIR' | 'POOR';
+  conditions?: 'FAVORABLE' | 'MODERATE' | 'UNFAVORABLE';
+  capitalAdequacy?: 'ADEQUATE' | 'MARGINAL' | 'INADEQUATE';
+  // Assessment Results
+  recommendedAmount?: number;
+  recommendation?: 'APPROVED' | 'CONDITIONAL' | 'REJECTED';
+  // Assessment Documents
   documentChecklist?: Record<string, boolean>;
   notes?: string;
 }
 
 interface UpdateAssessmentInput {
   status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  // 5C's Assessment
+  clientCharacter?: 'GOOD' | 'FAIR' | 'POOR';
+  clientCapacity?: 'ADEQUATE' | 'MARGINAL' | 'INADEQUATE';
+  collateralQuality?: 'SATISFACTORY' | 'FAIR' | 'POOR';
+  conditions?: 'FAVORABLE' | 'MODERATE' | 'UNFAVORABLE';
+  capitalAdequacy?: 'ADEQUATE' | 'MARGINAL' | 'INADEQUATE';
+  // Assessment Results
+  recommendedAmount?: number;
+  recommendation?: 'APPROVED' | 'CONDITIONAL' | 'REJECTED';
+  // Assessment Documents
   documentChecklist?: Record<string, boolean>;
   notes?: string;
 }
@@ -54,6 +75,15 @@ class LoanAssessmentService {
         loanId: input.loanId,
         assessorId: input.assessorId,
         status: 'PENDING',
+        clientCharacter: input.clientCharacter,
+        clientCapacity: input.clientCapacity,
+        collateralQuality: input.collateralQuality,
+        conditions: input.conditions,
+        capitalAdequacy: input.capitalAdequacy,
+        recommendedAmount: input.recommendedAmount
+          ? parseFloat(input.recommendedAmount.toString())
+          : undefined,
+        recommendation: input.recommendation,
         documentChecklist: input.documentChecklist || {},
         notes: input.notes,
       },
@@ -1008,13 +1038,18 @@ class CategoryAwareWorkflowEngine {
     disbursementDetails?: {
       disbursementDate?: Date;
       disbursementMethod?: string;
+      paymentMethodId?: string;
       reference?: string;
       notes?: string;
     }
   ): Promise<{ success: boolean; loan?: any; error?: string }> {
     const loan = await prisma.loan.findUnique({
       where: { id: loanId },
-      select: { status: true },
+      include: {
+        organization: { select: { id: true } },
+        branch: { select: { id: true } },
+        product: { select: { currency: true } },
+      },
     });
 
     if (!loan) {
@@ -1031,14 +1066,53 @@ class CategoryAwareWorkflowEngine {
       };
     }
 
+    const disbursementDate =
+      disbursementDetails?.disbursementDate || new Date();
+    const disbursementAmount = parseFloat(loan.amount.toString());
+
     // Update loan with disbursement details and change status
     const updatedLoan = await prisma.loan.update({
       where: { id: loanId },
       data: {
         status: LoanStatus.ACTIVE,
-        disbursedDate: disbursementDetails?.disbursementDate || new Date(),
+        disbursedDate: disbursementDate,
       },
     });
+
+    // Create disbursement payment record
+    const payment = await prisma.payment.create({
+      data: {
+        paymentNumber: `DISB-${loan.loanNumber}`,
+        loanId,
+        amount: disbursementAmount,
+        principalAmount: disbursementAmount,
+        interestAmount: 0,
+        penaltyAmount: 0,
+        type: 'LOAN_DISBURSEMENT',
+        method: disbursementDetails?.disbursementMethod || 'CASH',
+        status: 'COMPLETED',
+        paymentDate: disbursementDate,
+        receivedBy: disbursedBy,
+        transactionRef: disbursementDetails?.reference,
+        notes:
+          disbursementDetails?.notes ||
+          `Loan disbursement via ${disbursementDetails?.disbursementMethod || 'default'}`,
+      },
+    });
+
+    // Create financial transaction for the disbursement (expense) if paymentMethodId is provided
+    if (disbursementDetails?.paymentMethodId) {
+      await financialTransactionService.recordLoanDisbursement(
+        loan.organizationId,
+        loan.branchId,
+        loanId,
+        loan.loanNumber,
+        disbursementAmount,
+        loan.product?.currency || 'USD',
+        disbursementDetails.paymentMethodId,
+        disbursedBy
+      );
+    }
 
     // Record the transition
     await this.workflowHistory.create({
@@ -1109,6 +1183,7 @@ class CategoryAwareWorkflowEngine {
     disbursementDetails?: {
       disbursementDate?: Date;
       disbursementMethod?: string;
+      paymentMethodId?: string;
       notes?: string;
     }
   ): Promise<{

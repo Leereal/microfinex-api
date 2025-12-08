@@ -20,12 +20,32 @@ const router = Router();
 
 const createAssessmentSchema = z.object({
   loanId: z.string().uuid(),
+  // 5C's Assessment
+  clientCharacter: z.enum(['GOOD', 'FAIR', 'POOR']).optional(),
+  clientCapacity: z.enum(['ADEQUATE', 'MARGINAL', 'INADEQUATE']).optional(),
+  collateralQuality: z.enum(['SATISFACTORY', 'FAIR', 'POOR']).optional(),
+  conditions: z.enum(['FAVORABLE', 'MODERATE', 'UNFAVORABLE']).optional(),
+  capitalAdequacy: z.enum(['ADEQUATE', 'MARGINAL', 'INADEQUATE']).optional(),
+  // Assessment Results
+  recommendedAmount: z.number().optional(),
+  recommendation: z.enum(['APPROVED', 'CONDITIONAL', 'REJECTED']).optional(),
+  // Assessment Documents
   documentChecklist: z.record(z.boolean()).optional(),
   notes: z.string().optional(),
 });
 
 const updateAssessmentSchema = z.object({
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
+  // 5C's Assessment
+  clientCharacter: z.enum(['GOOD', 'FAIR', 'POOR']).optional(),
+  clientCapacity: z.enum(['ADEQUATE', 'MARGINAL', 'INADEQUATE']).optional(),
+  collateralQuality: z.enum(['SATISFACTORY', 'FAIR', 'POOR']).optional(),
+  conditions: z.enum(['FAVORABLE', 'MODERATE', 'UNFAVORABLE']).optional(),
+  capitalAdequacy: z.enum(['ADEQUATE', 'MARGINAL', 'INADEQUATE']).optional(),
+  // Assessment Results
+  recommendedAmount: z.number().optional(),
+  recommendation: z.enum(['APPROVED', 'CONDITIONAL', 'REJECTED']).optional(),
+  // Assessment Documents
   documentChecklist: z.record(z.boolean()).optional(),
   notes: z.string().optional(),
 });
@@ -1054,6 +1074,15 @@ router.post(
 
 const completeAssessmentSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']),
+  // 5C's Assessment
+  clientCharacter: z.enum(['GOOD', 'FAIR', 'POOR']).optional(),
+  clientCapacity: z.enum(['ADEQUATE', 'MARGINAL', 'INADEQUATE']).optional(),
+  collateralQuality: z.enum(['SATISFACTORY', 'FAIR', 'POOR']).optional(),
+  conditions: z.enum(['FAVORABLE', 'MODERATE', 'UNFAVORABLE']).optional(),
+  capitalAdequacy: z.enum(['ADEQUATE', 'MARGINAL', 'INADEQUATE']).optional(),
+  // Assessment Results
+  recommendedAmount: z.number().optional(),
+  recommendation: z.enum(['APPROVED', 'CONDITIONAL', 'REJECTED']).optional(),
   notes: z.string().optional(),
 });
 
@@ -1454,6 +1483,7 @@ const disburseSchema = z.object({
   disbursementMethod: z
     .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK'])
     .optional(),
+  paymentMethodId: z.string().uuid().optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -1491,6 +1521,7 @@ router.post(
             ? new Date(req.body.disbursementDate)
             : undefined,
           disbursementMethod: req.body.disbursementMethod,
+          paymentMethodId: req.body.paymentMethodId,
           reference: req.body.reference,
           notes: req.body.notes,
         }
@@ -1529,6 +1560,7 @@ const batchDisburseSchema = z.object({
   disbursementMethod: z
     .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK'])
     .optional(),
+  paymentMethodId: z.string().uuid().optional(),
   notes: z.string().optional(),
 });
 
@@ -1564,6 +1596,7 @@ router.post(
             ? new Date(req.body.disbursementDate)
             : undefined,
           disbursementMethod: req.body.disbursementMethod,
+          paymentMethodId: req.body.paymentMethodId,
           notes: req.body.notes,
         }
       );

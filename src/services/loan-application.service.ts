@@ -6,6 +6,7 @@ import {
   loanCalculationService,
   LoanCalculationInput,
 } from './loan-calculations';
+import { financialTransactionService } from './financial-transaction.service';
 
 export interface LoanApplication {
   id: string;
@@ -87,6 +88,9 @@ export const disburseLoanSchema = z.object({
     'MOBILE_MONEY',
     'CHECK',
   ]),
+  paymentMethodId: z
+    .string()
+    .uuid('Payment method ID is required for financial tracking'),
   disbursementAccount: z.string().optional(),
   disbursementFee: z.number().min(0).optional(),
   notes: z.string().optional(),
@@ -504,6 +508,10 @@ class LoanApplicationService {
         organizationId,
         status: 'APPROVED',
       },
+      include: {
+        branch: { select: { id: true } },
+        product: { select: { currency: true } },
+      },
     });
 
     if (!loan) {
@@ -511,6 +519,7 @@ class LoanApplicationService {
     }
 
     const disbursementDate = new Date();
+    const disbursementAmount = parseFloat(loan.amount.toString());
 
     // Update loan status to ACTIVE
     const updatedLoan = await prisma.loan.update({
@@ -538,12 +547,12 @@ class LoanApplicationService {
     });
 
     // Create disbursement payment record
-    await prisma.payment.create({
+    const payment = await prisma.payment.create({
       data: {
         paymentNumber: `DISB-${loan.loanNumber}`,
         loanId,
-        amount: parseFloat(loan.amount.toString()),
-        principalAmount: parseFloat(loan.amount.toString()),
+        amount: disbursementAmount,
+        principalAmount: disbursementAmount,
         interestAmount: 0,
         penaltyAmount: 0,
         type: 'LOAN_DISBURSEMENT',
@@ -554,6 +563,18 @@ class LoanApplicationService {
         notes: `Loan disbursement via ${disbursementData.disbursementMethod}`,
       },
     });
+
+    // Create financial transaction for the disbursement (expense)
+    await financialTransactionService.recordLoanDisbursement(
+      organizationId,
+      loan.branchId,
+      loanId,
+      loan.loanNumber,
+      disbursementAmount,
+      loan.product?.currency || 'USD',
+      disbursementData.paymentMethodId,
+      disbursedBy
+    );
 
     return this.mapLoanToApplication(updatedLoan);
   }

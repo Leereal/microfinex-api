@@ -1211,6 +1211,18 @@ model LoanAssessment {
   loanId            String
   assessorId        String
   status            String // PENDING, APPROVED, REJECTED
+  
+  // 5C's Assessment Fields
+  clientCharacter   String?   // GOOD, FAIR, POOR
+  clientCapacity    String?   // ADEQUATE, MARGINAL, INADEQUATE
+  collateralQuality String?   // SATISFACTORY, FAIR, POOR
+  conditions        String?   // FAVORABLE, MODERATE, UNFAVORABLE
+  capitalAdequacy   String?   // ADEQUATE, MARGINAL, INADEQUATE
+  
+  // Assessment Results
+  recommendedAmount Decimal?  @db.Decimal(15, 2)
+  recommendation    String?   // APPROVED, CONDITIONAL, REJECTED
+  
   documentChecklist Json?
   notes             String?
   completedAt       DateTime?
