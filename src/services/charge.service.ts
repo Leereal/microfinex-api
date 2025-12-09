@@ -20,6 +20,10 @@ export interface CreateChargeInput {
   calculationType?: ChargeCalculationType;
   defaultAmount?: number;
   defaultPercentage?: number;
+  // Aliases that may come from older payloads/frontends
+  percentageValue?: number;
+  amount?: number;
+  fixedAmount?: number;
   appliesAt?: ChargeAppliesAt;
   isDeductedFromPrincipal?: boolean;
   isMandatory?: boolean;
@@ -41,6 +45,10 @@ export interface UpdateChargeInput {
   calculationType?: ChargeCalculationType;
   defaultAmount?: number;
   defaultPercentage?: number;
+  // Aliases that may come from older payloads/frontends
+  percentageValue?: number;
+  amount?: number;
+  fixedAmount?: number;
   appliesAt?: ChargeAppliesAt;
   isDeductedFromPrincipal?: boolean;
   isMandatory?: boolean;
@@ -91,6 +99,51 @@ export interface CalculatedCharge {
 
 class ChargeService {
   /**
+   * Normalize incoming charge data by mapping legacy/alias fields
+   * to the canonical Prisma column names. This prevents Prisma from
+   * receiving unknown arguments (e.g., percentageValue) while still
+   * accepting payloads from older or mismatched frontends.
+   */
+  private normalizeChargeData(
+    input: Partial<CreateChargeInput | UpdateChargeInput>
+  ) {
+    const normalized: Partial<CreateChargeInput> = {};
+
+    if (input.name !== undefined) normalized.name = input.name;
+    if (input.code !== undefined) normalized.code = input.code;
+    if (input.type !== undefined) normalized.type = input.type;
+    if (input.calculationType !== undefined)
+      normalized.calculationType = input.calculationType;
+
+    const defaultPercentage =
+      input.defaultPercentage !== undefined
+        ? input.defaultPercentage
+        : input.percentageValue;
+
+    if (defaultPercentage !== undefined) {
+      normalized.defaultPercentage = defaultPercentage;
+    }
+
+    const defaultAmount =
+      input.defaultAmount ?? input.amount ?? input.fixedAmount;
+
+    if (defaultAmount !== undefined) {
+      normalized.defaultAmount = defaultAmount;
+    }
+
+    if (input.appliesAt !== undefined) normalized.appliesAt = input.appliesAt;
+    if (input.isDeductedFromPrincipal !== undefined)
+      normalized.isDeductedFromPrincipal = input.isDeductedFromPrincipal;
+    if (input.isMandatory !== undefined)
+      normalized.isMandatory = input.isMandatory;
+    if (input.description !== undefined)
+      normalized.description = input.description;
+    if (input.isActive !== undefined) normalized.isActive = input.isActive;
+
+    return normalized;
+  }
+
+  /**
    * Create a new charge with optional currency-specific rates
    */
   async create(
@@ -99,23 +152,32 @@ class ChargeService {
     userId?: string
   ) {
     const { rates, ...chargeData } = input;
+    const normalized = this.normalizeChargeData(chargeData);
+
+    const codeValue = normalized.code || chargeData.code;
+    const nameValue = normalized.name || chargeData.name;
+    const typeValue = normalized.type || chargeData.type;
+
+    if (!codeValue || !nameValue || !typeValue) {
+      throw new Error('Name, code, and type are required to create a charge');
+    }
 
     return prisma.$transaction(async tx => {
       // Create the charge
       const charge = await tx.charge.create({
         data: {
           organizationId,
-          name: chargeData.name,
-          code: chargeData.code.toUpperCase(),
-          type: chargeData.type,
-          calculationType: chargeData.calculationType || 'FIXED',
-          defaultAmount: chargeData.defaultAmount,
-          defaultPercentage: chargeData.defaultPercentage,
-          appliesAt: chargeData.appliesAt || 'DISBURSEMENT',
-          isDeductedFromPrincipal: chargeData.isDeductedFromPrincipal ?? false,
-          isMandatory: chargeData.isMandatory ?? false,
-          description: chargeData.description,
-          isActive: chargeData.isActive ?? true,
+          name: nameValue,
+          code: codeValue.toUpperCase(),
+          type: typeValue,
+          calculationType: normalized.calculationType || 'FIXED',
+          defaultAmount: normalized.defaultAmount,
+          defaultPercentage: normalized.defaultPercentage,
+          appliesAt: normalized.appliesAt || 'DISBURSEMENT',
+          isDeductedFromPrincipal: normalized.isDeductedFromPrincipal ?? false,
+          isMandatory: normalized.isMandatory ?? false,
+          description: normalized.description,
+          isActive: normalized.isActive ?? true,
           createdBy: userId,
         },
       });
@@ -143,16 +205,46 @@ class ChargeService {
    */
   async update(chargeId: string, input: UpdateChargeInput, userId?: string) {
     const { rates, ...chargeData } = input;
+    const normalized = this.normalizeChargeData(chargeData);
+
+    const updateData: Prisma.ChargeUpdateInput = {
+      ...(normalized.name !== undefined && { name: normalized.name }),
+      ...(normalized.code !== undefined && {
+        code: normalized.code.toUpperCase(),
+      }),
+      ...(normalized.type !== undefined && { type: normalized.type }),
+      ...(normalized.calculationType !== undefined && {
+        calculationType: normalized.calculationType,
+      }),
+      ...(normalized.defaultAmount !== undefined && {
+        defaultAmount: normalized.defaultAmount,
+      }),
+      ...(normalized.defaultPercentage !== undefined && {
+        defaultPercentage: normalized.defaultPercentage,
+      }),
+      ...(normalized.appliesAt !== undefined && {
+        appliesAt: normalized.appliesAt,
+      }),
+      ...(normalized.isDeductedFromPrincipal !== undefined && {
+        isDeductedFromPrincipal: normalized.isDeductedFromPrincipal,
+      }),
+      ...(normalized.isMandatory !== undefined && {
+        isMandatory: normalized.isMandatory,
+      }),
+      ...(normalized.description !== undefined && {
+        description: normalized.description,
+      }),
+      ...(normalized.isActive !== undefined && {
+        isActive: normalized.isActive,
+      }),
+      updatedBy: userId,
+    };
 
     return prisma.$transaction(async tx => {
       // Update the charge
       const charge = await tx.charge.update({
         where: { id: chargeId },
-        data: {
-          ...chargeData,
-          code: chargeData.code?.toUpperCase(),
-          updatedBy: userId,
-        },
+        data: updateData,
       });
 
       // Update rates if provided

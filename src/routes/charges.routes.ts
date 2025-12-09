@@ -64,6 +64,8 @@ const createChargeSchema = z.object({
 const updateChargeSchema = createChargeSchema.partial();
 
 const applyChargeSchema = z.object({
+  // Alias used by some frontends
+  percentageValue: z.number().min(0).max(1).optional(),
   chargeId: z.string().uuid(),
   amount: z.number().positive().optional(),
   paymentMethodId: z.string().uuid().optional(),

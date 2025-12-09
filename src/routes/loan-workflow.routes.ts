@@ -1493,7 +1493,9 @@ const disburseSchema = z.object({
   paymentMethodId: z.string().uuid().optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
+  chargeIds: z.array(z.string().uuid()).optional(),
   charges: z.array(chargeInputSchema).optional(),
+  applyMandatoryCharges: z.boolean().optional(),
 });
 
 /**
