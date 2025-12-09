@@ -113,6 +113,7 @@ export enum ApiTier {
 
 export interface JWTPayload {
   userId: string;
+  id?: string; // Alias for userId
   email: string;
   role: UserRole;
   organizationId: string | undefined;

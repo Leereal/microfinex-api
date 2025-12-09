@@ -226,6 +226,15 @@ router.delete(
     try {
       const { clientId } = req.params;
 
+      if (!clientId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Client ID is required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       await clientService.permanentlyDeleteClientGlobal(clientId);
 
       res.json({

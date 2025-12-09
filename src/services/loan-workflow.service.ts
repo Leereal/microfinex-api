@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { LoanStatus, VisitType, LoanCategory, Prisma } from '@prisma/client';
 import { financialTransactionService } from './financial-transaction.service';
+import { chargeService } from './charge.service';
 
 // ============================================
 // WORKFLOW STEP REQUIREMENTS
@@ -1030,7 +1031,7 @@ class CategoryAwareWorkflowEngine {
   }
 
   /**
-   * Disburse loan
+   * Disburse loan with charges
    */
   async disburseLoan(
     loanId: string,
@@ -1041,8 +1042,16 @@ class CategoryAwareWorkflowEngine {
       paymentMethodId?: string;
       reference?: string;
       notes?: string;
+      chargeIds?: string[]; // Specific charges to apply
+      applyMandatoryCharges?: boolean; // Apply mandatory disbursement charges
     }
-  ): Promise<{ success: boolean; loan?: any; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    loan?: any;
+    charges?: any;
+    netDisbursement?: number;
+    error?: string;
+  }> {
     const loan = await prisma.loan.findUnique({
       where: { id: loanId },
       include: {
@@ -1068,7 +1077,29 @@ class CategoryAwareWorkflowEngine {
 
     const disbursementDate =
       disbursementDetails?.disbursementDate || new Date();
-    const disbursementAmount = parseFloat(loan.amount.toString());
+    const loanAmount = parseFloat(loan.amount.toString());
+
+    // Apply disbursement charges if requested
+    let chargesResult = null;
+    let netDisbursement = loanAmount;
+
+    if (
+      disbursementDetails?.chargeIds?.length ||
+      disbursementDetails?.applyMandatoryCharges !== false
+    ) {
+      try {
+        chargesResult = await chargeService.applyDisbursementCharges({
+          loanId,
+          chargeIds: disbursementDetails?.chargeIds,
+          appliedBy: disbursedBy,
+          paymentMethodId: disbursementDetails?.paymentMethodId,
+        });
+        netDisbursement = chargesResult.netDisbursement;
+      } catch (error) {
+        console.error('Error applying charges:', error);
+        // Continue with disbursement even if charges fail
+      }
+    }
 
     // Update loan with disbursement details and change status
     const updatedLoan = await prisma.loan.update({
@@ -1079,13 +1110,13 @@ class CategoryAwareWorkflowEngine {
       },
     });
 
-    // Create disbursement payment record
+    // Create disbursement payment record (net amount after deductions)
     const payment = await prisma.payment.create({
       data: {
         paymentNumber: `DISB-${loan.loanNumber}`,
         loanId,
-        amount: disbursementAmount,
-        principalAmount: disbursementAmount,
+        amount: netDisbursement, // Net amount after charges deducted from principal
+        principalAmount: netDisbursement,
         interestAmount: 0,
         penaltyAmount: 0,
         type: 'LOAN_DISBURSEMENT',
@@ -1096,7 +1127,10 @@ class CategoryAwareWorkflowEngine {
         transactionRef: disbursementDetails?.reference,
         notes:
           disbursementDetails?.notes ||
-          `Loan disbursement via ${disbursementDetails?.disbursementMethod || 'default'}`,
+          `Loan disbursement via ${disbursementDetails?.disbursementMethod || 'default'}` +
+            (chargesResult
+              ? ` (Charges: ${chargesResult.totalCharges}, Net: ${netDisbursement})`
+              : ''),
       },
     });
 
@@ -1107,7 +1141,7 @@ class CategoryAwareWorkflowEngine {
         loan.branchId,
         loanId,
         loan.loanNumber,
-        disbursementAmount,
+        netDisbursement, // Record net disbursement amount
         loan.product?.currency || 'USD',
         disbursementDetails.paymentMethodId,
         disbursedBy
@@ -1122,10 +1156,18 @@ class CategoryAwareWorkflowEngine {
       changedBy: disbursedBy,
       notes:
         disbursementDetails?.notes ||
-        `Disbursed via ${disbursementDetails?.disbursementMethod || 'default'}`,
+        `Disbursed via ${disbursementDetails?.disbursementMethod || 'default'}` +
+          (chargesResult
+            ? ` | Charges: ${chargesResult.totalCharges} | Net: ${netDisbursement}`
+            : ''),
     });
 
-    return { success: true, loan: updatedLoan };
+    return {
+      success: true,
+      loan: updatedLoan,
+      charges: chargesResult,
+      netDisbursement,
+    };
   }
 
   /**

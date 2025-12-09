@@ -621,33 +621,64 @@ model Payment {
 }
 
 model Charge {
-  id             String     @id @default(uuid())
+  id             String           @id @default(uuid())
   name           String
+  code           String           // Short code like "ADMIN_FEE", "LEGAL_FEE"
   type           ChargeType
-  amount         Decimal?   @db.Decimal(15, 2)
-  currency       Currency?  @default(USD)
-  percentage     Decimal?   @db.Decimal(5, 4)
-  isPercentage   Boolean    @default(false)
+  calculationType ChargeCalculationType @default(FIXED)
+  defaultAmount  Decimal?         @db.Decimal(15, 2) // Default amount when no currency-specific rate
+  defaultPercentage Decimal?      @db.Decimal(5, 4)  // Default percentage (0.0000 to 0.9999 = 0% to 99.99%)
+  appliesAt      ChargeAppliesAt  @default(DISBURSEMENT) // When the charge is applied
+  isDeductedFromPrincipal Boolean @default(false) // If true, deducted from loan amount; if false, added to loan
+  isMandatory    Boolean          @default(false) // Required for all loans
   description    String?
-  isActive       Boolean    @default(true)
+  isActive       Boolean          @default(true)
   organizationId String
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  createdBy      String?
+  updatedBy      String?
 
   // Relations
   organization   Organization    @relation(fields: [organizationId], references: [id])
   productCharges ProductCharge[]
   loanCharges    LoanCharge[]
+  chargeRates    ChargeRate[]    // Currency-specific rates
 
+  @@unique([organizationId, code])
   @@map("charges")
 }
 
+// Currency-specific charge rates
+model ChargeRate {
+  id          String   @id @default(uuid())
+  chargeId    String
+  currency    Currency
+  amount      Decimal? @db.Decimal(15, 2) // Fixed amount for this currency
+  percentage  Decimal? @db.Decimal(5, 4)  // Percentage for this currency
+  minAmount   Decimal? @db.Decimal(15, 2) // Minimum charge amount
+  maxAmount   Decimal? @db.Decimal(15, 2) // Maximum charge amount
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+
+  @@unique([chargeId, currency])
+  @@map("charge_rates")
+}
+
 model ProductCharge {
-  id        String   @id @default(uuid())
-  productId String
-  chargeId  String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  productId    String
+  chargeId     String
+  isActive     Boolean  @default(true)
+  isMandatory  Boolean  @default(false) // Override charge default for this product
+  customAmount Decimal? @db.Decimal(15, 2) // Override amount for this product
+  customPercentage Decimal? @db.Decimal(5, 4) // Override percentage for this product
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Relations
   product LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -658,14 +689,27 @@ model ProductCharge {
 }
 
 model LoanCharge {
-  id         String        @id @default(uuid())
-  loanId     String
-  chargeId   String
-  amount     Decimal       @db.Decimal(15, 2)
-  paidAmount Decimal       @default(0) @db.Decimal(15, 2)
-  status     PaymentStatus @default(PENDING)
-  appliedAt  DateTime      @default(now())
-  paidAt     DateTime?
+  id                      String        @id @default(uuid())
+  loanId                  String
+  chargeId                String
+  chargeName              String        // Denormalized for history
+  chargeType              ChargeType
+  calculationType         ChargeCalculationType
+  currency                Currency
+  baseAmount              Decimal       @db.Decimal(15, 2) // Loan amount or balance used for calculation
+  calculatedAmount        Decimal       @db.Decimal(15, 2) // The calculated charge amount
+  amount                  Decimal       @db.Decimal(15, 2) // Final amount (may be adjusted)
+  paidAmount              Decimal       @default(0) @db.Decimal(15, 2)
+  isDeductedFromPrincipal Boolean       @default(false)
+  isWaived                Boolean       @default(false)
+  waivedBy                String?
+  waivedAt                DateTime?
+  waiverReason            String?
+  status                  PaymentStatus @default(PENDING)
+  appliedAt               DateTime      @default(now())
+  paidAt                  DateTime?
+  appliedBy               String?
+  financialTransactionId  String?       // Link to financial transaction
 
   // Relations
   loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
@@ -1492,6 +1536,21 @@ enum TransactionType {
   REFUND
 }
 
+enum ChargeCalculationType {
+  FIXED              // Fixed amount
+  PERCENTAGE         // Percentage of principal
+  PERCENTAGE_BALANCE // Percentage of current balance
+}
+
+enum ChargeAppliesAt {
+  DISBURSEMENT   // Applied when loan is disbursed
+  APPROVAL       // Applied when loan is approved
+  SETTLEMENT     // Applied when loan is settled early
+  LATE_PAYMENT   // Applied on late payments
+  MONTHLY        // Applied monthly
+  MANUAL         // Manually applied
+}
+
 enum RepaymentFrequency {
   DAILY
   WEEKLY
@@ -1513,11 +1572,23 @@ enum LoanCalculationMethod {
 }
 
 enum ChargeType {
+  // Disbursement Charges
+  ADMIN_FEE
+  APPLICATION_FEE
   PROCESSING_FEE
   SERVICE_FEE
-  PENALTY
+  LEGAL_FEE
+  DOCUMENTATION_FEE
+  INSURANCE_FEE
+  STAMP_DUTY
+  // Operational Charges
   LATE_FEE
-  INSURANCE
+  PENALTY
+  EARLY_SETTLEMENT_FEE
+  COLLECTION_FEE
+  RESTRUCTURE_FEE
+  // Other
+  OTHER
 }
 
 enum ApiTier {

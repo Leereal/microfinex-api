@@ -7,6 +7,7 @@
 export const PERMISSION_MODULES = {
   CLIENTS: 'clients',
   LOANS: 'loans',
+  LOAN_PRODUCTS: 'loan_products',
   PAYMENTS: 'payments',
   REPORTS: 'reports',
   SETTINGS: 'settings',
@@ -36,6 +37,7 @@ export const PERMISSION_MODULES = {
   INCOME_CATEGORIES: 'income_categories',
   EXPENSE_CATEGORIES: 'expense_categories',
   FINANCIAL_TRANSACTIONS: 'financial_transactions',
+  CHARGES: 'charges',
   // Notes Module
   NOTES: 'notes',
   // AI Module
@@ -700,6 +702,34 @@ export const PRODUCT_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== LOAN PRODUCT PERMISSIONS (alternate module) ====================
+export const LOAN_PRODUCT_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'loan_products:view',
+    name: 'View Loan Products',
+    description: 'View loan products',
+    module: PERMISSION_MODULES.LOAN_PRODUCTS,
+  },
+  {
+    code: 'loan_products:create',
+    name: 'Create Loan Product',
+    description: 'Create new loan products',
+    module: PERMISSION_MODULES.LOAN_PRODUCTS,
+  },
+  {
+    code: 'loan_products:update',
+    name: 'Update Loan Product',
+    description: 'Update loan products including charge assignments',
+    module: PERMISSION_MODULES.LOAN_PRODUCTS,
+  },
+  {
+    code: 'loan_products:delete',
+    name: 'Delete Loan Product',
+    description: 'Delete loan products',
+    module: PERMISSION_MODULES.LOAN_PRODUCTS,
+  },
+];
+
 // ==================== CATEGORY PERMISSIONS ====================
 export const CATEGORY_PERMISSIONS: PermissionDefinition[] = [
   {
@@ -1156,6 +1186,46 @@ export const FINANCIAL_TRANSACTION_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== CHARGE PERMISSIONS ====================
+export const CHARGE_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'charges:view',
+    name: 'View Charges',
+    description: 'View charge configurations',
+    module: PERMISSION_MODULES.CHARGES,
+  },
+  {
+    code: 'charges:create',
+    name: 'Create Charge',
+    description: 'Create new charge types and rates',
+    module: PERMISSION_MODULES.CHARGES,
+  },
+  {
+    code: 'charges:update',
+    name: 'Update Charge',
+    description: 'Update charge configurations',
+    module: PERMISSION_MODULES.CHARGES,
+  },
+  {
+    code: 'charges:delete',
+    name: 'Delete Charge',
+    description: 'Delete charge types',
+    module: PERMISSION_MODULES.CHARGES,
+  },
+  {
+    code: 'charges:apply',
+    name: 'Apply Charge',
+    description: 'Apply charges to loans',
+    module: PERMISSION_MODULES.CHARGES,
+  },
+  {
+    code: 'charges:waive',
+    name: 'Waive Charge',
+    description: 'Waive loan charges',
+    module: PERMISSION_MODULES.CHARGES,
+  },
+];
+
 // ==================== NOTE PERMISSIONS ====================
 export const NOTE_PERMISSIONS: PermissionDefinition[] = [
   {
@@ -1235,6 +1305,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...ORGANIZATION_PERMISSIONS,
   ...BRANCH_PERMISSIONS,
   ...PRODUCT_PERMISSIONS,
+  ...LOAN_PRODUCT_PERMISSIONS,
   ...CATEGORY_PERMISSIONS,
   ...GROUP_PERMISSIONS,
   ...EMPLOYER_PERMISSIONS,
@@ -1252,6 +1323,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...INCOME_CATEGORY_PERMISSIONS,
   ...EXPENSE_CATEGORY_PERMISSIONS,
   ...FINANCIAL_TRANSACTION_PERMISSIONS,
+  ...CHARGE_PERMISSIONS,
   // Notes Module
   ...NOTE_PERMISSIONS,
   // AI Module
@@ -1504,6 +1576,20 @@ export const PERMISSIONS = {
   AI_VIEW: 'ai:view',
   AI_MANAGE: 'ai:manage',
   AI_EXTRACT: 'ai:extract',
+
+  // Charges
+  CHARGES_VIEW: 'charges:view',
+  CHARGES_CREATE: 'charges:create',
+  CHARGES_UPDATE: 'charges:update',
+  CHARGES_DELETE: 'charges:delete',
+  CHARGES_APPLY: 'charges:apply',
+  CHARGES_WAIVE: 'charges:waive',
+
+  // Loan Products (alternate module)
+  LOAN_PRODUCTS_VIEW: 'loan_products:view',
+  LOAN_PRODUCTS_CREATE: 'loan_products:create',
+  LOAN_PRODUCTS_UPDATE: 'loan_products:update',
+  LOAN_PRODUCTS_DELETE: 'loan_products:delete',
 } as const;
 
 // ==================== DEFAULT ROLE PERMISSIONS ====================

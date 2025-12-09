@@ -1478,6 +1478,13 @@ router.get(
   }
 );
 
+const chargeInputSchema = z.object({
+  chargeId: z.string().uuid(),
+  amount: z.number().positive(),
+  waive: z.boolean().optional(),
+  waiveReason: z.string().optional(),
+});
+
 const disburseSchema = z.object({
   disbursementDate: z.string().datetime().optional(),
   disbursementMethod: z
@@ -1486,6 +1493,7 @@ const disburseSchema = z.object({
   paymentMethodId: z.string().uuid().optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
+  charges: z.array(chargeInputSchema).optional(),
 });
 
 /**
@@ -1524,6 +1532,8 @@ router.post(
           paymentMethodId: req.body.paymentMethodId,
           reference: req.body.reference,
           notes: req.body.notes,
+          chargeIds: req.body.chargeIds,
+          applyMandatoryCharges: req.body.applyMandatoryCharges,
         }
       );
 
@@ -1539,7 +1549,11 @@ router.post(
       res.json({
         success: true,
         message: 'Loan disbursed successfully',
-        data: { loan: result.loan },
+        data: {
+          loan: result.loan,
+          charges: result.charges,
+          netDisbursement: result.netDisbursement,
+        },
         timestamp: new Date().toISOString(),
       });
     } catch (error: any) {
