@@ -185,6 +185,16 @@
       "key": "loanPurposeId",
       "value": "",
       "description": "Last created/retrieved loan purpose ID"
+    },
+    {
+      "key": "chargeId",
+      "value": "",
+      "description": "Last created/retrieved charge ID"
+    },
+    {
+      "key": "currencyId",
+      "value": "",
+      "description": "Last created/retrieved currency ID"
     }
   ],
   "auth": {
@@ -9175,6 +9185,1031 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "💱 Currencies",
+      "description": "Currency management for multi-currency support (Super Admin)",
+      "item": [
+        {
+          "name": "Get All Currencies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('💱 Currencies: ' + (response.data?.currencies?.length || 0));",
+                  "    if (response.data?.currencies?.length > 0) {",
+                  "        pm.collectionVariables.set('currencyId', response.data.currencies[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies?isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies"],
+              "query": [
+                { "key": "isActive", "value": "true" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Get all currencies. Filter by isActive or search."
+          }
+        },
+        {
+          "name": "Get Active Currencies",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "active"]
+            },
+            "description": "Get only active currencies."
+          }
+        },
+        {
+          "name": "Get Default Currency",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/default",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "default"]
+            },
+            "description": "Get the default currency for the organization."
+          }
+        },
+        {
+          "name": "Get Currency by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/{{currencyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "{{currencyId}}"]
+            },
+            "description": "Get a specific currency by ID."
+          }
+        },
+        {
+          "name": "Seed Default Currencies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200 or 201', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    console.log('✅ Default currencies seeded');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "seed"]
+            },
+            "description": "Seed default currencies (USD, ZWG, ZAR, etc.)"
+          }
+        },
+        {
+          "name": "Create Currency",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data?.currency?.id) {",
+                  "        pm.collectionVariables.set('currencyId', response.data.currency.id);",
+                  "        console.log('📌 Created currency: ' + response.data.currency.code);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"EUR\",\n  \"name\": \"Euro\",\n  \"symbol\": \"€\",\n  \"position\": \"before\",\n  \"decimalPlaces\": 2,\n  \"isActive\": true,\n  \"isDefault\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/currencies",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies"]
+            },
+            "description": "Create a new currency (Super Admin only)."
+          }
+        },
+        {
+          "name": "Update Currency",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/currencies/{{currencyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "{{currencyId}}"]
+            },
+            "description": "Update currency details (Super Admin only)."
+          }
+        },
+        {
+          "name": "Delete Currency",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/{{currencyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "{{currencyId}}"]
+            },
+            "description": "Delete a currency (Super Admin only). Cannot delete currencies in use."
+          }
+        },
+        {
+          "name": "Set Default Currency",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/{{currencyId}}/set-default",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "{{currencyId}}", "set-default"]
+            },
+            "description": "Set a currency as the default (Super Admin only)."
+          }
+        },
+        {
+          "name": "Toggle Currency Status",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/currencies/{{currencyId}}/toggle-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["currencies", "{{currencyId}}", "toggle-status"]
+            },
+            "description": "Toggle a currency's active status (Super Admin only)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "💰 Charges",
+      "description": "Manage loan charges, fees, and penalties",
+      "item": [
+        {
+          "name": "Get All Charges",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('💰 Charges: ' + (response.data?.charges?.length || 0));",
+                  "    if (response.data?.charges?.length > 0) {",
+                  "        pm.collectionVariables.set('chargeId', response.data.charges[0].id);",
+                  "        console.log('📌 Set chargeId: ' + response.data.charges[0].id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges?isActive=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges"],
+              "query": [
+                { "key": "isActive", "value": "true" },
+                { "key": "type", "value": "", "disabled": true },
+                { "key": "appliesAt", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Get all charges for the organization. Filter by type, appliesAt, or isActive status."
+          }
+        },
+        {
+          "name": "Get Disbursement Charges",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges/disbursement?productId={{productId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "disbursement"],
+              "query": [
+                { "key": "productId", "value": "{{productId}}", "description": "Optional: filter by product" }
+              ]
+            },
+            "description": "Get charges that apply at disbursement time."
+          }
+        },
+        {
+          "name": "Get Charge by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges/{{chargeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "{{chargeId}}"]
+            },
+            "description": "Get a specific charge by its ID."
+          }
+        },
+        {
+          "name": "Seed Default Charges",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Seeded: ' + (response.data?.charges?.length || 0) + ' charges');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges/seed",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "seed"]
+            },
+            "description": "Seed default system charges for the organization (Admin Fee, Processing Fee, etc.)"
+          }
+        },
+        {
+          "name": "Create Charge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data?.charge?.id) {",
+                  "        pm.collectionVariables.set('chargeId', response.data.charge.id);",
+                  "        console.log('📌 Created charge: ' + response.data.charge.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Custom Fee\",\n  \"code\": \"CUSTOM_FEE\",\n  \"type\": \"SERVICE_FEE\",\n  \"calculationType\": \"PERCENTAGE\",\n  \"defaultPercentage\": 0.02,\n  \"appliesAt\": \"DISBURSEMENT\",\n  \"isDeductedFromPrincipal\": false,\n  \"isMandatory\": false,\n  \"description\": \"Custom service fee\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/charges",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges"]
+            },
+            "description": "Create a new charge. Types: ADMIN_FEE, APPLICATION_FEE, PROCESSING_FEE, SERVICE_FEE, LEGAL_FEE, DOCUMENTATION_FEE, INSURANCE_FEE, STAMP_DUTY, LATE_FEE, PENALTY, EARLY_SETTLEMENT_FEE, COLLECTION_FEE, RESTRUCTURE_FEE, OTHER"
+          }
+        },
+        {
+          "name": "Update Charge",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Fee Name\",\n  \"defaultPercentage\": 0.03,\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/charges/{{chargeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "{{chargeId}}"]
+            },
+            "description": "Update an existing charge."
+          }
+        },
+        {
+          "name": "Delete Charge",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges/{{chargeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "{{chargeId}}"]
+            },
+            "description": "Delete a charge. Cannot delete charges that have been applied to loans."
+          }
+        },
+        {
+          "name": "Preview Loan Charges",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📋 Charge Preview:');",
+                  "    if (response.data?.charges) {",
+                  "        response.data.charges.forEach(c => {",
+                  "            console.log('  ' + c.name + ': $' + c.amount);",
+                  "        });",
+                  "        console.log('  Total: $' + response.data.total);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges/loans/{{loanId}}/preview",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "loans", "{{loanId}}", "preview"]
+            },
+            "description": "Preview charges that would be applied to a loan at disbursement."
+          }
+        },
+        {
+          "name": "Get Loan Charges",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📋 Applied Charges: ' + (response.data?.charges?.length || 0));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/charges/loans/{{loanId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "loans", "{{loanId}}"]
+            },
+            "description": "Get all charges applied to a specific loan."
+          }
+        },
+        {
+          "name": "Apply Charge to Loan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    console.log('✅ Charge applied successfully');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeId\": \"{{chargeId}}\",\n  \"amount\": 50,\n  \"notes\": \"Manual charge application\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/charges/loans/{{loanId}}/apply",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "loans", "{{loanId}}", "apply"]
+            },
+            "description": "Manually apply a charge to a loan."
+          }
+        },
+        {
+          "name": "Apply Disbursement Charges",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeIds\": [\"{{chargeId}}\"],\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/charges/loans/{{loanId}}/apply-disbursement",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "loans", "{{loanId}}", "apply-disbursement"]
+            },
+            "description": "Apply disbursement charges to a loan."
+          }
+        },
+        {
+          "name": "Assign Charges to Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeIds\": [\"{{chargeId}}\"],\n  \"isMandatory\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/charges/products/{{productId}}/assign",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "products", "{{productId}}", "assign"]
+            },
+            "description": "Assign charges to a loan product."
+          }
+        },
+        {
+          "name": "Unassign Charges from Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"chargeIds\": [\"{{chargeId}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/charges/products/{{productId}}/unassign",
+              "host": ["{{baseUrl}}"],
+              "path": ["charges", "products", "{{productId}}", "unassign"]
+            },
+            "description": "Remove charges from a loan product."
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚙️ Organization Settings",
+      "description": "Manage organization-specific settings including loan engine configuration",
+      "item": [
+        {
+          "name": "Get All Settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📋 Organization Settings:');",
+                  "    if (response.data && response.data.settings) {",
+                  "        Object.entries(response.data.settings).forEach(([key, value]) => {",
+                  "            console.log('  ' + key + ': ' + JSON.stringify(value));",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings"]
+            },
+            "description": "Get all settings for the authenticated user's organization. Returns a merged object of system defaults and organization-specific overrides."
+          }
+        },
+        {
+          "name": "Get Setting by Key",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings/loan_engine_type",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "loan_engine_type"]
+            },
+            "description": "Get a single setting value by its key. Common keys: loan_engine_type, loan_approval_required, loan_auto_process_enabled, loan_default_grace_period_days"
+          }
+        },
+        {
+          "name": "Update Setting",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Setting updated successfully');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settingValue\": \"SHORT_TERM\",\n  \"description\": \"Loan calculation engine type\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/loan_engine_type",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "loan_engine_type"]
+            },
+            "description": "Update a setting for the organization. Requires ADMIN or SUPER_ADMIN role."
+          }
+        },
+        {
+          "name": "Update Loan Engine Type",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settingValue\": \"SHORT_TERM\",\n  \"description\": \"Calculation method: SHORT_TERM, LONG_TERM, REDUCING_BALANCE, FLAT_RATE, CUSTOM\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/loan_engine_type",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "loan_engine_type"]
+            },
+            "description": "Set the loan calculation engine type for the organization."
+          }
+        },
+        {
+          "name": "Update Grace Period Days",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settingValue\": 7,\n  \"description\": \"Default number of days before loan is considered overdue\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/loan_default_grace_period_days",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "loan_default_grace_period_days"]
+            },
+            "description": "Set the default grace period for loans."
+          }
+        },
+        {
+          "name": "Update Loan Approval Required",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"settingValue\": true,\n  \"description\": \"Whether loans require approval before disbursement\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/settings/loan_approval_required",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "loan_approval_required"]
+            },
+            "description": "Toggle whether loans require approval before disbursement."
+          }
+        },
+        {
+          "name": "Reset Setting to Default",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/settings/reset/loan_engine_type",
+              "host": ["{{baseUrl}}"],
+              "path": ["settings", "reset", "loan_engine_type"]
+            },
+            "description": "Reset a setting to its system default value by deleting the organization override."
+          }
+        }
+      ]
+    },
+    {
+      "name": "🔧 Loan Engine",
+      "description": "Loan calculation engine for automatic interest calculation, due date management, and status updates",
+      "item": [
+        {
+          "name": "Get Engine Settings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('⚙️ Loan Engine Settings:');",
+                  "    if (response.data) {",
+                  "        console.log('  Engine Type: ' + response.data.loan_engine_type);",
+                  "        console.log('  Approval Required: ' + response.data.loan_approval_required);",
+                  "        console.log('  Auto Process: ' + response.data.loan_auto_process_enabled);",
+                  "        console.log('  Grace Period Days: ' + response.data.loan_default_grace_period_days);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/settings",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "settings"]
+            },
+            "description": "Get the loan engine settings configured for the organization."
+          }
+        },
+        {
+          "name": "Get Engine Statistics",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📊 Loan Engine Statistics:');",
+                  "    if (response.data) {",
+                  "        console.log('  Total Loans: ' + (response.data.totalLoans || 0));",
+                  "        console.log('  Active Loans: ' + (response.data.activeLoans || 0));",
+                  "        console.log('  Overdue Loans: ' + (response.data.overdueLoans || 0));",
+                  "        console.log('  Pending Processing: ' + (response.data.pendingProcessing || 0));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/statistics",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "statistics"]
+            },
+            "description": "Get statistics about loans in the system for the organization."
+          }
+        },
+        {
+          "name": "Get Pending Loans",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('⏳ Pending Loans: ' + (response.data?.count || 0));",
+                  "    if (response.data?.loans?.length > 0) {",
+                  "        response.data.loans.forEach((loan, i) => {",
+                  "            console.log('  ' + (i+1) + '. ' + loan.loanNumber + ' - ' + loan.client + ' ($' + loan.outstandingBalance + ')');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "pending"]
+            },
+            "description": "Get all loans that are pending processing (need status update based on due dates)."
+          }
+        },
+        {
+          "name": "Get Overdue Loans",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('🚨 Overdue Loans: ' + (response.data?.count || 0));",
+                  "    if (response.data?.loans?.length > 0) {",
+                  "        response.data.loans.forEach((loan, i) => {",
+                  "            console.log('  ' + (i+1) + '. ' + loan.loanNumber + ' - ' + loan.client);",
+                  "            console.log('     Days Overdue: ' + loan.daysOverdue + ', Balance: $' + loan.outstandingBalance);",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/overdue",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "overdue"]
+            },
+            "description": "Get all loans that are currently overdue (past due date + grace period)."
+          }
+        },
+        {
+          "name": "Run Engine (Dry Run)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('🔍 Dry Run Results:');",
+                  "    console.log('  Loans to Process: ' + (response.data?.loansToProcess || 0));",
+                  "    if (response.data?.loans?.length > 0) {",
+                  "        response.data.loans.forEach((loan, i) => {",
+                  "            console.log('  ' + (i+1) + '. ' + loan.loanNumber + ' (' + loan.status + ')');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dryRun\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/run",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "run"]
+            },
+            "description": "Preview which loans would be processed by the engine without making any changes."
+          }
+        },
+        {
+          "name": "Run Engine",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ Engine Run Complete:');",
+                  "    console.log('  Processed: ' + (response.data?.processedCount || 0) + ' loans');",
+                  "    console.log('  Updated: ' + (response.data?.updatedCount || 0) + ' statuses');",
+                  "    console.log('  Errors: ' + (response.data?.errors?.length || 0));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dryRun\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/run",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "run"]
+            },
+            "description": "Run the loan engine to process all eligible loans. Updates loan statuses based on due dates and grace periods."
+          }
+        },
+        {
+          "name": "Disburse Loan via Engine",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('💵 Loan Disbursed:');",
+                  "    if (response.data?.loan) {",
+                  "        const loan = response.data.loan;",
+                  "        console.log('  Loan Number: ' + loan.loanNumber);",
+                  "        console.log('  Amount: $' + loan.amount);",
+                  "        console.log('  Interest: $' + loan.interestAmount);",
+                  "        console.log('  Total: $' + loan.totalAmount);",
+                  "        console.log('  Start Date: ' + loan.startDate);",
+                  "        console.log('  Due Date: ' + loan.expectedRepaymentDate);",
+                  "        console.log('  Grace Period: ' + loan.gracePeriodDays + ' days');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paymentMethodId\": \"{{paymentMethodId}}\",\n  \"notes\": \"Disbursed via loan engine\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/loans/{{loanId}}/disburse",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "loans", "{{loanId}}", "disburse"]
+            },
+            "description": "Disburse a loan using the loan engine. Calculates interest, sets due dates, and applies charges automatically."
+          }
+        },
+        {
+          "name": "Get Loan Balance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('💰 Loan Balance: $' + response.data?.balance);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/loan-engine/loans/{{loanId}}/balance",
+              "host": ["{{baseUrl}}"],
+              "path": ["loan-engine", "loans", "{{loanId}}", "balance"]
+            },
+            "description": "Calculate and return the current balance for a loan including all payments and charges."
+          }
         }
       ]
     }

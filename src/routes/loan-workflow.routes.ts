@@ -1555,6 +1555,8 @@ router.post(
           loan: result.loan,
           charges: result.charges,
           netDisbursement: result.netDisbursement,
+          // Loan engine calculated values
+          calculations: result.calculations,
         },
         timestamp: new Date().toISOString(),
       });

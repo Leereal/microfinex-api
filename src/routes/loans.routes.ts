@@ -441,6 +441,12 @@ router.get('/', authenticate, async (req, res) => {
           principalBalance: loan.principalBalance.toNumber(),
           interestBalance: loan.interestBalance.toNumber(),
           penaltyBalance: loan.penaltyBalance.toNumber(),
+          interestAmount: loan.interestAmount?.toNumber() || 0,
+          // Include loan engine calculated fields
+          startDate: loan.startDate,
+          expectedRepaymentDate: loan.expectedRepaymentDate,
+          nextDueDate: loan.nextDueDate,
+          gracePeriodDays: loan.gracePeriodDays || 0,
         })),
         pagination: {
           page: Number(page),

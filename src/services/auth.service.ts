@@ -426,10 +426,11 @@ class AuthService {
       };
     }
 
-    // Check if registration number is unique if provided
-    if (organization.registrationNumber) {
+    // Check if registration number is unique if provided (handle empty strings)
+    const registrationNumber = organization.registrationNumber?.trim() || null;
+    if (registrationNumber) {
       const existingReg = await prisma.organization.findFirst({
-        where: { registrationNumber: organization.registrationNumber },
+        where: { registrationNumber },
       });
       if (existingReg) {
         return {
@@ -492,19 +493,61 @@ class AuthService {
     };
     const mappedType = typeMap[organization.type] || 'MICROFINANCE';
 
-    const newOrg = await prisma.organization.create({
-      data: {
-        name: organization.name,
-        type: mappedType,
-        email: organization.email,
-        phone: organization.phone,
-        address: organization.address,
-        registrationNumber: organization.registrationNumber,
-        licenseNumber: organization.licenseNumber,
-        website: organization.website,
-        isActive: false, // Pending approval
-      },
-    });
+    let newOrg;
+    try {
+      newOrg = await prisma.organization.create({
+        data: {
+          name: organization.name,
+          type: mappedType,
+          email: organization.email,
+          phone: organization.phone,
+          address: organization.address,
+          registrationNumber, // Use the trimmed value (null if empty)
+          licenseNumber: organization.licenseNumber?.trim() || null,
+          website: organization.website,
+          isActive: false, // Pending approval
+        },
+      });
+    } catch (prismaError: unknown) {
+      // Handle Prisma unique constraint violations
+      if (
+        prismaError &&
+        typeof prismaError === 'object' &&
+        'code' in prismaError &&
+        prismaError.code === 'P2002'
+      ) {
+        const target = (prismaError as { meta?: { target?: string[] } }).meta
+          ?.target;
+        if (target?.includes('registrationNumber')) {
+          return {
+            success: false,
+            message:
+              'Organization with this registration number already exists',
+            error: 'ORG_REG_EXISTS',
+          };
+        }
+        if (target?.includes('name')) {
+          return {
+            success: false,
+            message: 'Organization with this name already exists',
+            error: 'ORG_EXISTS',
+          };
+        }
+        if (target?.includes('email')) {
+          return {
+            success: false,
+            message: 'Organization with this email already exists',
+            error: 'ORG_EXISTS',
+          };
+        }
+        return {
+          success: false,
+          message: 'Organization with this information already exists',
+          error: 'ORG_EXISTS',
+        };
+      }
+      throw prismaError; // Re-throw other errors
+    }
 
     // Create admin user in database (inactive until org is approved)
     const { data: user, error: createError } = await supabaseAdmin

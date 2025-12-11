@@ -481,8 +481,17 @@ model LoanProduct {
   minTerm            Int // in months
   maxTerm            Int // in months
   repaymentFrequency RepaymentFrequency    @default(MONTHLY)
-  gracePeriod        Int // in months
+  gracePeriod        Int // in days (grace period for payments)
+  gracePeriodDays    Int                   @default(0) // Alias for clarity
   penaltyRate        Decimal               @default(0) @db.Decimal(5, 4)
+  // Period/Duration settings (like Django branch_product)
+  durationUnit       DurationUnit          @default(MONTHS) // days, weeks, months, years
+  minPeriod          Int                   @default(1) // Minimum loan period in duration units
+  maxPeriod          Int                   @default(12) // Maximum loan period in duration units
+  // Engine configuration
+  engineType         LoanCalculationEngineType @default(SHORT_TERM) // Which calculation engine to use
+  allowAutoCalculations Boolean            @default(true) // Whether engine should auto-process this product
+  // Existing fields
   isActive           Boolean               @default(true)
   requiresCollateral Boolean               @default(false)
   requiresGuarantor  Boolean               @default(false)
@@ -529,6 +538,13 @@ model Loan {
   principalBalance      Decimal               @default(0) @db.Decimal(15, 2)
   interestBalance       Decimal               @default(0) @db.Decimal(15, 2)
   penaltyBalance        Decimal               @default(0) @db.Decimal(15, 2)
+  // New fields for loan engine calculations (like Django system)
+  startDate             DateTime?             // When the loan period starts (usually disbursement date)
+  expectedRepaymentDate DateTime?             // Expected full repayment date based on term
+  nextDueDate           DateTime?             // Next payment due date (updated by engine)
+  interestAmount        Decimal               @default(0) @db.Decimal(15, 2) // Accumulated interest amount
+  gracePeriodDays       Int                   @default(0) // Grace period in days for this loan
+  // Existing fields continue
   purpose               String?
   collateralValue       Decimal?              @db.Decimal(15, 2)
   collateralDescription String?
@@ -634,6 +650,10 @@ model Charge {
   description    String?
   isActive       Boolean          @default(true)
   organizationId String
+  // Fields for loan engine auto-calculation (like Django charges)
+  triggerStatus  LoanStatus?      // Which loan status triggers this charge (for auto mode)
+  chargeMode     ChargeMode       @default(MANUAL) // manual or auto
+  chargeApplication ChargeApplication @default(PRINCIPAL) // principal or balance
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   createdBy      String?
@@ -1461,11 +1481,42 @@ enum LoanStatus {
   APPROVED
   PENDING_DISBURSEMENT
   ACTIVE
-  OVERDUE
+  DEFAULT          // First missed payment after grace period
+  OVERDUE          // Final due date passed
   COMPLETED
   CANCELLED
-  DEFAULTED
+  DEFAULTED        // Written off but still tracked
   WRITTEN_OFF
+}
+
+// Loan calculation engine type - configurable per organization
+enum LoanCalculationEngineType {
+  SHORT_TERM       // Simple interest, period-based (like the Django system)
+  LONG_TERM        // Amortized schedule with installments
+  REDUCING_BALANCE // Interest on reducing balance
+  FLAT_RATE        // Fixed interest for entire term
+  CUSTOM           // Organization-specific custom logic
+}
+
+// Duration units for loan periods
+enum DurationUnit {
+  DAYS
+  WEEKS
+  MONTHS
+  YEARS
+}
+
+// Charge mode - manual or auto (for engine processing)
+enum ChargeMode {
+  MANUAL           // Applied manually by users
+  AUTO             // Applied automatically by loan engine
+}
+
+// Charge application base - principal or balance
+enum ChargeApplication {
+  PRINCIPAL        // Calculate based on loan principal
+  BALANCE          // Calculate based on current balance
+  OTHER            // Custom calculation
 }
 
 enum VisitType {

@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { LoanStatus, VisitType, LoanCategory, Prisma } from '@prisma/client';
 import { financialTransactionService } from './financial-transaction.service';
 import { chargeService } from './charge.service';
+import { loanEngineService } from './loan-engine.service';
 
 // ============================================
 // WORKFLOW STEP REQUIREMENTS
@@ -531,7 +532,8 @@ class LoanStatusTransitionService {
     PENDING_APPROVAL: ['APPROVED', 'CANCELLED'],
     APPROVED: ['PENDING_DISBURSEMENT', 'CANCELLED'],
     PENDING_DISBURSEMENT: ['ACTIVE', 'CANCELLED'],
-    ACTIVE: ['COMPLETED', 'OVERDUE', 'DEFAULTED', 'WRITTEN_OFF'],
+    ACTIVE: ['COMPLETED', 'OVERDUE', 'DEFAULT', 'DEFAULTED', 'WRITTEN_OFF'],
+    DEFAULT: ['ACTIVE', 'OVERDUE', 'DEFAULTED', 'WRITTEN_OFF'], // First missed payment
     OVERDUE: ['ACTIVE', 'COMPLETED', 'DEFAULTED', 'WRITTEN_OFF'],
     COMPLETED: [],
     CANCELLED: [],
@@ -1050,6 +1052,12 @@ class CategoryAwareWorkflowEngine {
     loan?: any;
     charges?: any;
     netDisbursement?: number;
+    calculations?: {
+      interestAmount: number;
+      expectedRepaymentDate: Date;
+      nextDueDate: Date;
+      gracePeriodDays: number;
+    };
     error?: string;
   }> {
     const loan = await prisma.loan.findUnique({
@@ -1148,6 +1156,21 @@ class CategoryAwareWorkflowEngine {
       );
     }
 
+    // Calculate and set interest, due dates using loan engine
+    // This mirrors Django's disbursement logic for calculating interest and dates
+    const engineResult = await loanEngineService.calculateDisbursementValues(
+      loanId,
+      disbursementDate
+    );
+
+    if (!engineResult.success) {
+      console.warn(
+        `Loan engine calculations failed for loan ${loanId}:`,
+        engineResult.error
+      );
+      // Continue - the loan is disbursed, calculations can be done later
+    }
+
     // Record the transition
     await this.workflowHistory.create({
       loanId,
@@ -1159,14 +1182,18 @@ class CategoryAwareWorkflowEngine {
         `Disbursed via ${disbursementDetails?.disbursementMethod || 'default'}` +
           (chargesResult
             ? ` | Charges: ${chargesResult.totalCharges} | Net: ${netDisbursement}`
+            : '') +
+          (engineResult.calculations
+            ? ` | Interest: ${engineResult.calculations.interestAmount} | Due: ${engineResult.calculations.expectedRepaymentDate.toISOString().split('T')[0]}`
             : ''),
     });
 
     return {
       success: true,
-      loan: updatedLoan,
+      loan: engineResult.loan || updatedLoan,
       charges: chargesResult,
       netDisbursement,
+      calculations: engineResult.calculations,
     };
   }
 
