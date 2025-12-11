@@ -1,6 +1,6 @@
 /**
  * Run Loan Engine Migration
- * 
+ *
  * Execute this script to apply the loan engine schema changes.
  * Run: npx tsx scripts/run-loan-engine-migration.ts
  */
@@ -12,7 +12,7 @@ import path from 'path';
 
 async function runMigration() {
   const connectionString = process.env.DATABASE_URL;
-  
+
   if (!connectionString) {
     console.error('DATABASE_URL not set');
     process.exit(1);
@@ -24,12 +24,15 @@ async function runMigration() {
 
   try {
     console.log('Reading migration file...');
-    const sqlPath = path.join(__dirname, '../prisma/migrations/manual/add_loan_engine_fields.sql');
+    const sqlPath = path.join(
+      __dirname,
+      '../prisma/migrations/manual/add_loan_engine_fields.sql'
+    );
     const sql = fs.readFileSync(sqlPath, 'utf8');
-    
+
     console.log('Connecting to database...');
     const client = await pool.connect();
-    
+
     try {
       console.log('Running migration...');
       // Split by statements and execute one by one to get better error messages
@@ -37,7 +40,7 @@ async function runMigration() {
         .split(';')
         .map(s => s.trim())
         .filter(s => s.length > 0);
-      
+
       for (const statement of statements) {
         try {
           console.log(`Executing: ${statement.substring(0, 80)}...`);
@@ -51,7 +54,7 @@ async function runMigration() {
           }
         }
       }
-      
+
       console.log('\n✅ Migration completed successfully!');
     } finally {
       client.release();

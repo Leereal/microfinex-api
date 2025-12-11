@@ -44,7 +44,8 @@ const LOAN_ENGINE_SETTINGS = [
   {
     key: 'loan_auto_process_enabled',
     value: true,
-    description: 'Whether the loan engine should auto-process loans (for status updates, interest, charges)',
+    description:
+      'Whether the loan engine should auto-process loans (for status updates, interest, charges)',
   },
   {
     key: 'loan_default_grace_period_days',
@@ -104,7 +105,9 @@ async function seedOrganizationSettings(organizationId?: string) {
     });
   }
 
-  console.log(`\nSeeding loan engine settings for ${organizations.length} organizations...`);
+  console.log(
+    `\nSeeding loan engine settings for ${organizations.length} organizations...`
+  );
 
   for (const org of organizations) {
     console.log(`\n  Organization: ${org.name}`);

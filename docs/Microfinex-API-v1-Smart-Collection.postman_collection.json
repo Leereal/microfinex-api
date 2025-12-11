@@ -9324,9 +9324,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"code\": \"EUR\",\n  \"name\": \"Euro\",\n  \"symbol\": \"€\",\n  \"position\": \"before\",\n  \"decimalPlaces\": 2,\n  \"isActive\": true,\n  \"isDefault\": false\n}"
@@ -9343,9 +9341,7 @@
           "name": "Update Currency",
           "request": {
             "method": "PATCH",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Updated Name\",\n  \"isActive\": true\n}"
@@ -9453,7 +9449,11 @@
               "host": ["{{baseUrl}}"],
               "path": ["charges", "disbursement"],
               "query": [
-                { "key": "productId", "value": "{{productId}}", "description": "Optional: filter by product" }
+                {
+                  "key": "productId",
+                  "value": "{{productId}}",
+                  "description": "Optional: filter by product"
+                }
               ]
             },
             "description": "Get charges that apply at disbursement time."
@@ -9528,9 +9528,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Custom Fee\",\n  \"code\": \"CUSTOM_FEE\",\n  \"type\": \"SERVICE_FEE\",\n  \"calculationType\": \"PERCENTAGE\",\n  \"defaultPercentage\": 0.02,\n  \"appliesAt\": \"DISBURSEMENT\",\n  \"isDeductedFromPrincipal\": false,\n  \"isMandatory\": false,\n  \"description\": \"Custom service fee\",\n  \"isActive\": true\n}"
@@ -9547,9 +9545,7 @@
           "name": "Update Charge",
           "request": {
             "method": "PUT",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Updated Fee Name\",\n  \"defaultPercentage\": 0.03,\n  \"isActive\": true\n}"
@@ -9664,9 +9660,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"chargeId\": \"{{chargeId}}\",\n  \"amount\": 50,\n  \"notes\": \"Manual charge application\"\n}"
@@ -9683,9 +9677,7 @@
           "name": "Apply Disbursement Charges",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"chargeIds\": [\"{{chargeId}}\"],\n  \"paymentMethodId\": \"{{paymentMethodId}}\"\n}"
@@ -9702,9 +9694,7 @@
           "name": "Assign Charges to Product",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"chargeIds\": [\"{{chargeId}}\"],\n  \"isMandatory\": true\n}"
@@ -9721,9 +9711,7 @@
           "name": "Unassign Charges from Product",
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"chargeIds\": [\"{{chargeId}}\"]\n}"
@@ -9812,9 +9800,7 @@
           ],
           "request": {
             "method": "PUT",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"settingValue\": \"SHORT_TERM\",\n  \"description\": \"Loan calculation engine type\"\n}"
@@ -9831,9 +9817,7 @@
           "name": "Update Loan Engine Type",
           "request": {
             "method": "PUT",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"settingValue\": \"SHORT_TERM\",\n  \"description\": \"Calculation method: SHORT_TERM, LONG_TERM, REDUCING_BALANCE, FLAT_RATE, CUSTOM\"\n}"
@@ -9850,9 +9834,7 @@
           "name": "Update Grace Period Days",
           "request": {
             "method": "PUT",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"settingValue\": 7,\n  \"description\": \"Default number of days before loan is considered overdue\"\n}"
@@ -9869,9 +9851,7 @@
           "name": "Update Loan Approval Required",
           "request": {
             "method": "PUT",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"settingValue\": true,\n  \"description\": \"Whether loans require approval before disbursement\"\n}"
@@ -10078,9 +10058,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"dryRun\": true\n}"
@@ -10118,9 +10096,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"dryRun\": false\n}"
@@ -10165,9 +10141,7 @@
           ],
           "request": {
             "method": "POST",
-            "header": [
-              { "key": "Content-Type", "value": "application/json" }
-            ],
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"paymentMethodId\": \"{{paymentMethodId}}\",\n  \"notes\": \"Disbursed via loan engine\"\n}"

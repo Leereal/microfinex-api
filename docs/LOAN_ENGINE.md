@@ -16,13 +16,13 @@ The Loan Engine is an automated system for processing loan calculations, status 
 
 The system supports multiple calculation engine types, configurable per organization:
 
-| Type | Description |
-|------|-------------|
-| `SHORT_TERM` | Simple interest, period-based (original Django system). Best for short-term loans with fixed terms. |
-| `LONG_TERM` | Amortized schedule with installments. Best for mortgage-style loans. |
-| `REDUCING_BALANCE` | Interest calculated on reducing balance. |
-| `FLAT_RATE` | Fixed interest for entire term. |
-| `CUSTOM` | Organization-specific custom logic. |
+| Type               | Description                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| `SHORT_TERM`       | Simple interest, period-based (original Django system). Best for short-term loans with fixed terms. |
+| `LONG_TERM`        | Amortized schedule with installments. Best for mortgage-style loans.                                |
+| `REDUCING_BALANCE` | Interest calculated on reducing balance.                                                            |
+| `FLAT_RATE`        | Fixed interest for entire term.                                                                     |
+| `CUSTOM`           | Organization-specific custom logic.                                                                 |
 
 ## How It Works
 
@@ -45,15 +45,15 @@ The short-term engine runs daily and processes loans as follows:
 ```python
 For each active/default loan:
     1. Calculate target date = next_due_date + grace_period
-    
+
     2. If current_date > target_date:
-        
+
         a. Calculate final due date = start_date + max_period + grace_period
-        
+
         b. If current_date > final_due_date:
             - Move loan to OVERDUE status
             - Apply overdue charges
-        
+
         c. Else:
             - If loan is ACTIVE → move to DEFAULT
             - Update next_due_date += period
@@ -75,38 +75,38 @@ PENDING → APPROVED → ACTIVE → DEFAULT → OVERDUE → WRITTEN_OFF
 
 Configure via the settings API or database:
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `loan_engine_type` | `SHORT_TERM` | Which calculation engine to use |
-| `loan_approval_required` | `true` | Whether approval is required before disbursement |
-| `loan_auto_process_enabled` | `true` | Whether engine should auto-process loans |
-| `loan_default_grace_period_days` | `7` | Default grace period in days |
-| `loan_overdue_notification_enabled` | `true` | Send notifications for overdue loans |
-| `loan_due_date_reminder_days` | `3` | Days before due date to send reminders |
-| `loan_interest_calculation_on_overdue` | `true` | Recalculate interest when overdue |
+| Setting                                | Default      | Description                                      |
+| -------------------------------------- | ------------ | ------------------------------------------------ |
+| `loan_engine_type`                     | `SHORT_TERM` | Which calculation engine to use                  |
+| `loan_approval_required`               | `true`       | Whether approval is required before disbursement |
+| `loan_auto_process_enabled`            | `true`       | Whether engine should auto-process loans         |
+| `loan_default_grace_period_days`       | `7`          | Default grace period in days                     |
+| `loan_overdue_notification_enabled`    | `true`       | Send notifications for overdue loans             |
+| `loan_due_date_reminder_days`          | `3`          | Days before due date to send reminders           |
+| `loan_interest_calculation_on_overdue` | `true`       | Recalculate interest when overdue                |
 
 ### Product Settings
 
 Each loan product can have:
 
-| Field | Description |
-|-------|-------------|
-| `durationUnit` | DAYS, WEEKS, MONTHS, YEARS |
-| `minPeriod` | Minimum loan period in duration units |
-| `maxPeriod` | Maximum loan period in duration units |
-| `gracePeriodDays` | Grace period before penalties |
-| `engineType` | Which engine type to use |
+| Field                   | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `durationUnit`          | DAYS, WEEKS, MONTHS, YEARS                 |
+| `minPeriod`             | Minimum loan period in duration units      |
+| `maxPeriod`             | Maximum loan period in duration units      |
+| `gracePeriodDays`       | Grace period before penalties              |
+| `engineType`            | Which engine type to use                   |
 | `allowAutoCalculations` | Whether engine should process this product |
 
 ### Charge Configuration
 
 Charges can be configured to apply automatically:
 
-| Field | Description |
-|-------|-------------|
-| `chargeMode` | `MANUAL` or `AUTO` |
-| `triggerStatus` | Which status triggers the charge (e.g., ACTIVE, DEFAULT, OVERDUE) |
-| `chargeApplication` | Calculate based on `PRINCIPAL` or `BALANCE` |
+| Field               | Description                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| `chargeMode`        | `MANUAL` or `AUTO`                                                |
+| `triggerStatus`     | Which status triggers the charge (e.g., ACTIVE, DEFAULT, OVERDUE) |
+| `chargeApplication` | Calculate based on `PRINCIPAL` or `BALANCE`                       |
 
 ## API Endpoints
 
@@ -117,10 +117,11 @@ POST /api/v1/loan-engine/run
 ```
 
 Request body:
+
 ```json
 {
   "organizationId": "uuid", // Optional, uses authenticated user's org
-  "dryRun": false           // If true, returns what would be processed without changes
+  "dryRun": false // If true, returns what would be processed without changes
 }
 ```
 
@@ -131,6 +132,7 @@ GET /api/v1/loan-engine/statistics
 ```
 
 Returns:
+
 ```json
 {
   "totalActiveLoans": 150,
@@ -160,6 +162,7 @@ POST /api/v1/loan-engine/loans/:loanId/disburse
 ```
 
 Request body:
+
 ```json
 {
   "paymentMethodId": "uuid",
@@ -382,20 +385,20 @@ curl -X POST /api/v1/loan-engine/run \
 
 ## Comparison with Django System
 
-| Django System | Microfinex API |
-|---------------|----------------|
+| Django System                        | Microfinex API                      |
+| ------------------------------------ | ----------------------------------- |
 | `LoanStatus.allow_auto_calculations` | `LoanProduct.allowAutoCalculations` |
-| `Charge.loan_status` | `Charge.triggerStatus` |
-| `Charge.mode` | `Charge.chargeMode` |
-| `Charge.charge_application` | `Charge.chargeApplication` |
-| `Period.duration_unit` | `LoanProduct.durationUnit` |
-| `BranchProduct.min_period` | `LoanProduct.minPeriod` |
-| `BranchProduct.max_period` | `LoanProduct.maxPeriod` |
-| `BranchProduct.grace_period_days` | `LoanProduct.gracePeriodDays` |
-| `Loan.next_due_date` | `Loan.nextDueDate` |
-| `Loan.expected_repayment_date` | `Loan.expectedRepaymentDate` |
-| `Loan.start_date` | `Loan.startDate` |
-| `Loan.interest_amount` | `Loan.interestAmount` |
+| `Charge.loan_status`                 | `Charge.triggerStatus`              |
+| `Charge.mode`                        | `Charge.chargeMode`                 |
+| `Charge.charge_application`          | `Charge.chargeApplication`          |
+| `Period.duration_unit`               | `LoanProduct.durationUnit`          |
+| `BranchProduct.min_period`           | `LoanProduct.minPeriod`             |
+| `BranchProduct.max_period`           | `LoanProduct.maxPeriod`             |
+| `BranchProduct.grace_period_days`    | `LoanProduct.gracePeriodDays`       |
+| `Loan.next_due_date`                 | `Loan.nextDueDate`                  |
+| `Loan.expected_repayment_date`       | `Loan.expectedRepaymentDate`        |
+| `Loan.start_date`                    | `Loan.startDate`                    |
+| `Loan.interest_amount`               | `Loan.interestAmount`               |
 
 ## Support
 

@@ -76,7 +76,10 @@ interface EngineRunResult {
  * Get duration delta based on duration and unit
  * Mirrors Django's get_duration_delta function
  */
-function getDurationDelta(duration: number, durationUnit: DurationUnit): number {
+function getDurationDelta(
+  duration: number,
+  durationUnit: DurationUnit
+): number {
   const now = new Date();
 
   switch (durationUnit) {
@@ -101,7 +104,11 @@ function getDurationDelta(duration: number, durationUnit: DurationUnit): number 
 /**
  * Add duration to a date based on duration unit
  */
-function addDuration(date: Date, duration: number, durationUnit: DurationUnit): Date {
+function addDuration(
+  date: Date,
+  duration: number,
+  durationUnit: DurationUnit
+): Date {
   const result = new Date(date);
 
   switch (durationUnit) {
@@ -191,7 +198,11 @@ class LoanEngineService {
         interestAmount: true,
         payments: {
           where: { status: 'COMPLETED' },
-          select: { principalAmount: true, interestAmount: true, penaltyAmount: true },
+          select: {
+            principalAmount: true,
+            interestAmount: true,
+            penaltyAmount: true,
+          },
         },
         loanCharges: {
           where: { status: 'COMPLETED' },
@@ -226,7 +237,7 @@ class LoanEngineService {
   /**
    * Calculate and apply interest and due dates after disbursement
    * This should be called by the loan-workflow.service after disbursing a loan
-   * 
+   *
    * @param loanId The loan ID to calculate for
    * @param disbursementDate The date of disbursement
    * @returns Updated loan with calculated values
@@ -270,11 +281,12 @@ class LoanEngineService {
       const durationUnit = product.durationUnit || DurationUnit.MONTHS;
       // Use loan term (in months) or fall back to product settings
       const loanPeriod = loan.term || product.minPeriod || 1;
-      const gracePeriodDays = product.gracePeriodDays || product.gracePeriod || 0;
+      const gracePeriodDays =
+        product.gracePeriodDays || product.gracePeriod || 0;
 
       // Expected repayment date = start date + loan period
       const expectedRepaymentDate = addDuration(now, loanPeriod, durationUnit);
-      
+
       // Next due date for first payment (could be same as expected for short-term, or first installment for long-term)
       const nextDueDate = expectedRepaymentDate;
 
@@ -314,10 +326,10 @@ class LoanEngineService {
   }
 
   /**
-   * @deprecated Use loan-workflow.service.ts disburseLoan instead, 
+   * @deprecated Use loan-workflow.service.ts disburseLoan instead,
    * then call calculateDisbursementValues to set dates and interest.
    * This method is kept for backwards compatibility but should not be used directly.
-   * 
+   *
    * Perform disbursement with interest and charges calculation
    * Mirrors Django's perform_disbursement function
    */
@@ -326,7 +338,8 @@ class LoanEngineService {
     loan?: any;
     error?: string;
   }> {
-    const { loanId, paymentMethodId, disbursementDate, disbursedBy, notes } = input;
+    const { loanId, paymentMethodId, disbursementDate, disbursedBy, notes } =
+      input;
 
     try {
       const loan = await prisma.loan.findUnique({
@@ -367,13 +380,14 @@ class LoanEngineService {
       // Calculate expected repayment date based on product term
       const durationUnit = product.durationUnit;
       const minPeriod = product.minPeriod;
-      const gracePeriodDays = product.gracePeriodDays || product.gracePeriod || 0;
+      const gracePeriodDays =
+        product.gracePeriodDays || product.gracePeriod || 0;
 
       // Expected repayment date = start date + min period
       const expectedRepaymentDate = addDuration(now, minPeriod, durationUnit);
 
       // Update loan with disbursement details
-      const updatedLoan = await prisma.$transaction(async (tx) => {
+      const updatedLoan = await prisma.$transaction(async tx => {
         // Create disbursement payment record
         await tx.payment.create({
           data: {
@@ -412,7 +426,9 @@ class LoanEngineService {
           },
           include: {
             product: true,
-            client: { select: { firstName: true, lastName: true, phone: true } },
+            client: {
+              select: { firstName: true, lastName: true, phone: true },
+            },
           },
         });
       });
@@ -472,7 +488,9 @@ class LoanEngineService {
             isDeductedFromPrincipal: charge.isDeductedFromPrincipal,
             status: 'COMPLETED',
             appliedBy: loan.loanOfficerId,
-            paidAmount: charge.isDeductedFromPrincipal ? chargeAmount : new Prisma.Decimal(0),
+            paidAmount: charge.isDeductedFromPrincipal
+              ? chargeAmount
+              : new Prisma.Decimal(0),
             paidAt: charge.isDeductedFromPrincipal ? new Date() : null,
           },
         });
@@ -488,7 +506,9 @@ class LoanEngineService {
    * Process short-term loans
    * This is the main engine calculation that mirrors Django's short_term_calculation
    */
-  async processShortTermLoans(organizationId?: string): Promise<EngineRunResult> {
+  async processShortTermLoans(
+    organizationId?: string
+  ): Promise<EngineRunResult> {
     const results: LoanProcessingResult[] = [];
     const errors: { loanId: string; error: string }[] = [];
     const now = new Date();
@@ -518,7 +538,9 @@ class LoanEngineService {
         },
       });
 
-      console.log(`Processing ${loans.length} loans for short-term calculation`);
+      console.log(
+        `Processing ${loans.length} loans for short-term calculation`
+      );
 
       for (const loan of loans) {
         try {
@@ -575,7 +597,9 @@ class LoanEngineService {
 
     // Check if we've passed the target date
     if (now <= targetDate) {
-      console.log(`Loan ${loan.loanNumber} not yet due (target: ${targetDate})`);
+      console.log(
+        `Loan ${loan.loanNumber} not yet due (target: ${targetDate})`
+      );
       return null;
     }
 
@@ -604,13 +628,17 @@ class LoanEngineService {
     let chargesAdded = 0;
     let nextDueDate = loan.nextDueDate;
 
-    return await prisma.$transaction(async (tx) => {
+    return await prisma.$transaction(async tx => {
       if (now > finalDueDate) {
         // Move to OVERDUE status (final state before write-off)
         newStatus = LoanStatus.OVERDUE;
 
         // Apply overdue charges
-        const charges = await this.applyAutoChargesInTx(tx, loan, LoanStatus.OVERDUE);
+        const charges = await this.applyAutoChargesInTx(
+          tx,
+          loan,
+          LoanStatus.OVERDUE
+        );
         chargesAdded = charges.toNumber();
       } else {
         // Handle DEFAULT status transitions
@@ -620,10 +648,18 @@ class LoanEngineService {
 
           // Set next due date
           const expectedRepaymentDate = new Date(loan.expectedRepaymentDate);
-          nextDueDate = addDuration(expectedRepaymentDate, minPeriod, durationUnit);
+          nextDueDate = addDuration(
+            expectedRepaymentDate,
+            minPeriod,
+            durationUnit
+          );
         } else {
           // Already in DEFAULT, extend next due date
-          nextDueDate = addDuration(new Date(loan.nextDueDate!), minPeriod, durationUnit);
+          nextDueDate = addDuration(
+            new Date(loan.nextDueDate!),
+            minPeriod,
+            durationUnit
+          );
         }
 
         // Recalculate interest on balance
@@ -744,7 +780,11 @@ class LoanEngineService {
         interestAmount: true,
         payments: {
           where: { status: 'COMPLETED' },
-          select: { principalAmount: true, interestAmount: true, penaltyAmount: true },
+          select: {
+            principalAmount: true,
+            interestAmount: true,
+            penaltyAmount: true,
+          },
         },
         loanCharges: {
           where: { status: 'COMPLETED' },
@@ -794,7 +834,15 @@ class LoanEngineService {
     return prisma.loan.findMany({
       where: whereClause,
       include: {
-        product: { select: { name: true, durationUnit: true, minPeriod: true, maxPeriod: true, gracePeriodDays: true } },
+        product: {
+          select: {
+            name: true,
+            durationUnit: true,
+            minPeriod: true,
+            maxPeriod: true,
+            gracePeriodDays: true,
+          },
+        },
         client: { select: { firstName: true, lastName: true, phone: true } },
         branch: { select: { name: true } },
       },
@@ -871,7 +919,9 @@ class LoanEngineService {
     const balanceResult = await prisma.loan.aggregate({
       where: {
         organizationId,
-        status: { in: [LoanStatus.ACTIVE, LoanStatus.DEFAULTED, LoanStatus.OVERDUE] },
+        status: {
+          in: [LoanStatus.ACTIVE, LoanStatus.DEFAULTED, LoanStatus.OVERDUE],
+        },
       },
       _sum: { outstandingBalance: true },
     });
@@ -880,7 +930,8 @@ class LoanEngineService {
       totalActiveLoans: active,
       totalDefaultLoans: defaulted,
       totalOverdueLoans: overdue,
-      totalOutstandingBalance: balanceResult._sum.outstandingBalance?.toNumber() || 0,
+      totalOutstandingBalance:
+        balanceResult._sum.outstandingBalance?.toNumber() || 0,
       loansToProcess,
     };
   }

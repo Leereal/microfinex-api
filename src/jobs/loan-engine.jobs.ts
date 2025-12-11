@@ -76,8 +76,12 @@ export async function runLoanEngineJob(): Promise<JobResult> {
         for (const loanResult of result.results) {
           console.log(
             `  - ${loanResult.loanNumber}: ${loanResult.previousStatus} -> ${loanResult.newStatus}` +
-              (loanResult.interestAdded ? ` (interest: ${loanResult.interestAdded})` : '') +
-              (loanResult.chargesAdded ? ` (charges: ${loanResult.chargesAdded})` : '')
+              (loanResult.interestAdded
+                ? ` (interest: ${loanResult.interestAdded})`
+                : '') +
+              (loanResult.chargesAdded
+                ? ` (charges: ${loanResult.chargesAdded})`
+                : '')
           );
         }
       } catch (error: any) {
@@ -123,7 +127,8 @@ export async function runLoanEngineForOrganization(
   );
 
   try {
-    const result = await loanEngineService.processShortTermLoans(organizationId);
+    const result =
+      await loanEngineService.processShortTermLoans(organizationId);
 
     for (const error of result.errors) {
       errors.push(`Loan ${error.loanId}: ${error.error}`);
@@ -174,7 +179,9 @@ export async function runOverdueNotificationJob(): Promise<JobResult> {
   const errors: string[] = [];
   let processedCount = 0;
 
-  console.log(`[${startTime.toISOString()}] Starting overdue notification job...`);
+  console.log(
+    `[${startTime.toISOString()}] Starting overdue notification job...`
+  );
 
   try {
     // Get all overdue loans that haven't been notified recently
@@ -254,7 +261,9 @@ export async function runOverdueNotificationJob(): Promise<JobResult> {
 /**
  * Send reminders for upcoming due dates
  */
-export async function runDueDateReminderJob(daysAhead: number = 3): Promise<JobResult> {
+export async function runDueDateReminderJob(
+  daysAhead: number = 3
+): Promise<JobResult> {
   const startTime = new Date();
   const errors: string[] = [];
   let processedCount = 0;
@@ -302,7 +311,9 @@ export async function runDueDateReminderJob(daysAhead: number = 3): Promise<JobR
       },
     });
 
-    console.log(`Found ${loansWithUpcomingDue.length} loans with upcoming due dates`);
+    console.log(
+      `Found ${loansWithUpcomingDue.length} loans with upcoming due dates`
+    );
 
     for (const loan of loansWithUpcomingDue) {
       try {
@@ -448,7 +459,7 @@ export async function runDailyJobs(): Promise<{
   console.log(`[${endTime.toISOString()}] DAILY JOBS COMPLETED`);
   console.log(`Total Duration: ${totalDuration}ms`);
   console.log(
-    `Results: ${results.filter((r) => r.success).length}/${results.length} successful`
+    `Results: ${results.filter(r => r.success).length}/${results.length} successful`
   );
   console.log(`${'='.repeat(60)}\n`);
 
@@ -492,7 +503,7 @@ if (require.main === module) {
     process.exit(0);
   };
 
-  runJob().catch((error) => {
+  runJob().catch(error => {
     console.error('Job failed:', error);
     process.exit(1);
   });

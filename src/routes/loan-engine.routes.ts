@@ -73,7 +73,7 @@ router.post(
           message: 'Dry run completed - no changes made',
           data: {
             loansToProcess: loans.length,
-            loans: loans.map((l) => ({
+            loans: loans.map(l => ({
               id: l.id,
               loanNumber: l.loanNumber,
               status: l.status,
@@ -179,14 +179,15 @@ router.get(
         });
       }
 
-      const loans = await loanEngineService.getLoansForProcessing(organizationId);
+      const loans =
+        await loanEngineService.getLoansForProcessing(organizationId);
 
       res.json({
         success: true,
         message: `Found ${loans.length} loans pending processing`,
         data: {
           count: loans.length,
-          loans: loans.map((l) => ({
+          loans: loans.map(l => ({
             id: l.id,
             loanNumber: l.loanNumber,
             status: l.status,
@@ -246,7 +247,7 @@ router.get(
         message: `Found ${loans.length} overdue loans`,
         data: {
           count: loans.length,
-          loans: loans.map((l) => ({
+          loans: loans.map(l => ({
             id: l.id,
             loanNumber: l.loanNumber,
             status: l.status,
@@ -254,7 +255,10 @@ router.get(
             expectedRepaymentDate: l.expectedRepaymentDate,
             outstandingBalance: parseFloat(l.outstandingBalance.toString()),
             daysOverdue: l.nextDueDate
-              ? Math.floor((Date.now() - new Date(l.nextDueDate).getTime()) / (1000 * 60 * 60 * 24))
+              ? Math.floor(
+                  (Date.now() - new Date(l.nextDueDate).getTime()) /
+                    (1000 * 60 * 60 * 24)
+                )
               : null,
             client: `${l.client.firstName} ${l.client.lastName}`,
             clientPhone: l.client.phone,
@@ -310,7 +314,9 @@ router.post(
       const result = await loanEngineService.disburseLoan({
         loanId,
         paymentMethodId: body.paymentMethodId,
-        disbursementDate: body.disbursementDate ? new Date(body.disbursementDate) : undefined,
+        disbursementDate: body.disbursementDate
+          ? new Date(body.disbursementDate)
+          : undefined,
         disbursedBy: userId,
         notes: body.notes,
       });
@@ -370,7 +376,8 @@ router.get(
         });
       }
 
-      const settings = await loanEngineService.getEngineSettings(organizationId);
+      const settings =
+        await loanEngineService.getEngineSettings(organizationId);
 
       res.json({
         success: true,
