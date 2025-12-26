@@ -110,6 +110,62 @@ router.get(
       where: { ...loanWhere, status: 'OVERDUE' },
     });
 
+    // Get portfolio data grouped by currency
+    const disbursedByCurrency = await prisma.loan.groupBy({
+      by: ['currency'],
+      where: {
+        ...loanWhere,
+        status: { in: ['ACTIVE', 'COMPLETED', 'OVERDUE'] },
+      },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    const outstandingByCurrency = await prisma.loan.groupBy({
+      by: ['currency'],
+      where: { ...loanWhere, status: { in: ['ACTIVE', 'OVERDUE'] } },
+      _sum: { outstandingBalance: true },
+    });
+
+    // Get payments this month grouped by currency
+    const paymentsByCurrency = await prisma.payment.groupBy({
+      by: ['currency'],
+      where: {
+        loan: { organizationId, ...(branchId && { branchId }) },
+        status: 'COMPLETED',
+        paymentDate: { gte: startOfMonth },
+      },
+      _sum: { amount: true },
+      _count: true,
+    });
+
+    // Build currency portfolio summary
+    const currencySet = new Set<string>();
+    disbursedByCurrency.forEach(d => currencySet.add(d.currency));
+    outstandingByCurrency.forEach(o => currencySet.add(o.currency));
+    paymentsByCurrency.forEach(p => currencySet.add(p.currency));
+
+    const portfolioByCurrency = Array.from(currencySet)
+      .map(currency => {
+        const disbursed = disbursedByCurrency.find(
+          d => d.currency === currency
+        );
+        const outstanding = outstandingByCurrency.find(
+          o => o.currency === currency
+        );
+        const payments = paymentsByCurrency.find(p => p.currency === currency);
+
+        return {
+          currency,
+          totalDisbursed: Number(disbursed?._sum?.amount || 0),
+          loanCount: disbursed?._count || 0,
+          totalOutstanding: Number(outstanding?._sum?.outstandingBalance || 0),
+          paymentsThisMonth: Number(payments?._sum?.amount || 0),
+          paymentsCountThisMonth: payments?._count || 0,
+        };
+      })
+      .sort((a, b) => a.currency.localeCompare(b.currency));
+
     res.json({
       success: true,
       data: {
@@ -124,6 +180,7 @@ router.get(
           totalOutstanding: Number(
             totalOutstanding._sum?.outstandingBalance || 0
           ),
+          byCurrency: portfolioByCurrency,
         },
         clients: {
           total: totalClients,

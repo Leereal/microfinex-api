@@ -47,6 +47,15 @@ export interface FinancialTransactionFilters {
   limit?: number;
 }
 
+export interface CurrencySummary {
+  currency: string;
+  totalIncome: number;
+  totalExpenses: number;
+  netBalance: number;
+  incomeCount: number;
+  expenseCount: number;
+}
+
 export interface FinancialSummary {
   totalIncome: number;
   totalExpenses: number;
@@ -54,20 +63,24 @@ export interface FinancialSummary {
   transactionCount: number;
   incomeCount: number;
   expenseCount: number;
+  byCurrency: CurrencySummary[];
   balanceByPaymentMethod: {
     id: string;
     name: string;
     type: string;
+    currency: string;
     balance: number;
   }[];
   incomeByCategory: {
     id: string;
     name: string;
+    currency: string;
     total: number;
   }[];
   expensesByCategory: {
     id: string;
     name: string;
+    currency: string;
     total: number;
   }[];
 }
@@ -248,33 +261,91 @@ class FinancialTransactionService {
       }
     }
 
-    // Get totals by type
-    const incomeTotal = await prisma.financialTransaction.aggregate({
+    // Get totals by type and currency
+    const incomeByCurrency = await prisma.financialTransaction.groupBy({
+      by: ['currency'],
       where: { ...dateFilter, type: 'INCOME' },
       _sum: { amount: true },
       _count: true,
     });
 
-    const expenseTotal = await prisma.financialTransaction.aggregate({
+    const expenseByCurrency = await prisma.financialTransaction.groupBy({
+      by: ['currency'],
       where: { ...dateFilter, type: 'EXPENSE' },
       _sum: { amount: true },
       _count: true,
     });
 
-    // Get payment method balances
+    // Build currency summary
+    const currencyMap = new Map<string, CurrencySummary>();
+
+    for (const income of incomeByCurrency) {
+      const currency = income.currency || 'USD';
+      if (!currencyMap.has(currency)) {
+        currencyMap.set(currency, {
+          currency,
+          totalIncome: 0,
+          totalExpenses: 0,
+          netBalance: 0,
+          incomeCount: 0,
+          expenseCount: 0,
+        });
+      }
+      const summary = currencyMap.get(currency)!;
+      summary.totalIncome = Number(income._sum.amount || 0);
+      summary.incomeCount = income._count || 0;
+    }
+
+    for (const expense of expenseByCurrency) {
+      const currency = expense.currency || 'USD';
+      if (!currencyMap.has(currency)) {
+        currencyMap.set(currency, {
+          currency,
+          totalIncome: 0,
+          totalExpenses: 0,
+          netBalance: 0,
+          incomeCount: 0,
+          expenseCount: 0,
+        });
+      }
+      const summary = currencyMap.get(currency)!;
+      summary.totalExpenses = Number(expense._sum.amount || 0);
+      summary.expenseCount = expense._count || 0;
+    }
+
+    // Calculate net balance for each currency
+    for (const summary of currencyMap.values()) {
+      summary.netBalance = summary.totalIncome - summary.totalExpenses;
+    }
+
+    const byCurrency = Array.from(currencyMap.values()).sort((a, b) =>
+      a.currency.localeCompare(b.currency)
+    );
+
+    // Calculate overall totals (for backwards compatibility - using default currency)
+    const totalIncome = byCurrency.reduce((sum, c) => sum + c.totalIncome, 0);
+    const totalExpenses = byCurrency.reduce(
+      (sum, c) => sum + c.totalExpenses,
+      0
+    );
+    const incomeCount = byCurrency.reduce((sum, c) => sum + c.incomeCount, 0);
+    const expenseCount = byCurrency.reduce((sum, c) => sum + c.expenseCount, 0);
+
+    // Get payment method balances with currency
     const paymentMethods = await prisma.paymentMethod.findMany({
       where: { organizationId, isActive: true },
       select: {
         id: true,
         name: true,
         type: true,
+        currency: true,
         currentBalance: true,
       },
     });
 
-    // Get income by category
+    // Get income by category and currency
     const incomeByCategory = await prisma.financialTransaction.groupBy({
-      by: ['incomeCategoryId'],
+      by: ['incomeCategoryId', 'currency'],
       where: { ...dateFilter, type: 'INCOME', incomeCategoryId: { not: null } },
       _sum: { amount: true },
     });
@@ -287,9 +358,9 @@ class FinancialTransactionService {
       select: { id: true, name: true },
     });
 
-    // Get expenses by category
+    // Get expenses by category and currency
     const expensesByCategory = await prisma.financialTransaction.groupBy({
-      by: ['expenseCategoryId'],
+      by: ['expenseCategoryId', 'currency'],
       where: {
         ...dateFilter,
         type: 'EXPENSE',
@@ -306,11 +377,6 @@ class FinancialTransactionService {
       select: { id: true, name: true },
     });
 
-    const totalIncome = Number(incomeTotal._sum.amount || 0);
-    const totalExpenses = Number(expenseTotal._sum.amount || 0);
-    const incomeCount = incomeTotal._count || 0;
-    const expenseCount = expenseTotal._count || 0;
-
     return {
       totalIncome,
       totalExpenses,
@@ -318,10 +384,12 @@ class FinancialTransactionService {
       transactionCount: incomeCount + expenseCount,
       incomeCount,
       expenseCount,
+      byCurrency,
       balanceByPaymentMethod: paymentMethods.map(pm => ({
         id: pm.id,
         name: pm.name,
         type: pm.type,
+        currency: pm.currency || 'USD',
         balance: Number(pm.currentBalance),
       })),
       incomeByCategory: incomeByCategory.map(ic => {
@@ -331,6 +399,7 @@ class FinancialTransactionService {
         return {
           id: ic.incomeCategoryId!,
           name: category?.name || 'Unknown',
+          currency: ic.currency || 'USD',
           total: Number(ic._sum.amount || 0),
         };
       }),
@@ -341,6 +410,7 @@ class FinancialTransactionService {
         return {
           id: ec.expenseCategoryId!,
           name: category?.name || 'Unknown',
+          currency: ec.currency || 'USD',
           total: Number(ec._sum.amount || 0),
         };
       }),
