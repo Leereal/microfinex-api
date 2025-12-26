@@ -664,6 +664,247 @@ class UserService {
       orderBy: { createdAt: 'desc' },
     });
   }
+
+  // ==========================================
+  // Multi-Branch Management Methods
+  // ==========================================
+
+  /**
+   * Get current user's assigned branches
+   */
+  async getMyBranches(userId: string) {
+    const userBranches = await prisma.userBranch.findMany({
+      where: { userId },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            address: true,
+            phone: true,
+            isActive: true,
+          },
+        },
+      },
+      orderBy: [
+        { isPrimary: 'desc' },
+        { isCurrent: 'desc' },
+        { branch: { name: 'asc' } },
+      ],
+    });
+
+    const currentBranch = userBranches.find(ub => ub.isCurrent)?.branch || null;
+
+    return {
+      currentBranch,
+      branches: userBranches.map(ub => ({
+        id: ub.id,
+        branchId: ub.branchId,
+        branchName: ub.branch.name,
+        branch: ub.branch,
+        isCurrent: ub.isCurrent,
+        isPrimary: ub.isPrimary,
+        assignedAt: ub.assignedAt,
+      })),
+    };
+  }
+
+  /**
+   * Switch user's current branch
+   */
+  async switchBranch(userId: string, branchId: string) {
+    // Check if user has access to this branch
+    const userBranch = await prisma.userBranch.findFirst({
+      where: { userId, branchId },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (!userBranch) {
+      throw new Error('You do not have access to this branch');
+    }
+
+    if (!userBranch.branch.isActive) {
+      throw new Error('This branch is not active');
+    }
+
+    // Update all user branches to not current, then set the selected one as current
+    await prisma.$transaction([
+      prisma.userBranch.updateMany({
+        where: { userId },
+        data: { isCurrent: false },
+      }),
+      prisma.userBranch.update({
+        where: { userId_branchId: { userId, branchId } },
+        data: { isCurrent: true },
+      }),
+    ]);
+
+    // Get updated user branches
+    const userBranches = await prisma.userBranch.findMany({
+      where: { userId },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
+      orderBy: [{ isPrimary: 'desc' }, { branch: { name: 'asc' } }],
+    });
+
+    const currentBranch =
+      userBranches.find(ub => ub.isCurrent)?.branch || userBranch.branch;
+
+    return {
+      currentBranch,
+      branches: userBranches.map(ub => ({
+        id: ub.id,
+        branchId: ub.branchId,
+        branch: ub.branch,
+        isCurrent: ub.isCurrent,
+        isPrimary: ub.isPrimary,
+      })),
+    };
+  }
+
+  /**
+   * Get a user's assigned branches (for admin view)
+   */
+  async getUserBranches(userId: string, organizationId: string) {
+    // Verify target user exists and belongs to same organization
+    const targetUser = await prisma.user.findFirst({
+      where: { id: userId, organizationId },
+    });
+
+    if (!targetUser) {
+      throw new Error('User not found');
+    }
+
+    const userBranches = await prisma.userBranch.findMany({
+      where: { userId },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
+      orderBy: [{ isPrimary: 'desc' }, { branch: { name: 'asc' } }],
+    });
+
+    return {
+      branches: userBranches.map(ub => ({
+        id: ub.id,
+        branchId: ub.branchId,
+        branchName: ub.branch.name,
+        isCurrent: ub.isCurrent,
+        isPrimary: ub.isPrimary,
+      })),
+    };
+  }
+
+  /**
+   * Assign multiple branches to a user
+   */
+  async assignBranches(
+    userId: string,
+    branchIds: string[],
+    primaryBranchId: string | undefined,
+    assignedBy: string,
+    organizationId: string
+  ) {
+    // Verify target user exists and belongs to same organization
+    const targetUser = await prisma.user.findFirst({
+      where: { id: userId, organizationId },
+    });
+
+    if (!targetUser) {
+      throw new Error('User not found');
+    }
+
+    // Handle empty branchIds - remove all assignments
+    if (branchIds.length === 0) {
+      await prisma.userBranch.deleteMany({
+        where: { userId },
+      });
+
+      return { userBranches: [] };
+    }
+
+    // Verify all branches exist and belong to same organization
+    const branches = await prisma.branch.findMany({
+      where: {
+        id: { in: branchIds },
+        organizationId,
+        isActive: true,
+      },
+    });
+
+    if (branches.length !== branchIds.length) {
+      throw new Error('One or more branches not found or inactive');
+    }
+
+    // Determine primary branch
+    const actualPrimaryId =
+      primaryBranchId && branchIds.includes(primaryBranchId)
+        ? primaryBranchId
+        : branchIds[0];
+
+    // Remove existing branch assignments and create new ones
+    await prisma.$transaction([
+      prisma.userBranch.deleteMany({
+        where: { userId },
+      }),
+      prisma.userBranch.createMany({
+        data: branchIds.map(branchId => ({
+          userId,
+          branchId,
+          isPrimary: branchId === actualPrimaryId,
+          isCurrent: branchId === actualPrimaryId,
+          assignedBy,
+        })),
+      }),
+    ]);
+
+    // Get updated assignments
+    const userBranches = await prisma.userBranch.findMany({
+      where: { userId },
+      include: {
+        branch: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+          },
+        },
+      },
+      orderBy: [{ isPrimary: 'desc' }, { branch: { name: 'asc' } }],
+    });
+
+    return {
+      userBranches: userBranches.map(ub => ({
+        id: ub.id,
+        branchId: ub.branchId,
+        branchName: ub.branch.name,
+        isCurrent: ub.isCurrent,
+        isPrimary: ub.isPrimary,
+      })),
+    };
+  }
 }
 
 export const userService = new UserService();

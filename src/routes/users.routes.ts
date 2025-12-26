@@ -134,6 +134,36 @@ router.get(
 
 /**
  * @swagger
+ * /api/v1/users/my-branches:
+ *   get:
+ *     summary: Get current user's assigned branches
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/my-branches',
+  authenticate,
+  userController.getMyBranches.bind(userController)
+);
+
+/**
+ * @swagger
+ * /api/v1/users/switch-branch:
+ *   post:
+ *     summary: Switch current user's active branch
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/switch-branch',
+  authenticate,
+  userController.switchBranch.bind(userController)
+);
+
+/**
+ * @swagger
  * /api/v1/users/{id}:
  *   get:
  *     summary: Get user by ID
@@ -197,7 +227,7 @@ router.patch(
  * @swagger
  * /api/v1/users/{id}/branch:
  *   patch:
- *     summary: Assign user to branch
+ *     summary: Assign user to branch (legacy single branch)
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -212,6 +242,48 @@ router.patch(
     UserRole.MANAGER
   ),
   userController.assignToBranch.bind(userController)
+);
+
+/**
+ * @swagger
+ * /api/v1/users/{id}/branches:
+ *   get:
+ *     summary: Get user's assigned branches
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/:id/branches',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.ORG_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER
+  ),
+  userController.getUserBranches.bind(userController)
+);
+
+/**
+ * @swagger
+ * /api/v1/users/{id}/branches:
+ *   post:
+ *     summary: Assign multiple branches to user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+  '/:id/branches',
+  authenticate,
+  authorize(
+    UserRole.SUPER_ADMIN,
+    UserRole.ORG_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MANAGER
+  ),
+  userController.assignBranches.bind(userController)
 );
 
 /**

@@ -33,7 +33,6 @@ import importRoutes from './import.routes';
 import dashboardRoutes from './dashboard.routes';
 import enhancedReportRoutes from './report.routes';
 import branchRoutes from './branch.routes';
-import userManagementRoutes from './user.routes';
 import paymentEnhancementRoutes from './payment-enhancement.routes';
 import loanAdjustmentRoutes from './loan-adjustment.routes';
 // Phase 20 routes
@@ -96,7 +95,6 @@ router.use(`${apiVersion}/import`, importRoutes);
 router.use(`${apiVersion}/dashboard`, dashboardRoutes);
 router.use(`${apiVersion}/enhanced-reports`, enhancedReportRoutes);
 router.use(`${apiVersion}/branches`, branchRoutes);
-router.use(`${apiVersion}/user-management`, userManagementRoutes);
 router.use(`${apiVersion}/payment-enhancements`, paymentEnhancementRoutes);
 router.use(`${apiVersion}/loan-adjustments`, loanAdjustmentRoutes);
 

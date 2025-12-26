@@ -115,9 +115,60 @@ class AuthService {
       };
     }
 
-    // Check if non-admin users have a branch assigned
+    // Check if non-admin users have a branch assigned (check both legacy branchId and new userBranches)
     const adminRoles = ['SUPER_ADMIN', 'ORG_ADMIN'];
-    if (!adminRoles.includes(user.role) && !user.branchId) {
+
+    // Get user branches using Prisma for the new many-to-many relationship
+    // Wrapped in try-catch to handle case where UserBranch table doesn't exist yet
+    let userBranches: Array<{
+      branchId: string;
+      isCurrent: boolean;
+      isPrimary: boolean;
+      branch: {
+        id: string;
+        name: string;
+        code: string | null;
+        isActive: boolean;
+      };
+    }> = [];
+
+    try {
+      userBranches = await prisma.userBranch.findMany({
+        where: { userId: user.id },
+        include: {
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              isActive: true,
+            },
+          },
+        },
+        orderBy: [
+          { isPrimary: 'desc' },
+          { isCurrent: 'desc' },
+          { branch: { name: 'asc' } },
+        ],
+      });
+    } catch (error: any) {
+      // UserBranch table may not exist yet if migrations haven't been run
+      console.warn(
+        'UserBranch query failed, falling back to legacy branch:',
+        error.message
+      );
+      userBranches = [];
+    }
+
+    // Check branch assignment for non-admin users
+    const hasLegacyBranch = !!user.branchId;
+    const hasNewBranches = userBranches.length > 0;
+
+    if (
+      !adminRoles.includes(user.role) &&
+      !hasLegacyBranch &&
+      !hasNewBranches
+    ) {
       console.warn('Login blocked - User has no branch assigned:', {
         userId: user.id,
         email: user.email,
@@ -128,6 +179,35 @@ class AuthService {
         message:
           'Your account has not been assigned to a branch. Please contact your administrator.',
         error: 'NO_BRANCH_ASSIGNED',
+      };
+    }
+
+    // Determine current branch (from new system or legacy)
+    let currentBranch = userBranches.find(ub => ub.isCurrent)?.branch;
+    if (!currentBranch && userBranches.length > 0) {
+      // Set first branch as current if none is marked
+      currentBranch = userBranches[0].branch;
+      try {
+        await prisma.userBranch.update({
+          where: {
+            userId_branchId: {
+              userId: user.id,
+              branchId: userBranches[0].branchId,
+            },
+          },
+          data: { isCurrent: true },
+        });
+      } catch (error: any) {
+        console.warn('Failed to update current branch:', error.message);
+      }
+    }
+    // Fallback to legacy branch if no userBranches
+    if (!currentBranch && user.branch) {
+      currentBranch = {
+        id: user.branch.id,
+        name: user.branch.name,
+        code: user.branch.code,
+        isActive: user.branch.isActive ?? true,
       };
     }
 
@@ -160,6 +240,19 @@ class AuthService {
       console.warn('Failed to create session record:', sessionResult.message);
     }
 
+    // Format branches for response
+    const formattedBranches = userBranches.map(ub => ({
+      id: ub.id,
+      branchId: ub.branchId,
+      branch: {
+        id: ub.branch.id,
+        name: ub.branch.name,
+        code: ub.branch.code,
+      },
+      isCurrent: ub.isCurrent,
+      isPrimary: ub.isPrimary,
+    }));
+
     return {
       success: true,
       message: 'Login successful',
@@ -173,6 +266,16 @@ class AuthService {
           organization: user.organization,
           branchId: user.branchId,
           branch: user.branch,
+          // New branch support
+          currentBranchId: currentBranch?.id,
+          currentBranch: currentBranch
+            ? {
+                id: currentBranch.id,
+                name: currentBranch.name,
+                code: currentBranch.code,
+              }
+            : undefined,
+          branches: formattedBranches,
           lastLoginAt: user.lastLoginAt,
         },
         token: token,

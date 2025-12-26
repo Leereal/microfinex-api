@@ -33,12 +33,10 @@ const createBranchBodySchema = z.object({
   name: z.string().min(2, 'Branch name required'),
   code: z.string().max(10).optional().default(''),
   address: z.string().optional(),
-  city: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   managerId: z.string().uuid().optional(),
   isActive: z.boolean().default(true),
-  metadata: z.record(z.any()).optional(),
 });
 
 router.post(
@@ -79,10 +77,14 @@ router.post(
 
     const branch = await prisma.branch.create({
       data: {
-        ...req.body,
+        name: req.body.name,
+        code: req.body.code || '',
+        address: req.body.address || null,
+        phone: req.body.phone || null,
+        email: req.body.email || null,
+        managerId: req.body.managerId || null,
+        isActive: req.body.isActive ?? true,
         organizationId,
-        createdById: userId,
-        createdAt: new Date(),
       },
     });
 
@@ -265,12 +267,10 @@ const updateBranchBodySchema = z.object({
   name: z.string().min(2).optional(),
   code: z.string().max(10).optional(),
   address: z.string().optional(),
-  city: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
   managerId: z.string().uuid().optional().nullable(),
   isActive: z.boolean().optional(),
-  metadata: z.record(z.any()).optional(),
 });
 
 router.put(
@@ -334,8 +334,13 @@ router.put(
     const updated = await prisma.branch.update({
       where: { id: req.params.id },
       data: {
-        ...req.body,
-        updatedAt: new Date(),
+        name: req.body.name,
+        code: req.body.code,
+        address: req.body.address,
+        phone: req.body.phone,
+        email: req.body.email,
+        managerId: req.body.managerId,
+        isActive: req.body.isActive,
       },
     });
 

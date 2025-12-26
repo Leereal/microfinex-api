@@ -20,10 +20,11 @@ export const prisma =
   globalThis.__prisma ||
   new PrismaClient({
     adapter,
-    log:
-      config.nodeEnv === 'development'
-        ? ['query', 'info', 'warn', 'error']
-        : ['error'],
+    // log:
+    //   config.nodeEnv === 'development'
+    //     ? ['query', 'info', 'warn', 'error']
+    //     : ['error'],
+    log: [], // Set to ['query', 'info', 'warn', 'error'] to enable logs
   });
 
 if (config.nodeEnv !== 'production') {

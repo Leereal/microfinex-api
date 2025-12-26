@@ -258,6 +258,7 @@ model Branch {
   organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   manager               User?                  @relation("BranchManager", fields: [managerId], references: [id])
   users                 User[]                 @relation("BranchUsers")
+  userBranches          UserBranch[]           // Many-to-many with users
   clients               Client[]
   homeClients           Client[]               @relation("ClientHomeBranch")
   loans                 Loan[]
@@ -266,6 +267,26 @@ model Branch {
   financialTransactions FinancialTransaction[]
 
   @@map("branches")
+}
+
+// Junction table for User-Branch many-to-many relationship
+model UserBranch {
+  id         String   @id @default(uuid())
+  userId     String
+  branchId   String
+  isCurrent  Boolean  @default(false) // Track which branch is currently active
+  isPrimary  Boolean  @default(false) // Track primary/home branch
+  assignedAt DateTime @default(now())
+  assignedBy String?
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@index([userId])
+  @@index([branchId])
+  @@map("user_branches")
 }
 
 model User {
@@ -282,7 +303,7 @@ model User {
   isEmailVerified Boolean   @default(false)
   lastLoginAt     DateTime?
   organizationId  String?
-  branchId        String?
+  branchId        String?   // Legacy field - kept for backwards compatibility
   permissions     String[]  @default([])
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -290,6 +311,7 @@ model User {
   // Relations
   organization    Organization?         @relation(fields: [organizationId], references: [id])
   branch          Branch?               @relation("BranchUsers", fields: [branchId], references: [id])
+  userBranches    UserBranch[]          // Many-to-many with branches
   managedBranch   Branch?               @relation("BranchManager")
   createdLoans    Loan[]                @relation("LoanOfficer")
   createdClients  Client[]              @relation("ClientCreatedBy")
@@ -643,7 +665,7 @@ model Charge {
   type           ChargeType
   calculationType ChargeCalculationType @default(FIXED)
   defaultAmount  Decimal?         @db.Decimal(15, 2) // Default amount when no currency-specific rate
-  defaultPercentage Decimal?      @db.Decimal(5, 4)  // Default percentage (0.0000 to 0.9999 = 0% to 99.99%)
+  defaultPercentage Decimal?      @db.Decimal(10, 4) // Default percentage (e.g., 10.0000 = 10%)
   appliesAt      ChargeAppliesAt  @default(DISBURSEMENT) // When the charge is applied
   isDeductedFromPrincipal Boolean @default(false) // If true, deducted from loan amount; if false, added to loan
   isMandatory    Boolean          @default(false) // Required for all loans
@@ -1600,6 +1622,9 @@ enum ChargeAppliesAt {
   LATE_PAYMENT   // Applied on late payments
   MONTHLY        // Applied monthly
   MANUAL         // Manually applied
+  REPAYMENT      // Applied on repayment
+  OVERDUE        // Applied when overdue
+  CLOSURE        // Applied at loan closure
 }
 
 enum RepaymentFrequency {
@@ -1638,6 +1663,13 @@ enum ChargeType {
   EARLY_SETTLEMENT_FEE
   COLLECTION_FEE
   RESTRUCTURE_FEE
+  // Legacy values (kept for existing data)
+  INSURANCE
+  DISBURSEMENT_FEE
+  EARLY_REPAYMENT_FEE
+  LATE_PAYMENT_FEE
+  PENALTY_FEE
+  VALUATION_FEE
   // Other
   OTHER
 }

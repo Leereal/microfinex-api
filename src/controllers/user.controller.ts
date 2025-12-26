@@ -259,7 +259,7 @@ class UserController {
       const organizationId = req.user?.organizationId;
 
       // Prevent deleting yourself
-      if (id === req.user?.userId) {
+      if (id === (req.user?.id || req.user?.userId)) {
         return res.status(400).json({
           success: false,
           message: 'You cannot delete your own account',
@@ -481,6 +481,230 @@ class UserController {
       });
     } catch (error) {
       console.error('Get pending verification error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  // ==========================================
+  // Multi-Branch Management Methods
+  // ==========================================
+
+  /**
+   * Get current user's assigned branches
+   * GET /api/v1/users/my-branches
+   */
+  async getMyBranches(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+          error: 'UNAUTHORIZED',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await userService.getMyBranches(userId);
+
+      res.json({
+        success: true,
+        message: 'User branches retrieved successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get my branches error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Switch user's current branch
+   * POST /api/v1/users/switch-branch
+   */
+  async switchBranch(req: Request, res: Response) {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      const { branchId } = req.body;
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+          error: 'UNAUTHORIZED',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!branchId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Branch ID is required',
+          error: 'MISSING_BRANCH_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await userService.switchBranch(userId, branchId);
+
+      res.json({
+        success: true,
+        message: `Switched to ${result.currentBranch?.name}`,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Switch branch error:', error);
+      const message = (error as Error).message;
+
+      if (
+        message.includes('do not have access') ||
+        message.includes('not active')
+      ) {
+        return res.status(403).json({
+          success: false,
+          message,
+          error: 'BRANCH_ACCESS_DENIED',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Get a user's assigned branches (admin view)
+   * GET /api/v1/users/:id/branches
+   */
+  async getUserBranches(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const organizationId = req.user?.organizationId;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await userService.getUserBranches(id, organizationId);
+
+      res.json({
+        success: true,
+        message: 'User branches retrieved successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get user branches error:', error);
+      const message = (error as Error).message;
+
+      if (message === 'User not found') {
+        return res.status(404).json({
+          success: false,
+          message,
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Assign multiple branches to a user
+   * POST /api/v1/users/:id/branches
+   */
+  async assignBranches(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { branchIds, primaryBranchId } = req.body;
+      const assignedBy = req.user?.id || req.user?.userId;
+      const organizationId = req.user?.organizationId;
+
+      if (!assignedBy || !organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'User context required',
+          error: 'MISSING_CONTEXT',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (!Array.isArray(branchIds)) {
+        return res.status(400).json({
+          success: false,
+          message: 'branchIds must be an array',
+          error: 'INVALID_INPUT',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await userService.assignBranches(
+        id,
+        branchIds,
+        primaryBranchId,
+        assignedBy,
+        organizationId
+      );
+
+      res.json({
+        success: true,
+        message:
+          branchIds.length > 0
+            ? `Assigned ${branchIds.length} branch(es) to user`
+            : 'All branch assignments removed',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Assign branches error:', error);
+      const message = (error as Error).message;
+
+      if (message === 'User not found') {
+        return res.status(404).json({
+          success: false,
+          message,
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      if (message.includes('branches not found')) {
+        return res.status(400).json({
+          success: false,
+          message,
+          error: 'INVALID_BRANCHES',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',
