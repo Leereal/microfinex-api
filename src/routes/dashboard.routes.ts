@@ -6,8 +6,14 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { authenticateToken, requirePermission } from '../middleware/auth.middleware';
-import { validateRequest, handleAsync } from '../middleware/validation.middleware';
+import {
+  authenticateToken,
+  requirePermission,
+} from '../middleware/auth.middleware';
+import {
+  validateRequest,
+  handleAsync,
+} from '../middleware/validation.middleware';
 
 const router = Router();
 
@@ -38,11 +44,17 @@ router.get(
       totalOutstanding,
       totalClients,
       activeClients,
+      pendingApproval,
+      pendingDisbursement,
+      onlineApplications,
     ] = await Promise.all([
       prisma.loan.count({ where: loanWhere }),
       prisma.loan.count({ where: { ...loanWhere, status: 'ACTIVE' } }),
       prisma.loan.aggregate({
-        where: { ...loanWhere, status: { in: ['ACTIVE', 'COMPLETED', 'OVERDUE'] } },
+        where: {
+          ...loanWhere,
+          status: { in: ['ACTIVE', 'COMPLETED', 'OVERDUE'] },
+        },
         _sum: { amount: true },
       }),
       prisma.loan.aggregate({
@@ -50,7 +62,11 @@ router.get(
         _sum: { outstandingBalance: true },
       }),
       prisma.client.count({
-        where: { organizationId, isActive: true, ...(branchId && { branchId }) },
+        where: {
+          organizationId,
+          isActive: true,
+          ...(branchId && { branchId }),
+        },
       }),
       prisma.client.count({
         where: {
@@ -58,6 +74,18 @@ router.get(
           isActive: true,
           ...(branchId && { branchId }),
           loans: { some: { status: 'ACTIVE' } },
+        },
+      }),
+      // Loans pending approval
+      prisma.loan.count({ where: { ...loanWhere, status: 'PENDING' } }),
+      // Loans approved but not yet disbursed
+      prisma.loan.count({ where: { ...loanWhere, status: 'APPROVED' } }),
+      // Online applications (loans submitted via web/whatsapp/facebook)
+      prisma.loan.count({
+        where: {
+          ...loanWhere,
+          status: 'PENDING',
+          applicationSource: { in: ['WEB', 'WHATSAPP', 'FACEBOOK'] },
         },
       }),
     ]);
@@ -89,8 +117,13 @@ router.get(
           totalLoans,
           activeLoans,
           overdueLoans,
+          pendingApproval,
+          pendingDisbursement,
+          onlineApplications,
           totalDisbursed: Number(totalDisbursed._sum?.amount || 0),
-          totalOutstanding: Number(totalOutstanding._sum?.outstandingBalance || 0),
+          totalOutstanding: Number(
+            totalOutstanding._sum?.outstandingBalance || 0
+          ),
         },
         clients: {
           total: totalClients,
@@ -128,7 +161,7 @@ router.get(
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
-    
+
     switch (period) {
       case 'week':
         startDate.setDate(startDate.getDate() - 7);
@@ -158,10 +191,15 @@ router.get(
     });
 
     // Group by date
-    const disbursementsByDate: Record<string, { amount: number; count: number }> = {};
-    disbursedLoans.forEach((loan) => {
+    const disbursementsByDate: Record<
+      string,
+      { amount: number; count: number }
+    > = {};
+    disbursedLoans.forEach(loan => {
       if (loan.disbursedDate) {
-        const dateStr: string = loan.disbursedDate.toISOString().split('T')[0] as string;
+        const dateStr: string = loan.disbursedDate
+          .toISOString()
+          .split('T')[0] as string;
         if (!disbursementsByDate[dateStr]) {
           disbursementsByDate[dateStr] = { amount: 0, count: 0 };
         }
@@ -183,9 +221,12 @@ router.get(
       },
     });
 
-    const paymentsByDate: Record<string, { amount: number; count: number }> = {};
-    completedPayments.forEach((payment) => {
-      const dateStr: string = payment.paymentDate.toISOString().split('T')[0] as string;
+    const paymentsByDate: Record<string, { amount: number; count: number }> =
+      {};
+    completedPayments.forEach(payment => {
+      const dateStr: string = payment.paymentDate
+        .toISOString()
+        .split('T')[0] as string;
       if (!paymentsByDate[dateStr]) {
         paymentsByDate[dateStr] = { amount: 0, count: 0 };
       }
@@ -206,8 +247,10 @@ router.get(
     });
 
     const clientsByDate: Record<string, number> = {};
-    newClients.forEach((client) => {
-      const dateStr: string = client.createdAt.toISOString().split('T')[0] as string;
+    newClients.forEach(client => {
+      const dateStr: string = client.createdAt
+        .toISOString()
+        .split('T')[0] as string;
       clientsByDate[dateStr] = (clientsByDate[dateStr] || 0) + 1;
     });
 
@@ -217,20 +260,26 @@ router.get(
         period,
         startDate,
         endDate,
-        disbursements: Object.entries(disbursementsByDate).map(([date, data]) => ({
-          date,
-          amount: data.amount,
-          count: data.count,
-        })).sort((a, b) => a.date.localeCompare(b.date)),
-        payments: Object.entries(paymentsByDate).map(([date, data]) => ({
-          date,
-          amount: data.amount,
-          count: data.count,
-        })).sort((a, b) => a.date.localeCompare(b.date)),
-        newClients: Object.entries(clientsByDate).map(([date, count]) => ({
-          date,
-          count,
-        })).sort((a, b) => a.date.localeCompare(b.date)),
+        disbursements: Object.entries(disbursementsByDate)
+          .map(([date, data]) => ({
+            date,
+            amount: data.amount,
+            count: data.count,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        payments: Object.entries(paymentsByDate)
+          .map(([date, data]) => ({
+            date,
+            amount: data.amount,
+            count: data.count,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        newClients: Object.entries(clientsByDate)
+          .map(([date, count]) => ({
+            date,
+            count,
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
       },
     });
   })
@@ -255,8 +304,8 @@ router.get(
   handleAsync(async (req: Request, res: Response) => {
     const organizationId = req.user!.organizationId;
     const { branchId } = req.query;
-    
-    const startDate = req.query.startDate 
+
+    const startDate = req.query.startDate
       ? new Date(req.query.startDate as string)
       : new Date(new Date().setMonth(new Date().getMonth() - 1));
     const endDate = req.query.endDate
@@ -277,7 +326,10 @@ router.get(
     // Total payments received (cash in)
     const paymentsReceived = await prisma.payment.aggregate({
       where: {
-        loan: { organizationId, ...(branchId && { branchId: String(branchId) }) },
+        loan: {
+          organizationId,
+          ...(branchId && { branchId: String(branchId) }),
+        },
         status: 'COMPLETED',
         paymentDate: { gte: startDate, lte: endDate },
       },
@@ -289,7 +341,10 @@ router.get(
     const paymentsByMethod = await prisma.payment.groupBy({
       by: ['method'],
       where: {
-        loan: { organizationId, ...(branchId && { branchId: String(branchId) }) },
+        loan: {
+          organizationId,
+          ...(branchId && { branchId: String(branchId) }),
+        },
         status: 'COMPLETED',
         paymentDate: { gte: startDate, lte: endDate },
       },
@@ -317,7 +372,7 @@ router.get(
           amount: cashIn,
           count: paymentsReceived._count || 0,
         },
-        byPaymentMethod: paymentsByMethod.map((pm) => ({
+        byPaymentMethod: paymentsByMethod.map(pm => ({
           method: pm.method,
           amount: Number(pm._sum?.amount || 0),
           count: pm._count,
@@ -475,7 +530,7 @@ router.get(
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
-    
+
     switch (period) {
       case 'week':
         startDate.setDate(startDate.getDate() - 7);
@@ -507,7 +562,7 @@ router.get(
 
     // Get detailed stats for each officer
     const officerStats = await Promise.all(
-      officers.map(async (officer) => {
+      officers.map(async officer => {
         const loansCreated = await prisma.loan.aggregate({
           where: {
             loanOfficerId: officer.id,
@@ -545,7 +600,9 @@ router.get(
           collectionsCount: collectionsReceived._count || 0,
           collectionsAmount: Number(collectionsReceived._sum?.amount || 0),
           activeLoans: activePortfolio._count || 0,
-          portfolioBalance: Number(activePortfolio._sum?.outstandingBalance || 0),
+          portfolioBalance: Number(
+            activePortfolio._sum?.outstandingBalance || 0
+          ),
         };
       })
     );
@@ -588,44 +645,50 @@ router.get(
     });
 
     const branchStats = await Promise.all(
-      branches.map(async (branch) => {
-        const [activeLoans, totalDisbursed, totalOutstanding, overdueLoans, clientCount] =
-          await Promise.all([
-            prisma.loan.count({
-              where: {
-                branchId: branch.id,
-                status: 'ACTIVE',
-              },
-            }),
-            prisma.loan.aggregate({
-              where: {
-                branchId: branch.id,
-              },
-              _sum: { amount: true },
-            }),
-            prisma.loan.aggregate({
-              where: {
-                branchId: branch.id,
-                status: { in: ['ACTIVE', 'OVERDUE'] },
-              },
-              _sum: { outstandingBalance: true },
-            }),
-            prisma.loan.count({
-              where: {
-                branchId: branch.id,
-                status: 'OVERDUE',
-              },
-            }),
-            prisma.client.count({
-              where: {
-                branchId: branch.id,
-                isActive: true,
-              },
-            }),
-          ]);
+      branches.map(async branch => {
+        const [
+          activeLoans,
+          totalDisbursed,
+          totalOutstanding,
+          overdueLoans,
+          clientCount,
+        ] = await Promise.all([
+          prisma.loan.count({
+            where: {
+              branchId: branch.id,
+              status: 'ACTIVE',
+            },
+          }),
+          prisma.loan.aggregate({
+            where: {
+              branchId: branch.id,
+            },
+            _sum: { amount: true },
+          }),
+          prisma.loan.aggregate({
+            where: {
+              branchId: branch.id,
+              status: { in: ['ACTIVE', 'OVERDUE'] },
+            },
+            _sum: { outstandingBalance: true },
+          }),
+          prisma.loan.count({
+            where: {
+              branchId: branch.id,
+              status: 'OVERDUE',
+            },
+          }),
+          prisma.client.count({
+            where: {
+              branchId: branch.id,
+              isActive: true,
+            },
+          }),
+        ]);
 
         const totalActive = activeLoans + overdueLoans;
-        const parRatio = totalActive > 0 ? (overdueLoans / totalActive) * 100 : 0;
+        const parRatio =
+          totalActive > 0 ? (overdueLoans / totalActive) * 100 : 0;
 
         return {
           branchId: branch.id,
@@ -634,7 +697,9 @@ router.get(
           activeLoans,
           overdueLoans,
           totalDisbursed: Number(totalDisbursed._sum?.amount || 0),
-          totalOutstanding: Number(totalOutstanding._sum?.outstandingBalance || 0),
+          totalOutstanding: Number(
+            totalOutstanding._sum?.outstandingBalance || 0
+          ),
           clientCount,
           parRatio: Math.round(parRatio * 100) / 100,
         };
