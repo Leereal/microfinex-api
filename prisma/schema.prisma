@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,65 +7,59 @@ datasource db {
 }
 
 model Organization {
-  id                 String           @id @default(uuid())
-  name               String           @unique
-  type               OrganizationType @default(MICROFINANCE)
-  logo               String? // Logo image path in MinIO storage
-  address            String?
-  phone              String?
-  email              String?
-  website            String?
-  registrationNumber String?          @unique
-  licenseNumber      String?          @unique
-  isActive           Boolean          @default(true)
-  apiTier            ApiTier          @default(BASIC)
-  apiKeysCount       Int              @default(0)
-  maxApiKeys         Int              @default(1)
-  rateLimit          Int              @default(100) // requests per window
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
-
-  // Relations
-  branches              Branch[]
-  users                 User[]
-  clients               Client[]
-  loans                 Loan[]
-  loanProducts          LoanProduct[]
-  charges               Charge[]
+  id                    String                 @id @default(uuid())
+  name                  String                 @unique
+  type                  OrganizationType       @default(MICROFINANCE)
+  address               String?
+  phone                 String?
+  email                 String?
+  website               String?
+  registrationNumber    String?                @unique
+  licenseNumber         String?                @unique
+  isActive              Boolean                @default(true)
+  apiTier               ApiTier                @default(BASIC)
+  apiKeysCount          Int                    @default(0)
+  maxApiKeys            Int                    @default(1)
+  rateLimit             Int                    @default(100)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  logo                  String?
   apiKeys               ApiKey[]
   auditLogs             AuditLog[]
-  settings              OrganizationSettings[]
-  exchangeRates         ExchangeRate[]
-  loanCategories        LoanCategory[]
-  shops                 Shop[]
-  roles                 Role[]
-  // Client Management Relations
-  documentTypes         DocumentType[]
-  organizationAIConfigs OrganizationAIConfig[]
+  branches              Branch[]
+  charges               Charge[]
+  clients               Client[]
   collateralTypes       CollateralType[]
-  importJobs            ImportJob[]
-  // Financial Management Relations
-  paymentMethods        PaymentMethod[]
-  incomeCategories      IncomeCategory[]
+  documentTypes         DocumentType[]
+  exchangeRates         ExchangeRate[]
   expenseCategories     ExpenseCategory[]
   financialTransactions FinancialTransaction[]
-  // Loan Configuration
+  importJobs            ImportJob[]
+  incomeCategories      IncomeCategory[]
+  loanCategories        LoanCategory[]
+  loanProducts          LoanProduct[]
   loanPurposes          LoanPurpose[]
+  loans                 Loan[]
+  organizationAIConfigs OrganizationAIConfig[]
+  settings              OrganizationSettings[]
+  paymentMethods        PaymentMethod[]
+  roles                 Role[]
+  shops                 Shop[]
+  users                 User[]
+  monthlyTargets        MonthlyTarget[]
 
   @@map("organizations")
 }
 
 model OrganizationSettings {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   settingKey     String
   settingValue   Json
   description    String?
   updatedBy      String?
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, settingKey])
   @@map("organization_settings")
@@ -85,16 +76,15 @@ model SystemSettings {
   @@map("system_settings")
 }
 
-// Currency configuration managed by Super Admin
 model CurrencyRecord {
   id            String   @id @default(uuid())
-  code          String   @unique  // ISO 4217 code (e.g., USD, ZAR, ZWG)
-  name          String            // Full name (e.g., "US Dollar")
-  symbol        String            // Currency symbol (e.g., "$", "R")
-  position      String   @default("before")  // "before" or "after" the amount
+  code          String   @unique
+  name          String
+  symbol        String
+  position      String   @default("before")
   decimalPlaces Int      @default(2)
   isActive      Boolean  @default(true)
-  isDefault     Boolean  @default(false)  // Only one can be default
+  isDefault     Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   createdBy     String?
@@ -103,122 +93,106 @@ model CurrencyRecord {
   @@map("currencies")
 }
 
-// ========================================
-// FINANCIAL MANAGEMENT MODELS
-// ========================================
-
-// Payment Methods - Cash, EcoCash, Bank Transfer, PayShap, etc.
 model PaymentMethod {
-  id               String   @id @default(uuid())
-  organizationId   String
-  name             String   // e.g., "Main Cash", "EcoCash", "FNB Account"
-  code             String   // e.g., "CASH", "ECOCASH", "BANK_FNB"
-  type             PaymentMethodType
-  accountNumber    String?  // Bank account number or mobile money number
-  description      String?
-  initialBalance   Decimal  @default(0) @db.Decimal(15, 2)
-  currentBalance   Decimal  @default(0) @db.Decimal(15, 2)
-  currency         String   @default("USD")
-  isActive         Boolean  @default(true)
-  isDefault        Boolean  @default(false)
-  allowDisbursement Boolean @default(true) // Can be used for loan disbursements
-  allowRepayment    Boolean @default(true) // Can be used for loan repayments
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  createdBy        String?
-  updatedBy        String?
-
-  // Relations
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  transactions FinancialTransaction[]
+  id                String                 @id @default(uuid())
+  organizationId    String
+  name              String
+  code              String
+  type              PaymentMethodType
+  accountNumber     String?
+  description       String?
+  initialBalance    Decimal                @default(0) @db.Decimal(15, 2)
+  currentBalance    Decimal                @default(0) @db.Decimal(15, 2)
+  currency          String                 @default("USD")
+  isActive          Boolean                @default(true)
+  isDefault         Boolean                @default(false)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  createdBy         String?
+  updatedBy         String?
+  allowDisbursement Boolean                @default(true)
+  allowRepayment    Boolean                @default(true)
+  transactions      FinancialTransaction[]
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@map("payment_methods")
 }
 
-// Income Categories - Funding, Investments, Asset Sales, etc.
 model IncomeCategory {
-  id             String   @id @default(uuid())
-  organizationId String
-  name           String   // e.g., "Shareholder Investment", "Asset Sale", "Interest Income"
-  code           String   // e.g., "INV", "ASSET_SALE", "INT_INCOME"
-  description    String?
-  isSystemCategory Boolean @default(false) // System categories like LOAN_REPAYMENT
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdBy      String?
-
-  // Relations
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  transactions FinancialTransaction[]
+  id               String                 @id @default(uuid())
+  organizationId   String
+  name             String
+  code             String
+  description      String?
+  isSystemCategory Boolean                @default(false)
+  isActive         Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  createdBy        String?
+  transactions     FinancialTransaction[]
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@map("income_categories")
 }
 
-// Expense Categories - Rent, Stationery, Utilities, etc.
 model ExpenseCategory {
-  id             String   @id @default(uuid())
-  organizationId String
-  name           String   // e.g., "Rent", "Stationery", "Utilities"
-  code           String   // e.g., "RENT", "STAT", "UTIL"
-  description    String?
-  isSystemCategory Boolean @default(false) // System categories like LOAN_DISBURSEMENT
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  createdBy      String?
-
-  // Relations
-  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  transactions FinancialTransaction[]
+  id               String                 @id @default(uuid())
+  organizationId   String
+  name             String
+  code             String
+  description      String?
+  isSystemCategory Boolean                @default(false)
+  isActive         Boolean                @default(true)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  createdBy        String?
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  transactions     FinancialTransaction[]
 
   @@unique([organizationId, code])
   @@map("expense_categories")
 }
 
-// Financial Transactions - All income and expenses
 model FinancialTransaction {
-  id                 String                   @id @default(uuid())
-  organizationId     String
-  branchId           String?
-  transactionNumber  String                   @unique
-  type               FinancialTransactionType // INCOME or EXPENSE
-  incomeCategoryId   String?
-  expenseCategoryId  String?
-  paymentMethodId    String
-  amount             Decimal                  @db.Decimal(15, 2)
-  currency           String                   @default("USD")
-  description        String
-  reference          String?                  // External reference (receipt number, invoice, etc.)
-  relatedLoanId      String?                  // If transaction is related to a loan
-  relatedPaymentId   String?                  // If transaction is a loan repayment
-  transactionDate    DateTime                 @default(now())
-  balanceBefore      Decimal                  @db.Decimal(15, 2)
-  balanceAfter       Decimal                  @db.Decimal(15, 2)
-  status             FinancialTransactionStatus @default(COMPLETED)
-  notes              String?
-  attachments        Json?                    // Store file paths for receipts/documents
-  processedBy        String
-  approvedBy         String?
-  approvedAt         DateTime?
-  voidedBy           String?
-  voidedAt           DateTime?
-  voidReason         String?
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
-
-  // Relations
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  branch          Branch?          @relation(fields: [branchId], references: [id])
-  incomeCategory  IncomeCategory?  @relation(fields: [incomeCategoryId], references: [id])
-  expenseCategory ExpenseCategory? @relation(fields: [expenseCategoryId], references: [id])
-  paymentMethod   PaymentMethod    @relation(fields: [paymentMethodId], references: [id])
-  processor       User             @relation("TransactionProcessor", fields: [processedBy], references: [id])
-  approver        User?            @relation("TransactionApprover", fields: [approvedBy], references: [id])
-  voider          User?            @relation("TransactionVoider", fields: [voidedBy], references: [id])
-  relatedLoan     Loan?            @relation(fields: [relatedLoanId], references: [id])
+  id                String                     @id @default(uuid())
+  organizationId    String
+  branchId          String?
+  transactionNumber String                     @unique
+  type              FinancialTransactionType
+  incomeCategoryId  String?
+  expenseCategoryId String?
+  paymentMethodId   String
+  amount            Decimal                    @db.Decimal(15, 2)
+  currency          String                     @default("USD")
+  description       String
+  reference         String?
+  relatedLoanId     String?
+  relatedPaymentId  String?
+  transactionDate   DateTime                   @default(now())
+  balanceBefore     Decimal                    @db.Decimal(15, 2)
+  balanceAfter      Decimal                    @db.Decimal(15, 2)
+  status            FinancialTransactionStatus @default(COMPLETED)
+  notes             String?
+  attachments       Json?
+  processedBy       String
+  approvedBy        String?
+  approvedAt        DateTime?
+  voidedBy          String?
+  voidedAt          DateTime?
+  voidReason        String?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  approver          User?                      @relation("TransactionApprover", fields: [approvedBy], references: [id])
+  branch            Branch?                    @relation(fields: [branchId], references: [id])
+  expenseCategory   ExpenseCategory?           @relation(fields: [expenseCategoryId], references: [id])
+  incomeCategory    IncomeCategory?            @relation(fields: [incomeCategoryId], references: [id])
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  paymentMethod     PaymentMethod              @relation(fields: [paymentMethodId], references: [id])
+  processor         User                       @relation("TransactionProcessor", fields: [processedBy], references: [id])
+  relatedLoan       Loan?                      @relation(fields: [relatedLoanId], references: [id])
+  voider            User?                      @relation("TransactionVoider", fields: [voidedBy], references: [id])
 
   @@index([organizationId, transactionDate])
   @@index([paymentMethodId])
@@ -226,62 +200,56 @@ model FinancialTransaction {
 }
 
 model ExchangeRate {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   fromCurrency   Currency
   toCurrency     Currency
-  rate           Decimal  @db.Decimal(10, 6)
-  effectiveDate  DateTime @default(now())
+  rate           Decimal      @db.Decimal(10, 6)
+  effectiveDate  DateTime     @default(now())
   createdBy      String?
-  createdAt      DateTime @default(now())
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("exchange_rates")
 }
 
 model Branch {
-  id             String   @id @default(uuid())
-  organizationId String
-  name           String
-  code           String   @unique
-  address        String?
-  phone          String?
-  email          String?
-  managerId      String?  @unique
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                    String                 @id @default(uuid())
+  organizationId        String
+  name                  String
+  code                  String                 @unique
+  address               String?
+  phone                 String?
+  email                 String?
+  managerId             String?                @unique
+  isActive              Boolean                @default(true)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
   manager               User?                  @relation("BranchManager", fields: [managerId], references: [id])
-  users                 User[]                 @relation("BranchUsers")
-  userBranches          UserBranch[]           // Many-to-many with users
+  organization          Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   clients               Client[]
   homeClients           Client[]               @relation("ClientHomeBranch")
+  financialTransactions FinancialTransaction[]
   loans                 Loan[]
   disbursedLoans        Loan[]                 @relation("LoanDisbursementBranch")
   processedPayments     Payment[]              @relation("PaymentProcessedBranch")
-  financialTransactions FinancialTransaction[]
+  userBranches          UserBranch[]
+  users                 User[]                 @relation("BranchUsers")
+  monthlyTargets        MonthlyTarget[]
 
   @@map("branches")
 }
 
-// Junction table for User-Branch many-to-many relationship
 model UserBranch {
   id         String   @id @default(uuid())
   userId     String
   branchId   String
-  isCurrent  Boolean  @default(false) // Track which branch is currently active
-  isPrimary  Boolean  @default(false) // Track primary/home branch
+  isCurrent  Boolean  @default(false)
+  isPrimary  Boolean  @default(false)
   assignedAt DateTime @default(now())
   assignedBy String?
-
-  // Relations
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, branchId])
   @@index([userId])
@@ -290,46 +258,42 @@ model UserBranch {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  email           String    @unique
-  password        String
-  firstName       String
-  lastName        String
-  phone           String?
-  dateOfBirth     DateTime?
-  avatar          String?
-  role            UserRole  @default(STAFF)
-  isActive        Boolean   @default(true)
-  isEmailVerified Boolean   @default(false)
-  lastLoginAt     DateTime?
-  organizationId  String?
-  branchId        String?   // Legacy field - kept for backwards compatibility
-  permissions     String[]  @default([])
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // Relations
-  organization    Organization?         @relation(fields: [organizationId], references: [id])
-  branch          Branch?               @relation("BranchUsers", fields: [branchId], references: [id])
-  userBranches    UserBranch[]          // Many-to-many with branches
-  managedBranch   Branch?               @relation("BranchManager")
-  createdLoans    Loan[]                @relation("LoanOfficer")
-  createdClients  Client[]              @relation("ClientCreatedBy")
-  payments        Payment[]
-  auditLogs       AuditLog[]
-  refreshTokens   RefreshToken[]
-  sessions        UserSession[]
-  assessments     LoanAssessment[]
-  visits          LoanVisit[]
-  workflowChanges LoanWorkflowHistory[]
-  userRoles       UserRoleAssignment[]
-  userPermissions UserPermission[]
-  // Financial Transaction Relations
-  processedTransactions FinancialTransaction[] @relation("TransactionProcessor")
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
+  password              String
+  firstName             String
+  lastName              String
+  phone                 String?
+  dateOfBirth           DateTime?
+  avatar                String?
+  role                  UserRole               @default(STAFF)
+  isActive              Boolean                @default(true)
+  isEmailVerified       Boolean                @default(false)
+  lastLoginAt           DateTime?
+  organizationId        String?
+  branchId              String?
+  permissions           String[]               @default([])
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  auditLogs             AuditLog[]
+  managedBranch         Branch?                @relation("BranchManager")
+  createdClients        Client[]               @relation("ClientCreatedBy")
   approvedTransactions  FinancialTransaction[] @relation("TransactionApprover")
+  processedTransactions FinancialTransaction[] @relation("TransactionProcessor")
   voidedTransactions    FinancialTransaction[] @relation("TransactionVoider")
-  // Notes Relations
-  notes           Note[]
+  assessments           LoanAssessment[]
+  visits                LoanVisit[]
+  workflowChanges       LoanWorkflowHistory[]
+  createdLoans          Loan[]                 @relation("LoanOfficer")
+  notes                 Note[]
+  payments              Payment[]
+  refreshTokens         RefreshToken[]
+  userBranches          UserBranch[]
+  userPermissions       UserPermission[]
+  userRoles             UserRoleAssignment[]
+  sessions              UserSession[]
+  branch                Branch?                @relation("BranchUsers", fields: [branchId], references: [id])
+  organization          Organization?          @relation(fields: [organizationId], references: [id])
 
   @@map("users")
 }
@@ -340,9 +304,7 @@ model RefreshToken {
   userId    String
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
 }
@@ -358,9 +320,7 @@ model UserSession {
   lastActivityAt DateTime @default(now())
   expiresAt      DateTime
   createdAt      DateTime @default(now())
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([token])
@@ -369,39 +329,28 @@ model UserSession {
 }
 
 model Client {
-  id               String     @id @default(uuid())
-  clientNumber     String     @unique
-  type             ClientType @default(INDIVIDUAL)
-  title            String?    // MR, MRS, MS, DR, etc.
+  id               String             @id @default(uuid())
+  clientNumber     String             @unique
+  type             ClientType         @default(INDIVIDUAL)
   firstName        String?
   lastName         String?
   businessName     String?
   email            String?
-  phone            String     @unique
+  phone            String             @unique
   dateOfBirth      DateTime?
   gender           String?
   maritalStatus    String?
-  nationality      String?    @default("Zimbabwean")
-  placeOfBirth     String?
-  // Identification
-  idType           String?    @default("national_id") // national_id, passport, drivers_license
-  idNumber         String?    @unique
-  passportNumber   String?
-  passportCountry  String?
-  idIssueDate      DateTime?
-  idExpiryDate     DateTime?
-  issuingAuthority String?
-  // Address
+  idNumber         String?            @unique
   address          String?
   city             String?
   state            String?
   zipCode          String?
   country          String?
   employmentStatus String?
-  monthlyIncome    Decimal?   @db.Decimal(15, 2)
+  monthlyIncome    Decimal?           @db.Decimal(15, 2)
   creditScore      Int?
-  isActive         Boolean    @default(true)
-  kycStatus        String     @default("PENDING") // PENDING, VERIFIED, REJECTED
+  isActive         Boolean            @default(true)
+  kycStatus        String             @default("PENDING")
   kycDocuments     Json?
   profileImage     String?
   thumbprintImage  String?
@@ -410,46 +359,50 @@ model Client {
   branchId         String
   homeBranchId     String?
   createdBy        String
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-
-  // Relations
-  organization     Organization       @relation(fields: [organizationId], references: [id])
-  branch           Branch             @relation(fields: [branchId], references: [id])
-  homeBranch       Branch?            @relation("ClientHomeBranch", fields: [homeBranchId], references: [id])
-  creator          User               @relation("ClientCreatedBy", fields: [createdBy], references: [id])
-  loans            Loan[]
-  groupMemberships GroupMember[]
-  employers        ClientEmployer[]
-  nextOfKins       NextOfKin[]
-  clientLimits     ClientLimit[]
-  // Client Management Relations
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  idExpiryDate     DateTime?
+  idIssueDate      DateTime?
+  idType           String?            @default("national_id")
+  issuingAuthority String?
+  nationality      String?            @default("Zimbabwean")
+  passportCountry  String?
+  passportNumber   String?
+  placeOfBirth     String?
+  title            String?
   addresses        ClientAddress[]
-  contacts         ClientContact[]
-  documents        ClientDocument[]
   business         ClientBusiness?
   collaterals      ClientCollateral[]
+  contacts         ClientContact[]
+  documents        ClientDocument[]
+  employers        ClientEmployer[]
+  clientLimits     ClientLimit[]
+  branch           Branch             @relation(fields: [branchId], references: [id])
+  creator          User               @relation("ClientCreatedBy", fields: [createdBy], references: [id])
+  homeBranch       Branch?            @relation("ClientHomeBranch", fields: [homeBranchId], references: [id])
+  organization     Organization       @relation(fields: [organizationId], references: [id])
+  groupMemberships GroupMember[]
+  loans            Loan[]
+  nextOfKins       NextOfKin[]
 
   @@map("clients")
 }
 
 model Group {
-  id             String   @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
   description    String?
-  groupNumber    String   @unique
-  meetingDay     String? // DAY_OF_WEEK
+  groupNumber    String        @unique
+  meetingDay     String?
   meetingTime    String?
   meetingPlace   String?
-  isActive       Boolean  @default(true)
+  isActive       Boolean       @default(true)
   organizationId String
   branchId       String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  members GroupMember[]
-  loans   Loan[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  members        GroupMember[]
+  loans          Loan[]
 
   @@map("groups")
 }
@@ -458,151 +411,135 @@ model GroupMember {
   id       String    @id @default(uuid())
   groupId  String
   clientId String
-  role     String    @default("MEMBER") // LEADER, SECRETARY, TREASURER, MEMBER
+  role     String    @default("MEMBER")
   joinedAt DateTime  @default(now())
   leftAt   DateTime?
   isActive Boolean   @default(true)
-
-  // Relations
-  group  Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  client Client @relation(fields: [clientId], references: [id])
+  client   Client    @relation(fields: [clientId], references: [id])
+  group    Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, clientId])
   @@map("group_members")
 }
 
-// Loan Purpose - Configurable purposes for loan applications
 model LoanPurpose {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   name           String
-  code           String   // Short code like "BUS", "EDU", "MED"
+  code           String
   description    String?
-  isActive       Boolean  @default(true)
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  isActive       Boolean      @default(true)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@map("loan_purposes")
 }
 
 model LoanProduct {
-  id                 String                @id @default(uuid())
-  name               String
-  description        String?
-  type               LoanType              @default(PERSONAL)
-  minAmount          Decimal               @db.Decimal(15, 2)
-  maxAmount          Decimal               @db.Decimal(15, 2)
-  currency           Currency              @default(USD)
-  interestRate       Decimal               @db.Decimal(5, 4) // Annual percentage rate
-  calculationMethod  LoanCalculationMethod @default(REDUCING_BALANCE)
-  minTerm            Int // in months
-  maxTerm            Int // in months
-  repaymentFrequency RepaymentFrequency    @default(MONTHLY)
-  gracePeriod        Int // in days (grace period for payments)
-  gracePeriodDays    Int                   @default(0) // Alias for clarity
-  penaltyRate        Decimal               @default(0) @db.Decimal(5, 4)
-  // Period/Duration settings (like Django branch_product)
-  durationUnit       DurationUnit          @default(MONTHS) // days, weeks, months, years
-  minPeriod          Int                   @default(1) // Minimum loan period in duration units
-  maxPeriod          Int                   @default(12) // Maximum loan period in duration units
-  // Engine configuration
-  engineType         LoanCalculationEngineType @default(SHORT_TERM) // Which calculation engine to use
-  allowAutoCalculations Boolean            @default(true) // Whether engine should auto-process this product
-  // Existing fields
-  isActive           Boolean               @default(true)
-  requiresCollateral Boolean               @default(false)
-  requiresGuarantor  Boolean               @default(false)
-  categoryId         String?
-  isOnlineEligible   Boolean               @default(false)
-  organizationId     String
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-
-  // Relations
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  category       LoanCategory?   @relation(fields: [categoryId], references: [id])
-  loans          Loan[]
-  productCharges ProductCharge[]
+  id                    String                    @id @default(uuid())
+  name                  String
+  description           String?
+  type                  LoanType                  @default(PERSONAL)
+  minAmount             Decimal                   @db.Decimal(15, 2)
+  maxAmount             Decimal                   @db.Decimal(15, 2)
+  currency              Currency                  @default(USD)
+  interestRate          Decimal                   @db.Decimal(5, 4)
+  calculationMethod     LoanCalculationMethod     @default(REDUCING_BALANCE)
+  minTerm               Int
+  maxTerm               Int
+  repaymentFrequency    RepaymentFrequency        @default(MONTHLY)
+  gracePeriod           Int
+  penaltyRate           Decimal                   @default(0) @db.Decimal(5, 4)
+  isActive              Boolean                   @default(true)
+  requiresCollateral    Boolean                   @default(false)
+  requiresGuarantor     Boolean                   @default(false)
+  categoryId            String?
+  isOnlineEligible      Boolean                   @default(false)
+  organizationId        String
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  gracePeriodDays       Int                       @default(0)
+  durationUnit          DurationUnit              @default(MONTHS)
+  minPeriod             Int                       @default(1)
+  maxPeriod             Int                       @default(12)
+  engineType            LoanCalculationEngineType @default(SHORT_TERM)
+  allowAutoCalculations Boolean                   @default(true)
+  category              LoanCategory?             @relation(fields: [categoryId], references: [id])
+  organization          Organization              @relation(fields: [organizationId], references: [id])
+  loans                 Loan[]
+  productCharges        ProductCharge[]
 
   @@map("loan_products")
 }
 
 model Loan {
-  id                    String                @id @default(uuid())
-  loanNumber            String                @unique
+  id                    String                 @id @default(uuid())
+  loanNumber            String                 @unique
   clientId              String
   groupId               String?
   productId             String
   organizationId        String
   branchId              String
   loanOfficerId         String
-  amount                Decimal               @db.Decimal(15, 2)
-  currency              Currency              @default(USD)
-  interestRate          Decimal               @db.Decimal(5, 4)
-  calculationMethod     LoanCalculationMethod @default(REDUCING_BALANCE)
-  term                  Int // in months
+  amount                Decimal                @db.Decimal(15, 2)
+  currency              Currency               @default(USD)
+  interestRate          Decimal                @db.Decimal(5, 4)
+  calculationMethod     LoanCalculationMethod  @default(REDUCING_BALANCE)
+  term                  Int
   repaymentFrequency    RepaymentFrequency
-  installmentAmount     Decimal               @db.Decimal(15, 2)
-  totalAmount           Decimal               @db.Decimal(15, 2)
-  totalInterest         Decimal               @db.Decimal(15, 2)
-  status                LoanStatus            @default(PENDING)
-  applicationDate       DateTime              @default(now())
+  installmentAmount     Decimal                @db.Decimal(15, 2)
+  totalAmount           Decimal                @db.Decimal(15, 2)
+  totalInterest         Decimal                @db.Decimal(15, 2)
+  status                LoanStatus             @default(PENDING)
+  applicationDate       DateTime               @default(now())
   approvedDate          DateTime?
   disbursedDate         DateTime?
   maturityDate          DateTime?
   lastPaymentDate       DateTime?
-  outstandingBalance    Decimal               @default(0) @db.Decimal(15, 2)
-  principalBalance      Decimal               @default(0) @db.Decimal(15, 2)
-  interestBalance       Decimal               @default(0) @db.Decimal(15, 2)
-  penaltyBalance        Decimal               @default(0) @db.Decimal(15, 2)
-  // New fields for loan engine calculations (like Django system)
-  startDate             DateTime?             // When the loan period starts (usually disbursement date)
-  expectedRepaymentDate DateTime?             // Expected full repayment date based on term
-  nextDueDate           DateTime?             // Next payment due date (updated by engine)
-  interestAmount        Decimal               @default(0) @db.Decimal(15, 2) // Accumulated interest amount
-  gracePeriodDays       Int                   @default(0) // Grace period in days for this loan
-  // Existing fields continue
+  outstandingBalance    Decimal                @default(0) @db.Decimal(15, 2)
+  principalBalance      Decimal                @default(0) @db.Decimal(15, 2)
+  interestBalance       Decimal                @default(0) @db.Decimal(15, 2)
+  penaltyBalance        Decimal                @default(0) @db.Decimal(15, 2)
   purpose               String?
-  collateralValue       Decimal?              @db.Decimal(15, 2)
+  collateralValue       Decimal?               @db.Decimal(15, 2)
   collateralDescription String?
   guarantorInfo         Json?
   notes                 String?
   shopId                String?
-  applicationSource     ApplicationSource     @default(BRANCH)
+  applicationSource     ApplicationSource      @default(BRANCH)
   onlineApplicationId   String?
   disbursementBranchId  String?
-  syncStatus            SyncStatus            @default(SYNCED)
-  syncVersion           Int                   @default(1)
-  createdAt             DateTime              @default(now())
-  updatedAt             DateTime              @updatedAt
-
-  // Relations
-  client             Client                @relation(fields: [clientId], references: [id])
-  group              Group?                @relation(fields: [groupId], references: [id])
-  product            LoanProduct           @relation(fields: [productId], references: [id])
-  organization       Organization          @relation(fields: [organizationId], references: [id])
-  branch             Branch                @relation(fields: [branchId], references: [id])
-  loanOfficer        User                  @relation("LoanOfficer", fields: [loanOfficerId], references: [id])
-  shop               Shop?                 @relation(fields: [shopId], references: [id])
-  onlineApplication  OnlineApplication?    @relation(fields: [onlineApplicationId], references: [id])
-  disbursementBranch Branch?               @relation("LoanDisbursementBranch", fields: [disbursementBranchId], references: [id])
-  payments           Payment[]
-  repaymentSchedule  RepaymentSchedule[]
-  loanCharges        LoanCharge[]
-  loanItems          LoanItem[]
-  assessments        LoanAssessment[]
-  visits             LoanVisit[]
-  pledges            SecurityPledge[]
-  workflowHistory    LoanWorkflowHistory[]
-  // Client Management - Collateral relation
-  collaterals        ClientCollateral[]
-  // Financial Management - Related Transactions
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  syncStatus            SyncStatus             @default(SYNCED)
+  syncVersion           Int                    @default(1)
+  startDate             DateTime?
+  expectedRepaymentDate DateTime?
+  nextDueDate           DateTime?
+  interestAmount        Decimal                @default(0) @db.Decimal(15, 2)
+  gracePeriodDays       Int                    @default(0)
+  collaterals           ClientCollateral[]
   financialTransactions FinancialTransaction[]
+  assessments           LoanAssessment[]
+  loanCharges           LoanCharge[]
+  loanItems             LoanItem[]
+  visits                LoanVisit[]
+  workflowHistory       LoanWorkflowHistory[]
+  branch                Branch                 @relation(fields: [branchId], references: [id])
+  client                Client                 @relation(fields: [clientId], references: [id])
+  disbursementBranch    Branch?                @relation("LoanDisbursementBranch", fields: [disbursementBranchId], references: [id])
+  group                 Group?                 @relation(fields: [groupId], references: [id])
+  loanOfficer           User                   @relation("LoanOfficer", fields: [loanOfficerId], references: [id])
+  onlineApplication     OnlineApplication?     @relation(fields: [onlineApplicationId], references: [id])
+  organization          Organization           @relation(fields: [organizationId], references: [id])
+  product               LoanProduct            @relation(fields: [productId], references: [id])
+  shop                  Shop?                  @relation(fields: [shopId], references: [id])
+  payments              Payment[]
+  repaymentSchedule     RepaymentSchedule[]
+  pledges               SecurityPledge[]
 
   @@map("loans")
 }
@@ -621,9 +558,7 @@ model RepaymentSchedule {
   paymentDate       DateTime?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
-
-  // Relations
-  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan              Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@unique([loanId, installmentNumber])
   @@map("repayment_schedule")
@@ -639,7 +574,7 @@ model Payment {
   interestAmount    Decimal         @default(0) @db.Decimal(15, 2)
   penaltyAmount     Decimal         @default(0) @db.Decimal(15, 2)
   type              TransactionType @default(LOAN_REPAYMENT)
-  method            String // CASH, BANK_TRANSFER, MOBILE_MONEY, CARD
+  method            String
   status            PaymentStatus   @default(PENDING)
   transactionRef    String?
   gatewayResponse   Json?
@@ -647,131 +582,117 @@ model Payment {
   receivedBy        String
   notes             String?
   processedBranchId String?
-  processedBranch   Branch?         @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
-
-  // Relations
-  loan     Loan @relation(fields: [loanId], references: [id])
-  receiver User @relation(fields: [receivedBy], references: [id])
+  loan              Loan            @relation(fields: [loanId], references: [id])
+  processedBranch   Branch?         @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
+  receiver          User            @relation(fields: [receivedBy], references: [id])
 
   @@map("payments")
 }
 
 model Charge {
-  id             String           @id @default(uuid())
-  name           String
-  code           String           // Short code like "ADMIN_FEE", "LEGAL_FEE"
-  type           ChargeType
-  calculationType ChargeCalculationType @default(FIXED)
-  defaultAmount  Decimal?         @db.Decimal(15, 2) // Default amount when no currency-specific rate
-  defaultPercentage Decimal?      @db.Decimal(10, 4) // Default percentage (e.g., 10.0000 = 10%)
-  appliesAt      ChargeAppliesAt  @default(DISBURSEMENT) // When the charge is applied
-  isDeductedFromPrincipal Boolean @default(false) // If true, deducted from loan amount; if false, added to loan
-  isMandatory    Boolean          @default(false) // Required for all loans
-  description    String?
-  isActive       Boolean          @default(true)
-  organizationId String
-  // Fields for loan engine auto-calculation (like Django charges)
-  triggerStatus  LoanStatus?      // Which loan status triggers this charge (for auto mode)
-  chargeMode     ChargeMode       @default(MANUAL) // manual or auto
-  chargeApplication ChargeApplication @default(PRINCIPAL) // principal or balance
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  createdBy      String?
-  updatedBy      String?
-
-  // Relations
-  organization   Organization    @relation(fields: [organizationId], references: [id])
-  productCharges ProductCharge[]
-  loanCharges    LoanCharge[]
-  chargeRates    ChargeRate[]    // Currency-specific rates
+  id                      String                @id @default(uuid())
+  name                    String
+  type                    ChargeType
+  defaultAmount           Decimal?              @db.Decimal(15, 2)
+  description             String?
+  isActive                Boolean               @default(true)
+  organizationId          String
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  calculationType         ChargeCalculationType @default(FIXED)
+  appliesAt               ChargeAppliesAt       @default(DISBURSEMENT)
+  defaultPercentage       Decimal?              @db.Decimal(10, 4)
+  isMandatory             Boolean               @default(false)
+  code                    String
+  isDeductedFromPrincipal Boolean               @default(false)
+  createdBy               String?
+  updatedBy               String?
+  triggerStatus           LoanStatus?
+  chargeMode              ChargeMode            @default(MANUAL)
+  chargeApplication       ChargeApplication     @default(PRINCIPAL)
+  chargeRates             ChargeRate[]
+  organization            Organization          @relation(fields: [organizationId], references: [id])
+  loanCharges             LoanCharge[]
+  productCharges          ProductCharge[]
 
   @@unique([organizationId, code])
   @@map("charges")
 }
 
-// Currency-specific charge rates
 model ChargeRate {
-  id          String   @id @default(uuid())
-  chargeId    String
-  currency    Currency
-  amount      Decimal? @db.Decimal(15, 2) // Fixed amount for this currency
-  percentage  Decimal? @db.Decimal(5, 4)  // Percentage for this currency
-  minAmount   Decimal? @db.Decimal(15, 2) // Minimum charge amount
-  maxAmount   Decimal? @db.Decimal(15, 2) // Maximum charge amount
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  charge Charge @relation(fields: [chargeId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  chargeId   String
+  amount     Decimal? @db.Decimal(15, 2)
+  percentage Decimal? @db.Decimal(5, 4)
+  minAmount  Decimal? @db.Decimal(15, 2)
+  maxAmount  Decimal? @db.Decimal(15, 2)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  currency   Currency
+  charge     Charge   @relation(fields: [chargeId], references: [id], onDelete: Cascade)
 
   @@unique([chargeId, currency])
   @@map("charge_rates")
 }
 
 model ProductCharge {
-  id           String   @id @default(uuid())
-  productId    String
-  chargeId     String
-  isActive     Boolean  @default(true)
-  isMandatory  Boolean  @default(false) // Override charge default for this product
-  customAmount Decimal? @db.Decimal(15, 2) // Override amount for this product
-  customPercentage Decimal? @db.Decimal(5, 4) // Override percentage for this product
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  product LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
-  charge  Charge      @relation(fields: [chargeId], references: [id])
+  id               String      @id @default(uuid())
+  productId        String
+  chargeId         String
+  isActive         Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  isMandatory      Boolean     @default(false)
+  customAmount     Decimal?    @db.Decimal(15, 2)
+  customPercentage Decimal?    @db.Decimal(5, 4)
+  updatedAt        DateTime    @updatedAt
+  charge           Charge      @relation(fields: [chargeId], references: [id])
+  product          LoanProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, chargeId])
   @@map("product_charges")
 }
 
 model LoanCharge {
-  id                      String        @id @default(uuid())
+  id                      String                @id @default(uuid())
   loanId                  String
   chargeId                String
-  chargeName              String        // Denormalized for history
-  chargeType              ChargeType
+  amount                  Decimal               @db.Decimal(15, 2)
+  paidAmount              Decimal               @default(0) @db.Decimal(15, 2)
+  status                  PaymentStatus         @default(PENDING)
+  appliedAt               DateTime              @default(now())
+  paidAt                  DateTime?
+  financialTransactionId  String?
   calculationType         ChargeCalculationType
-  currency                Currency
-  baseAmount              Decimal       @db.Decimal(15, 2) // Loan amount or balance used for calculation
-  calculatedAmount        Decimal       @db.Decimal(15, 2) // The calculated charge amount
-  amount                  Decimal       @db.Decimal(15, 2) // Final amount (may be adjusted)
-  paidAmount              Decimal       @default(0) @db.Decimal(15, 2)
-  isDeductedFromPrincipal Boolean       @default(false)
-  isWaived                Boolean       @default(false)
+  baseAmount              Decimal               @db.Decimal(15, 2)
+  chargeName              String
+  chargeType              ChargeType
+  calculatedAmount        Decimal               @db.Decimal(15, 2)
+  isDeductedFromPrincipal Boolean               @default(false)
+  isWaived                Boolean               @default(false)
   waivedBy                String?
   waivedAt                DateTime?
   waiverReason            String?
-  status                  PaymentStatus @default(PENDING)
-  appliedAt               DateTime      @default(now())
-  paidAt                  DateTime?
   appliedBy               String?
-  financialTransactionId  String?       // Link to financial transaction
-
-  // Relations
-  loan   Loan   @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  charge Charge @relation(fields: [chargeId], references: [id])
+  currency                Currency
+  charge                  Charge                @relation(fields: [chargeId], references: [id])
+  loan                    Loan                  @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@map("loan_charges")
 }
 
 model Employer {
-  id            String   @id @default(uuid())
-  name          String
-  address       String?
-  phone         String?
-  email         String?
-  contactPerson String?
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
+  id              String           @id @default(uuid())
+  name            String
+  address         String?
+  phone           String?
+  email           String?
+  contactPerson   String?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   clientEmployers ClientEmployer[]
 
   @@map("employers")
@@ -788,10 +709,8 @@ model ClientEmployer {
   isActive   Boolean   @default(true)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-
-  // Relations
-  client   Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  employer Employer @relation(fields: [employerId], references: [id])
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  employer   Employer  @relation(fields: [employerId], references: [id])
 
   @@unique([clientId, employerId])
   @@map("client_employers")
@@ -808,9 +727,7 @@ model NextOfKin {
   isPrimary    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client       Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("next_of_kins")
 }
@@ -826,83 +743,67 @@ model ClientLimit {
   validTo    DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_limits")
 }
 
-// ========================================
-// CLIENT MANAGEMENT ENHANCEMENT MODELS
-// ========================================
-
-// Document type definitions per organization
 model DocumentType {
-  id             String   @id @default(uuid())
+  id             String           @id @default(uuid())
   organizationId String
-  name           String // e.g., "National ID", "Passport", "Proof of Address"
-  code           String // e.g., "ID", "PASSPORT", "POA"
+  name           String
+  code           String
   description    String?
-  isRequired     Boolean  @default(false)
-  isActive       Boolean  @default(true)
-  sortOrder      Int      @default(0)
-  validityDays   Int? // Number of days document remains valid (null = no expiry)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  documents    ClientDocument[]
+  isRequired     Boolean          @default(false)
+  isActive       Boolean          @default(true)
+  sortOrder      Int              @default(0)
+  validityDays   Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  documents      ClientDocument[]
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@map("document_types")
 }
 
-// AI Provider definitions
 model AIProvider {
-  id           String   @id @default(uuid())
-  name         String   @unique // "gemini", "claude", "openai", "deepseek", "ollama"
-  displayName  String // "Google Gemini", "Anthropic Claude", etc.
-  baseUrl      String? // API base URL (for Ollama: local server URL)
-  isActive     Boolean  @default(true)
-  isLocal      Boolean  @default(false) // True for Ollama
-  capabilities String[] @default([]) // ["document_extraction", "image_analysis", "text_generation"]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
+  id                  String                 @id @default(uuid())
+  name                String                 @unique
+  displayName         String
+  baseUrl             String?
+  isActive            Boolean                @default(true)
+  isLocal             Boolean                @default(false)
+  capabilities        String[]               @default([])
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
   organizationConfigs OrganizationAIConfig[]
 
   @@map("ai_providers")
 }
 
-// Organization-specific AI configuration
 model OrganizationAIConfig {
-  id             String   @id @default(uuid())
+  id             String       @id @default(uuid())
   organizationId String
   aiProviderId   String
-  apiKey         String? // Encrypted API key (null for Ollama)
-  modelName      String? // e.g., "gemini-1.5-flash", "claude-3-sonnet", "gpt-4o", "deepseek-chat"
-  isEnabled      Boolean  @default(true)
-  isPrimary      Boolean  @default(false) // Primary provider for this organization
+  apiKey         String?
+  modelName      String?
+  isEnabled      Boolean      @default(true)
+  isPrimary      Boolean      @default(false)
   maxTokens      Int?
   temperature    Float?
-  settings       Json? // Additional provider-specific settings
-  usageThisMonth Int      @default(0)
-  usageLimit     Int? // Monthly token/request limit
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  aiProvider   AIProvider   @relation(fields: [aiProviderId], references: [id])
+  settings       Json?
+  usageThisMonth Int          @default(0)
+  usageLimit     Int?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  aiProvider     AIProvider   @relation(fields: [aiProviderId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, aiProviderId])
   @@map("organization_ai_configs")
 }
 
-// Client addresses (supporting multiple addresses)
 model ClientAddress {
   id           String      @id @default(uuid())
   clientId     String
@@ -922,20 +823,17 @@ model ClientAddress {
   notes        String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client       Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_addresses")
 }
 
-// Client contacts (multiple phone numbers, WhatsApp, etc.)
 model ClientContact {
   id           String      @id @default(uuid())
   clientId     String
   contactType  ContactType @default(MOBILE)
-  contactValue String // Phone number, email, etc.
-  label        String? // "Personal", "Work", "Alternate"
+  contactValue String
+  label        String?
   isPrimary    Boolean     @default(false)
   isWhatsApp   Boolean     @default(false)
   isVerified   Boolean     @default(false)
@@ -943,46 +841,40 @@ model ClientContact {
   notes        String?
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client       Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_contacts")
 }
 
-// Client documents (linked to MinIO storage)
 model ClientDocument {
   id               String         @id @default(uuid())
   clientId         String
   documentTypeId   String
-  fileName         String // Original file name
-  fileSize         Int // Size in bytes
-  mimeType         String // e.g., "image/jpeg", "application/pdf"
-  storagePath      String // MinIO object path
-  storageUrl       String? // Pre-signed URL (generated on demand)
-  documentNumber   String? // ID number, passport number, etc.
+  fileName         String
+  fileSize         Int
+  mimeType         String
+  storagePath      String
+  storageUrl       String?
+  documentNumber   String?
   issueDate        DateTime?
   expiryDate       DateTime?
   issuingAuthority String?
   status           DocumentStatus @default(PENDING)
   rejectionReason  String?
-  aiExtractionData Json? // Data extracted by AI
-  aiConfidence     Float? // Confidence score from AI extraction
+  aiExtractionData Json?
+  aiConfidence     Float?
   extractedAt      DateTime?
   verifiedBy       String?
   verifiedAt       DateTime?
   notes            String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
-
-  // Relations
-  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  documentType DocumentType @relation(fields: [documentTypeId], references: [id])
+  client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  documentType     DocumentType   @relation(fields: [documentTypeId], references: [id])
 
   @@map("client_documents")
 }
 
-// Business information for business clients
 model ClientBusiness {
   id                 String       @id @default(uuid())
   clientId           String       @unique
@@ -1008,165 +900,143 @@ model ClientBusiness {
   notes              String?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
-
-  // Relations
-  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client             Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_businesses")
 }
 
-// Collateral types per organization
 model CollateralType {
-  id             String   @id @default(uuid())
+  id             String             @id @default(uuid())
   organizationId String
-  name           String // e.g., "Vehicle", "Property", "Equipment"
-  code           String // e.g., "VEHICLE", "PROPERTY", "EQUIPMENT"
+  name           String
+  code           String
   description    String?
-  isActive       Boolean  @default(true)
-  sortOrder      Int      @default(0)
-  requiredFields String[] @default([]) // ["registration_number", "make", "model", "year"]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  collaterals  ClientCollateral[]
+  isActive       Boolean            @default(true)
+  sortOrder      Int                @default(0)
+  requiredFields String[]           @default([])
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  collaterals    ClientCollateral[]
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([organizationId, code])
   @@map("collateral_types")
 }
 
-// Client collateral items
 model ClientCollateral {
-  id                  String           @id @default(uuid())
+  id                  String               @id @default(uuid())
   clientId            String
   collateralTypeId    String
   description         String
-  estimatedValue      Decimal          @db.Decimal(15, 2)
-  currency            Currency         @default(USD)
+  estimatedValue      Decimal              @db.Decimal(15, 2)
+  currency            Currency             @default(USD)
   valuationDate       DateTime?
-  valuator            String? // Name of valuator/appraiser
-  registrationNumber  String? // For vehicles
-  serialNumber        String? // For equipment
-  make                String? // For vehicles
-  model               String? // For vehicles/equipment
-  year                Int? // Year of manufacture
-  location            String? // Where the collateral is located
-  ownershipStatus     OwnershipStatus  @default(FULLY_OWNED)
-  ownershipDetails    String? // Additional ownership info
+  valuator            String?
+  registrationNumber  String?
+  serialNumber        String?
+  make                String?
+  model               String?
+  year                Int?
+  location            String?
+  ownershipStatus     OwnershipStatus      @default(FULLY_OWNED)
+  ownershipDetails    String?
   insuranceProvider   String?
   insurancePolicyNo   String?
   insuranceExpiryDate DateTime?
-  status              CollateralStatus @default(AVAILABLE)
-  loanId              String? // If pledged to a loan
+  status              CollateralStatus     @default(AVAILABLE)
+  loanId              String?
   pledgedAt           DateTime?
   releasedAt          DateTime?
   notes               String?
-  metadata            Json? // Additional type-specific data
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
-
-  // Relations
-  client         Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  collateralType CollateralType       @relation(fields: [collateralTypeId], references: [id])
-  loan           Loan?                @relation(fields: [loanId], references: [id])
-  documents      CollateralDocument[]
+  metadata            Json?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  client              Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  collateralType      CollateralType       @relation(fields: [collateralTypeId], references: [id])
+  loan                Loan?                @relation(fields: [loanId], references: [id])
+  documents           CollateralDocument[]
 
   @@map("client_collaterals")
 }
 
-// Documents for collateral items
 model CollateralDocument {
-  id           String   @id @default(uuid())
+  id           String           @id @default(uuid())
   collateralId String
   fileName     String
   fileSize     Int
   mimeType     String
   storagePath  String
-  documentType String // "title_deed", "registration", "valuation_report", "photo"
+  documentType String
   notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  // Relations
-  collateral ClientCollateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  collateral   ClientCollateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
 
   @@map("collateral_documents")
 }
 
-// Import jobs for CSV/Excel imports
 model ImportJob {
   id               String       @id @default(uuid())
   organizationId   String
-  importType       ImportType // CLIENTS, LOANS, PAYMENTS, etc.
+  importType       ImportType
   fileName         String
   originalFileName String
-  storagePath      String // MinIO path
+  storagePath      String
   status           ImportStatus @default(PENDING)
   totalRows        Int?
   processedRows    Int          @default(0)
   successfulRows   Int          @default(0)
   failedRows       Int          @default(0)
-  errorLog         Json? // Array of errors with row numbers
-  mapping          Json? // Column mapping configuration
+  errorLog         Json?
+  mapping          Json?
   createdBy        String
   startedAt        DateTime?
   completedAt      DateTime?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("import_jobs")
 }
 
-// ========================================
-// END CLIENT MANAGEMENT ENHANCEMENT MODELS
-// ========================================
-
 model ApiKey {
-  id             String    @id @default(uuid())
+  id             String       @id @default(uuid())
   name           String
-  key            String    @unique
+  key            String       @unique
   organizationId String
-  isActive       Boolean   @default(true)
-  permissions    String[]  @default([])
-  rateLimit      Int? // Override organization rate limit
+  isActive       Boolean      @default(true)
+  permissions    String[]     @default([])
+  rateLimit      Int?
   lastUsed       DateTime?
   expiresAt      DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  // Relations
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("api_keys")
 }
 
 model AuditLog {
-  id             String      @id @default(uuid())
+  id             String        @id @default(uuid())
   userId         String?
   organizationId String?
   action         String
   resource       String
   resourceId     String?
-  previousValue  Json?
-  newValue       Json?
   changes        Json?
-  status         AuditStatus @default(SUCCESS)
-  duration       Int? // Duration in milliseconds
-  requestId      String?
-  sessionId      String?
-  branchId       String?
   ipAddress      String?
   userAgent      String?
+  timestamp      DateTime      @default(now())
+  branchId       String?
+  duration       Int?
   errorMessage   String?
-  timestamp      DateTime    @default(now())
-
-  // Relations
-  user         User?         @relation(fields: [userId], references: [id])
-  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  newValue       Json?
+  previousValue  Json?
+  requestId      String?
+  sessionId      String?
+  status         AuditStatus   @default(SUCCESS)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([organizationId])
@@ -1178,19 +1048,15 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ==================== RBAC (Role-Based Access Control) ====================
-
 model Permission {
-  id          String   @id @default(uuid())
-  code        String   @unique
-  name        String
-  description String?
-  module      String // clients, loans, payments, reports, settings, users, audit, etc.
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  description     String?
+  module          String
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   rolePermissions RolePermission[]
 
   @@index([module])
@@ -1199,19 +1065,17 @@ model Permission {
 }
 
 model Role {
-  id             String   @id @default(uuid())
-  name           String
-  description    String?
-  organizationId String? // null for system roles
-  isSystem       Boolean  @default(false) // System roles cannot be deleted
-  isDefault      Boolean  @default(false) // Auto-assigned to new users
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id              String               @id @default(uuid())
+  name            String
+  description     String?
+  organizationId  String?
+  isSystem        Boolean              @default(false)
+  isDefault       Boolean              @default(false)
+  isActive        Boolean              @default(true)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
   rolePermissions RolePermission[]
+  organization    Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userRoles       UserRoleAssignment[]
 
   @@unique([name, organizationId])
@@ -1220,14 +1084,12 @@ model Role {
 }
 
 model RolePermission {
-  id           String   @id @default(uuid())
+  id           String     @id @default(uuid())
   roleId       String
   permissionId String
-  createdAt    DateTime @default(now())
-
-  // Relations
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([roleId, permissionId])
   @@map("role_permissions")
@@ -1241,10 +1103,8 @@ model UserRoleAssignment {
   assignedAt DateTime  @default(now())
   expiresAt  DateTime?
   isActive   Boolean   @default(true)
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role       Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roleId])
   @@index([userId])
@@ -1260,9 +1120,7 @@ model UserPermission {
   grantedAt      DateTime  @default(now())
   expiresAt      DateTime?
   isActive       Boolean   @default(true)
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, permissionCode])
   @@index([userId])
@@ -1270,23 +1128,21 @@ model UserPermission {
 }
 
 model LoanCategory {
-  id                     String   @id @default(uuid())
+  id                     String        @id @default(uuid())
   name                   String
   code                   String
   description            String?
-  isLongTerm             Boolean  @default(false)
-  requiresBusinessVisit  Boolean  @default(false)
-  requiresHomeVisit      Boolean  @default(false)
-  requiresSecurityPledge Boolean  @default(false)
-  requiresCollateral     Boolean  @default(false)
+  isLongTerm             Boolean       @default(false)
+  requiresBusinessVisit  Boolean       @default(false)
+  requiresHomeVisit      Boolean       @default(false)
+  requiresSecurityPledge Boolean       @default(false)
+  requiresCollateral     Boolean       @default(false)
   organizationId         String
-  isActive               Boolean  @default(true)
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
-
-  // Relations
-  organization Organization  @relation(fields: [organizationId], references: [id])
-  products     LoanProduct[]
+  isActive               Boolean       @default(true)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  organization           Organization  @relation(fields: [organizationId], references: [id])
+  products               LoanProduct[]
 
   @@unique([organizationId, code])
   @@map("loan_categories")
@@ -1296,28 +1152,21 @@ model LoanAssessment {
   id                String    @id @default(uuid())
   loanId            String
   assessorId        String
-  status            String // PENDING, APPROVED, REJECTED
-  
-  // 5C's Assessment Fields
-  clientCharacter   String?   // GOOD, FAIR, POOR
-  clientCapacity    String?   // ADEQUATE, MARGINAL, INADEQUATE
-  collateralQuality String?   // SATISFACTORY, FAIR, POOR
-  conditions        String?   // FAVORABLE, MODERATE, UNFAVORABLE
-  capitalAdequacy   String?   // ADEQUATE, MARGINAL, INADEQUATE
-  
-  // Assessment Results
-  recommendedAmount Decimal?  @db.Decimal(15, 2)
-  recommendation    String?   // APPROVED, CONDITIONAL, REJECTED
-  
+  status            String
   documentChecklist Json?
   notes             String?
   completedAt       DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
-
-  // Relations
-  loan     Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  assessor User @relation(fields: [assessorId], references: [id])
+  clientCharacter   String?
+  clientCapacity    String?
+  collateralQuality String?
+  conditions        String?
+  capitalAdequacy   String?
+  recommendedAmount Decimal?  @db.Decimal(15, 2)
+  recommendation    String?
+  assessor          User      @relation(fields: [assessorId], references: [id])
+  loan              Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@map("loan_assessments")
 }
@@ -1336,10 +1185,8 @@ model LoanVisit {
   syncedAt  DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-
-  // Relations
-  loan    Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  visitor User @relation(fields: [visitedBy], references: [id])
+  loan      Loan      @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  visitor   User      @relation(fields: [visitedBy], references: [id])
 
   @@map("loan_visits")
 }
@@ -1352,12 +1199,10 @@ model SecurityPledge {
   estimatedValue  Decimal  @db.Decimal(15, 2)
   currency        Currency @default(USD)
   images          String[]
-  status          String // PENDING, VERIFIED, RELEASED, SEIZED
+  status          String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  // Relations
-  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  loan            Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@map("security_pledges")
 }
@@ -1370,16 +1215,14 @@ model LoanWorkflowHistory {
   changedBy  String
   changedAt  DateTime   @default(now())
   notes      String?
-
-  // Relations
-  loan    Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  changer User @relation(fields: [changedBy], references: [id])
+  changer    User       @relation(fields: [changedBy], references: [id])
+  loan       Loan       @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@map("loan_workflow_history")
 }
 
 model Shop {
-  id             String   @id @default(uuid())
+  id             String        @id @default(uuid())
   name           String
   address        String?
   phone          String?
@@ -1387,49 +1230,43 @@ model Shop {
   bankAccount    String?
   mobileNumber   String?
   organizationId String
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  // Relations
-  organization Organization  @relation(fields: [organizationId], references: [id])
-  products     ShopProduct[]
-  loans        Loan[]
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  loans          Loan[]
+  products       ShopProduct[]
+  organization   Organization  @relation(fields: [organizationId], references: [id])
 
   @@map("shops")
 }
 
 model ShopProduct {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   shopId      String
   name        String
   description String?
-  price       Decimal  @db.Decimal(15, 2)
-  currency    Currency @default(USD)
+  price       Decimal    @db.Decimal(15, 2)
+  currency    Currency   @default(USD)
   sku         String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  shop      Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  loanItems LoanItem[]
+  isActive    Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  loanItems   LoanItem[]
+  shop        Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   @@map("shop_products")
 }
 
 model LoanItem {
-  id            String   @id @default(uuid())
+  id            String      @id @default(uuid())
   loanId        String
   shopProductId String
   quantity      Int
-  unitPrice     Decimal  @db.Decimal(15, 2)
-  totalPrice    Decimal  @db.Decimal(15, 2)
-  createdAt     DateTime @default(now())
-
-  // Relations
-  loan        Loan        @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  shopProduct ShopProduct @relation(fields: [shopProductId], references: [id])
+  unitPrice     Decimal     @db.Decimal(15, 2)
+  totalPrice    Decimal     @db.Decimal(15, 2)
+  createdAt     DateTime    @default(now())
+  loan          Loan        @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  shopProduct   ShopProduct @relation(fields: [shopProductId], references: [id])
 
   @@map("loan_items")
 }
@@ -1452,14 +1289,130 @@ model OnlineApplication {
   notes                  String?
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
-
-  // Relations
-  loans Loan[]
+  loans                  Loan[]
 
   @@map("online_applications")
 }
 
-// Enums
+model SyncQueue {
+  id             String     @id @default(uuid())
+  organizationId String
+  userId         String
+  deviceId       String?
+  entityType     String
+  entityId       String
+  action         SyncAction
+  payload        Json
+  version        Int        @default(1)
+  status         SyncStatus @default(PENDING)
+  error          String?
+  retryCount     Int        @default(0)
+  createdAt      DateTime   @default(now())
+  syncedAt       DateTime?
+  processedAt    DateTime?
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("sync_queue")
+}
+
+model SyncConflict {
+  id             String    @id @default(uuid())
+  organizationId String
+  syncQueueId    String
+  entityType     String
+  entityId       String
+  clientVersion  Int
+  serverVersion  Int
+  clientData     Json
+  serverData     Json
+  resolution     String?
+  resolvedBy     String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([resolution])
+  @@map("sync_conflicts")
+}
+
+model EntityVersion {
+  id             String   @id @default(uuid())
+  organizationId String
+  entityType     String
+  entityId       String
+  version        Int      @default(1)
+  updatedAt      DateTime @default(now())
+  updatedBy      String?
+
+  @@unique([organizationId, entityType, entityId])
+  @@index([organizationId, entityType])
+  @@index([updatedAt])
+  @@map("entity_versions")
+}
+
+model ClientDraft {
+  id                     String    @id @default(uuid())
+  organizationId         String
+  userId                 String
+  branchId               String?
+  draftData              Json
+  requiredFieldsComplete Boolean   @default(false)
+  completionPercentage   Int       @default(0)
+  lastFieldUpdated       String?
+  version                Int       @default(1)
+  expiresAt              DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@index([updatedAt])
+  @@map("client_drafts")
+}
+
+model Note {
+  id             String           @id @default(uuid())
+  organizationId String
+  entityType     NoteEntityType
+  entityId       String
+  content        String
+  priority       NotePriority     @default(NORMAL)
+  isPinned       Boolean          @default(false)
+  isPrivate      Boolean          @default(false)
+  createdBy      String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  attachments    NoteAttachment[]
+  creator        User             @relation(fields: [createdBy], references: [id])
+
+  @@index([organizationId])
+  @@index([entityType, entityId])
+  @@index([createdBy])
+  @@index([createdAt])
+  @@map("notes")
+}
+
+model NoteAttachment {
+  id          String   @id @default(uuid())
+  noteId      String
+  fileName    String
+  fileSize    Int
+  mimeType    String
+  storagePath String
+  uploadedBy  String
+  uploadedAt  DateTime @default(now())
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId])
+  @@map("note_attachments")
+}
+
 enum OrganizationType {
   MICROFINANCE
   BANK
@@ -1470,13 +1423,13 @@ enum OrganizationType {
 enum UserRole {
   SUPER_ADMIN
   ADMIN
-  ORG_ADMIN
   MANAGER
+  STAFF
+  CLIENT
+  ORG_ADMIN
   LOAN_OFFICER
   ACCOUNTANT
   TELLER
-  STAFF
-  CLIENT
   API_CLIENT
 }
 
@@ -1503,24 +1456,22 @@ enum LoanStatus {
   APPROVED
   PENDING_DISBURSEMENT
   ACTIVE
-  DEFAULT          // First missed payment after grace period
-  OVERDUE          // Final due date passed
+  OVERDUE
   COMPLETED
   CANCELLED
-  DEFAULTED        // Written off but still tracked
+  DEFAULTED
   WRITTEN_OFF
+  DEFAULT
 }
 
-// Loan calculation engine type - configurable per organization
 enum LoanCalculationEngineType {
-  SHORT_TERM       // Simple interest, period-based (like the Django system)
-  LONG_TERM        // Amortized schedule with installments
-  REDUCING_BALANCE // Interest on reducing balance
-  FLAT_RATE        // Fixed interest for entire term
-  CUSTOM           // Organization-specific custom logic
+  SHORT_TERM
+  LONG_TERM
+  REDUCING_BALANCE
+  FLAT_RATE
+  CUSTOM
 }
 
-// Duration units for loan periods
 enum DurationUnit {
   DAYS
   WEEKS
@@ -1528,17 +1479,15 @@ enum DurationUnit {
   YEARS
 }
 
-// Charge mode - manual or auto (for engine processing)
 enum ChargeMode {
-  MANUAL           // Applied manually by users
-  AUTO             // Applied automatically by loan engine
+  MANUAL
+  AUTO
 }
 
-// Charge application base - principal or balance
 enum ChargeApplication {
-  PRINCIPAL        // Calculate based on loan principal
-  BALANCE          // Calculate based on current balance
-  OTHER            // Custom calculation
+  PRINCIPAL
+  BALANCE
+  OTHER
 }
 
 enum VisitType {
@@ -1581,11 +1530,11 @@ enum PaymentStatus {
 
 enum PaymentMethodType {
   CASH
-  MOBILE_MONEY       // EcoCash, OneMoney, etc.
+  MOBILE_MONEY
   BANK_TRANSFER
   CHEQUE
-  CARD               // Debit/Credit card
-  DIGITAL_WALLET     // PayShap, etc.
+  CARD
+  DIGITAL_WALLET
   OTHER
 }
 
@@ -1610,21 +1559,21 @@ enum TransactionType {
 }
 
 enum ChargeCalculationType {
-  FIXED              // Fixed amount
-  PERCENTAGE         // Percentage of principal
-  PERCENTAGE_BALANCE // Percentage of current balance
+  PERCENTAGE
+  FIXED
+  PERCENTAGE_BALANCE
 }
 
 enum ChargeAppliesAt {
-  DISBURSEMENT   // Applied when loan is disbursed
-  APPROVAL       // Applied when loan is approved
-  SETTLEMENT     // Applied when loan is settled early
-  LATE_PAYMENT   // Applied on late payments
-  MONTHLY        // Applied monthly
-  MANUAL         // Manually applied
-  REPAYMENT      // Applied on repayment
-  OVERDUE        // Applied when overdue
-  CLOSURE        // Applied at loan closure
+  DISBURSEMENT
+  APPROVAL
+  SETTLEMENT
+  LATE_PAYMENT
+  MONTHLY
+  MANUAL
+  REPAYMENT
+  OVERDUE
+  CLOSURE
 }
 
 enum RepaymentFrequency {
@@ -1648,7 +1597,6 @@ enum LoanCalculationMethod {
 }
 
 enum ChargeType {
-  // Disbursement Charges
   ADMIN_FEE
   APPLICATION_FEE
   PROCESSING_FEE
@@ -1657,21 +1605,18 @@ enum ChargeType {
   DOCUMENTATION_FEE
   INSURANCE_FEE
   STAMP_DUTY
-  // Operational Charges
   LATE_FEE
   PENALTY
   EARLY_SETTLEMENT_FEE
   COLLECTION_FEE
   RESTRUCTURE_FEE
-  // Legacy values (kept for existing data)
+  OTHER
   INSURANCE
   DISBURSEMENT_FEE
   EARLY_REPAYMENT_FEE
   LATE_PAYMENT_FEE
   PENALTY_FEE
   VALUATION_FEE
-  // Other
-  OTHER
 }
 
 enum ApiTier {
@@ -1687,10 +1632,6 @@ enum Currency {
   ZAR
   BWP
 }
-
-// ========================================
-// CLIENT MANAGEMENT ENUMS
-// ========================================
 
 enum AddressType {
   RESIDENTIAL
@@ -1757,17 +1698,11 @@ enum ImportStatus {
   PARTIALLY_COMPLETED
 }
 
-// ========================================
-// END CLIENT MANAGEMENT ENUMS
-// ========================================
-
 enum AuditStatus {
   SUCCESS
   FAILURE
   PARTIAL
 }
-
-// ===== OFFLINE SYNC MODELS =====
 
 enum SyncStatus {
   SYNCED
@@ -1781,101 +1716,6 @@ enum SyncAction {
   DELETE
 }
 
-model SyncQueue {
-  id             String     @id @default(uuid())
-  organizationId String
-  userId         String
-  deviceId       String?
-  entityType     String // clients, loans, payments, visits, etc.
-  entityId       String
-  action         SyncAction
-  payload        Json // The data to sync
-  version        Int        @default(1)
-  status         SyncStatus @default(PENDING)
-  error          String?
-  retryCount     Int        @default(0)
-  createdAt      DateTime   @default(now())
-  syncedAt       DateTime?
-  processedAt    DateTime?
-
-  @@index([organizationId])
-  @@index([userId])
-  @@index([entityType, entityId])
-  @@index([status])
-  @@index([createdAt])
-  @@map("sync_queue")
-}
-
-model SyncConflict {
-  id             String    @id @default(uuid())
-  organizationId String
-  syncQueueId    String
-  entityType     String
-  entityId       String
-  clientVersion  Int
-  serverVersion  Int
-  clientData     Json
-  serverData     Json
-  resolution     String? // CLIENT_WINS, SERVER_WINS, MERGED, MANUAL
-  resolvedBy     String?
-  resolvedAt     DateTime?
-  createdAt      DateTime  @default(now())
-
-  @@index([organizationId])
-  @@index([entityType, entityId])
-  @@index([resolution])
-  @@map("sync_conflicts")
-}
-
-model EntityVersion {
-  id             String   @id @default(uuid())
-  organizationId String
-  entityType     String
-  entityId       String
-  version        Int      @default(1)
-  updatedAt      DateTime @default(now())
-  updatedBy      String?
-
-  @@unique([organizationId, entityType, entityId])
-  @@index([organizationId, entityType])
-  @@index([updatedAt])
-  @@map("entity_versions")
-}
-
-// ============================================
-// CLIENT DRAFTS - Auto-save functionality
-// ============================================
-model ClientDraft {
-  id             String   @id @default(uuid())
-  organizationId String
-  userId         String
-  branchId       String?
-  
-  // Draft data stored as JSON
-  draftData      Json
-  
-  // Track completion status
-  requiredFieldsComplete Boolean @default(false)
-  completionPercentage   Int     @default(0)
-  
-  // Metadata
-  lastFieldUpdated String?
-  version          Int      @default(1)
-  expiresAt        DateTime? // Optional expiry for drafts
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([organizationId, userId]) // One active draft per user per org
-  @@index([organizationId])
-  @@index([userId])
-  @@index([updatedAt])
-  @@map("client_drafts")
-}
-
-// ============================================
-// NOTES MODULE - Attachable notes to entities
-// ============================================
 enum NoteEntityType {
   CLIENT
   LOAN
@@ -1893,43 +1733,32 @@ enum NotePriority {
   URGENT
 }
 
-model Note {
-  id             String         @id @default(uuid())
-  organizationId String
-  entityType     NoteEntityType
-  entityId       String
-  content        String         @db.Text
-  priority       NotePriority   @default(NORMAL)
-  isPinned       Boolean        @default(false)
-  isPrivate      Boolean        @default(false) // Only visible to creator and admins
-  createdBy      String
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-
-  // Relations
-  creator     User             @relation(fields: [createdBy], references: [id])
-  attachments NoteAttachment[]
-
-  @@index([organizationId])
-  @@index([entityType, entityId])
-  @@index([createdBy])
-  @@index([createdAt])
-  @@map("notes")
+enum TargetType {
+  DISBURSEMENT
+  REPAYMENT
 }
 
-model NoteAttachment {
-  id           String   @id @default(uuid())
-  noteId       String
-  fileName     String
-  fileSize     Int
-  mimeType     String
-  storagePath  String   // MinIO path
-  uploadedBy   String
-  uploadedAt   DateTime @default(now())
+model MonthlyTarget {
+  id             String       @id @default(uuid())
+  organizationId String
+  branchId       String
+  currency       Currency
+  targetType     TargetType
+  targetAmount   Decimal      @db.Decimal(15, 2)
+  year           Int
+  month          Int          // 1-12
+  notes          String?
+  isActive       Boolean      @default(true)
+  createdBy      String?
+  updatedBy      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch         Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
-  // Relations
-  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
-
-  @@index([noteId])
-  @@map("note_attachments")
+  @@unique([organizationId, branchId, currency, targetType, year, month])
+  @@index([organizationId])
+  @@index([branchId])
+  @@index([year, month])
+  @@map("monthly_targets")
 }

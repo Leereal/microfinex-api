@@ -43,7 +43,7 @@ export const createClientCollateralSchema = z.object({
   collateralTypeId: z.string().uuid(),
   description: z.string().min(1).max(1000),
   estimatedValue: z.number().positive(),
-  currency: z.enum(['ZWG', 'USD', 'ZAR', 'BWP']).default('USD'),
+  currency: z.string().min(3).max(3).default('USD'), // Dynamic currency code from database
   valuationDate: z.string().datetime().optional(),
   valuator: z.string().max(200).optional(),
   registrationNumber: z.string().max(100).optional(),
@@ -94,7 +94,7 @@ export interface ClientCollateralFilters {
 
 export interface CollateralSummary {
   totalItems: number;
-  totalValue: Record<Currency, number>;
+  totalValue: Record<string, number>; // Dynamic currency codes from database
   byStatus: Record<CollateralStatus, number>;
   byType: Record<string, number>;
   pledgedToLoans: number;
@@ -225,7 +225,7 @@ class CollateralService {
         collateralTypeId: data.collateralTypeId,
         description: data.description,
         estimatedValue: new Prisma.Decimal(data.estimatedValue),
-        currency: data.currency || 'USD',
+        currency: (data.currency || 'USD') as Currency, // Cast to Prisma Currency enum
         valuationDate: data.valuationDate
           ? new Date(data.valuationDate)
           : undefined,
@@ -294,7 +294,7 @@ class CollateralService {
         estimatedValue: data.estimatedValue
           ? new Prisma.Decimal(data.estimatedValue)
           : undefined,
-        currency: data.currency,
+        currency: data.currency as Currency | undefined, // Cast to Prisma Currency enum
         valuationDate: data.valuationDate
           ? new Date(data.valuationDate)
           : undefined,
@@ -725,12 +725,7 @@ class CollateralService {
       },
     });
 
-    const totalValue: Record<Currency, number> = {
-      ZWG: 0,
-      USD: 0,
-      ZAR: 0,
-      BWP: 0,
-    };
+    const totalValue: Record<string, number> = {}; // Dynamic currency totals
 
     const byStatus: Record<CollateralStatus, number> = {
       AVAILABLE: 0,
@@ -750,7 +745,9 @@ class CollateralService {
           ? Number(c.estimatedValue)
           : Number(c.estimatedValue);
 
-      totalValue[c.currency] += value;
+      // Initialize currency if not exists and add value
+      const currencyKey = c.currency;
+      totalValue[currencyKey] = (totalValue[currencyKey] || 0) + value;
       byStatus[c.status]++;
 
       const typeName = c.collateralType.name;

@@ -154,7 +154,7 @@ const createCollateralSchema = z.object({
     collateralTypeId: z.string().uuid(),
     description: z.string().min(1, 'Description is required'),
     estimatedValue: z.number().positive('Value must be positive'),
-    currency: z.enum(['USD', 'ZWG', 'ZAR', 'BWP']).optional(),
+    currency: z.string().min(3).max(3).optional(), // Dynamic currency code from database
     ownershipStatus: z
       .enum(['FULLY_OWNED', 'FINANCED', 'LEASED', 'JOINT_OWNERSHIP'])
       .optional(),
@@ -203,7 +203,7 @@ const updateCollateralSchema = z.object({
   body: z.object({
     description: z.string().min(1).optional(),
     estimatedValue: z.number().positive().optional(),
-    currency: z.enum(['USD', 'ZWG', 'ZAR', 'BWP']).optional(),
+    currency: z.string().min(3).max(3).optional(), // Dynamic currency code from database
     ownershipStatus: z
       .enum(['FULLY_OWNED', 'FINANCED', 'LEASED', 'JOINT_OWNERSHIP'])
       .optional(),

@@ -1,5 +1,11 @@
 import { prisma } from '../config/database';
-import { LoanStatus, VisitType, LoanCategory, Prisma } from '@prisma/client';
+import {
+  LoanStatus,
+  VisitType,
+  LoanCategory,
+  Prisma,
+  Currency,
+} from '@prisma/client';
 import { financialTransactionService } from './financial-transaction.service';
 import { chargeService } from './charge.service';
 import { loanEngineService } from './loan-engine.service';
@@ -344,7 +350,7 @@ interface CreatePledgeInput {
   itemDescription: string;
   serialNumber?: string;
   estimatedValue: number;
-  currency?: 'ZWG' | 'USD' | 'ZAR';
+  currency?: string; // Dynamic currency code from database
   images?: string[];
 }
 
@@ -352,7 +358,7 @@ interface UpdatePledgeInput {
   itemDescription?: string;
   serialNumber?: string;
   estimatedValue?: number;
-  currency?: 'ZWG' | 'USD' | 'ZAR';
+  currency?: string; // Dynamic currency code from database
   images?: string[];
   status?: 'PENDING' | 'VERIFIED' | 'RELEASED' | 'SEIZED';
 }
@@ -365,7 +371,7 @@ class SecurityPledgeService {
         itemDescription: input.itemDescription,
         serialNumber: input.serialNumber,
         estimatedValue: input.estimatedValue,
-        currency: input.currency || 'USD',
+        currency: (input.currency || 'USD') as Currency, // Cast to Prisma Currency enum
         images: input.images || [],
         status: 'PENDING',
       },
@@ -380,7 +386,10 @@ class SecurityPledgeService {
   async update(id: string, input: UpdatePledgeInput) {
     return prisma.securityPledge.update({
       where: { id },
-      data: input,
+      data: {
+        ...input,
+        currency: input.currency as Currency | undefined, // Cast to Prisma Currency enum
+      },
       include: {
         loan: {
           select: { loanNumber: true, amount: true },

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { prisma } from '../config/database';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
@@ -15,14 +16,14 @@ const router = Router();
 // Query validation schemas
 const paymentQuerySchema = z.object({
   loanId: z.string().uuid().optional(),
+  clientId: z.string().uuid().optional(),
   status: z
     .enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED'])
     .optional(),
-  method: z
-    .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK', 'CARD'])
-    .optional(),
-  dateFrom: z.string().datetime().optional(),
-  dateTo: z.string().datetime().optional(),
+  method: z.string().optional(), // Dynamic payment methods from database
+  dateFrom: z.string().optional(),
+  dateTo: z.string().optional(),
+  search: z.string().optional(),
   page: z
     .string()
     .transform(val => parseInt(val) || 1)
@@ -32,6 +33,230 @@ const paymentQuerySchema = z.object({
     .transform(val => Math.min(parseInt(val) || 10, 100))
     .optional(),
 });
+
+/**
+ * @swagger
+ * /api/v1/payments:
+ *   get:
+ *     summary: Get all payments with pagination and filters
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+  '/',
+  authenticate,
+  validateQuery(paymentQuerySchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.userContext?.organizationId;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization ID required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const {
+        loanId,
+        clientId,
+        status,
+        method,
+        dateFrom,
+        dateTo,
+        search,
+        page = 1,
+        limit = 10,
+      } = req.query as {
+        loanId?: string;
+        clientId?: string;
+        status?: string;
+        method?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        search?: string;
+        page?: number;
+        limit?: number;
+      };
+
+      const skip = (Number(page) - 1) * Number(limit);
+
+      // Build where clause
+      const where: any = {
+        loan: {
+          organizationId,
+        },
+      };
+
+      if (loanId) {
+        where.loanId = loanId;
+      }
+
+      if (clientId) {
+        where.loan = {
+          ...where.loan,
+          clientId,
+        };
+      }
+
+      if (status) {
+        where.status = status;
+      }
+
+      if (method) {
+        where.method = method;
+      }
+
+      if (dateFrom || dateTo) {
+        where.paymentDate = {};
+        if (dateFrom) {
+          where.paymentDate.gte = new Date(dateFrom);
+        }
+        if (dateTo) {
+          where.paymentDate.lte = new Date(dateTo);
+        }
+      }
+
+      if (search) {
+        where.OR = [
+          { paymentNumber: { contains: search, mode: 'insensitive' } },
+          { transactionRef: { contains: search, mode: 'insensitive' } },
+          {
+            loan: {
+              loanNumber: { contains: search, mode: 'insensitive' },
+            },
+          },
+          {
+            loan: {
+              client: {
+                OR: [
+                  { firstName: { contains: search, mode: 'insensitive' } },
+                  { lastName: { contains: search, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        ];
+      }
+
+      const [payments, total] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          include: {
+            loan: {
+              select: {
+                id: true,
+                loanNumber: true,
+                amount: true,
+                currency: true,
+                client: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    clientNumber: true,
+                  },
+                },
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+            receiver: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+            processedBranch: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+              },
+            },
+          },
+          orderBy: { paymentDate: 'desc' },
+          skip,
+          take: Number(limit),
+        }),
+        prisma.payment.count({ where }),
+      ]);
+
+      // Get summary statistics
+      const summaryWhere = {
+        loan: { organizationId },
+        ...(status && { status }),
+        ...(dateFrom || dateTo
+          ? {
+              paymentDate: {
+                ...(dateFrom && { gte: new Date(dateFrom) }),
+                ...(dateTo && { lte: new Date(dateTo) }),
+              },
+            }
+          : {}),
+      };
+
+      const [totalAmount, statusCounts] = await Promise.all([
+        prisma.payment.aggregate({
+          where: { ...summaryWhere, status: 'COMPLETED' },
+          _sum: { amount: true },
+        }),
+        prisma.payment.groupBy({
+          by: ['status'],
+          where: { loan: { organizationId } },
+          _count: true,
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Payments retrieved successfully',
+        data: {
+          payments: payments.map(p => ({
+            ...p,
+            amount: Number(p.amount),
+            principalAmount: Number(p.principalAmount),
+            interestAmount: Number(p.interestAmount),
+            penaltyAmount: Number(p.penaltyAmount),
+          })),
+          pagination: {
+            page: Number(page),
+            limit: Number(limit),
+            total,
+            totalPages: Math.ceil(total / Number(limit)),
+          },
+          summary: {
+            totalCollected: Number(totalAmount._sum?.amount || 0),
+            statusBreakdown: statusCounts.reduce(
+              (acc, s) => {
+                acc[s.status] = s._count;
+                return acc;
+              },
+              {} as Record<string, number>
+            ),
+          },
+        },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get payments error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
 
 /**
  * @swagger

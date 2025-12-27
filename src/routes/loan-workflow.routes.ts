@@ -540,7 +540,7 @@ const createPledgeSchema = z.object({
   itemDescription: z.string().min(1),
   serialNumber: z.string().optional(),
   estimatedValue: z.number().positive(),
-  currency: z.enum(['ZWG', 'USD', 'ZAR']).optional(),
+  currency: z.string().min(3).max(3).optional(), // Dynamic currency code from database
   images: z.array(z.string()).optional(),
 });
 
@@ -548,7 +548,7 @@ const updatePledgeSchema = z.object({
   itemDescription: z.string().min(1).optional(),
   serialNumber: z.string().optional(),
   estimatedValue: z.number().positive().optional(),
-  currency: z.enum(['ZWG', 'USD', 'ZAR']).optional(),
+  currency: z.string().min(3).max(3).optional(), // Dynamic currency code from database
   images: z.array(z.string()).optional(),
   status: z.enum(['PENDING', 'VERIFIED', 'RELEASED', 'SEIZED']).optional(),
 });
@@ -1487,9 +1487,7 @@ const chargeInputSchema = z.object({
 
 const disburseSchema = z.object({
   disbursementDate: z.string().datetime().optional(),
-  disbursementMethod: z
-    .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK'])
-    .optional(),
+  disbursementMethod: z.string().optional(), // Dynamic payment methods from database
   paymentMethodId: z.string().uuid().optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
@@ -1575,9 +1573,7 @@ router.post(
 const batchDisburseSchema = z.object({
   loanIds: z.array(z.string().uuid()).min(1),
   disbursementDate: z.string().datetime().optional(),
-  disbursementMethod: z
-    .enum(['CASH', 'BANK_TRANSFER', 'MOBILE_MONEY', 'CHECK'])
-    .optional(),
+  disbursementMethod: z.string().optional(), // Dynamic payment methods from database
   paymentMethodId: z.string().uuid().optional(),
   notes: z.string().optional(),
 });

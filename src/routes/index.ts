@@ -58,6 +58,8 @@ import loanPurposeRoutes from './loan-purposes.routes';
 import chargeRoutes from './charges.routes';
 // Loan Engine
 import loanEngineRoutes from './loan-engine.routes';
+// Monthly Targets
+import monthlyTargetRoutes from './monthly-target.routes';
 
 const router = Router();
 
@@ -128,6 +130,9 @@ router.use(`${apiVersion}/charges`, chargeRoutes);
 
 // Loan Engine - Auto calculation and status management
 router.use(`${apiVersion}/loan-engine`, loanEngineRoutes);
+
+// Monthly Targets - Disbursement and repayment targets
+router.use(`${apiVersion}/monthly-targets`, monthlyTargetRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

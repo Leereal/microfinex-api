@@ -186,17 +186,20 @@ class AuthService {
     let currentBranch = userBranches.find(ub => ub.isCurrent)?.branch;
     if (!currentBranch && userBranches.length > 0) {
       // Set first branch as current if none is marked
-      currentBranch = userBranches[0].branch;
+      const firstUserBranch = userBranches[0];
+      currentBranch = firstUserBranch?.branch;
       try {
-        await prisma.userBranch.update({
-          where: {
-            userId_branchId: {
-              userId: user.id,
-              branchId: userBranches[0].branchId,
+        if (firstUserBranch) {
+          await prisma.userBranch.update({
+            where: {
+              userId_branchId: {
+                userId: user.id,
+                branchId: firstUserBranch.branchId,
+              },
             },
-          },
-          data: { isCurrent: true },
-        });
+            data: { isCurrent: true },
+          });
+        }
       } catch (error: any) {
         console.warn('Failed to update current branch:', error.message);
       }
@@ -242,7 +245,6 @@ class AuthService {
 
     // Format branches for response
     const formattedBranches = userBranches.map(ub => ({
-      id: ub.id,
       branchId: ub.branchId,
       branch: {
         id: ub.branch.id,

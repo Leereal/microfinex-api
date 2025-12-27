@@ -12,7 +12,7 @@ const router = Router();
 // ============================================
 
 const chargeRateSchema = z.object({
-  currency: z.enum(['USD', 'ZWG', 'ZAR', 'BWP', 'EUR', 'GBP']),
+  currency: z.string().min(3).max(3), // Dynamic currency code from database
   amount: z.number().positive().optional(),
   percentage: z.number().min(0).max(1).optional(), // 0 to 1 (0% to 100%)
   minAmount: z.number().positive().optional(),

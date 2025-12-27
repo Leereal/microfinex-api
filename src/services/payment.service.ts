@@ -46,13 +46,7 @@ export interface PaymentScheduleItem {
 export const createPaymentSchema = z.object({
   loanId: z.string().uuid('Invalid loan ID'),
   amount: z.number().positive('Amount must be positive'),
-  paymentMethod: z.enum([
-    'CASH',
-    'BANK_TRANSFER',
-    'MOBILE_MONEY',
-    'CHECK',
-    'CARD',
-  ]),
+  paymentMethod: z.string(), // Dynamic payment methods from database
   paymentMethodId: z
     .string()
     .uuid('Payment method ID is required for financial tracking'),
@@ -65,13 +59,7 @@ export const bulkPaymentSchema = z.object({
     z.object({
       loanId: z.string().uuid(),
       amount: z.number().positive(),
-      paymentMethod: z.enum([
-        'CASH',
-        'BANK_TRANSFER',
-        'MOBILE_MONEY',
-        'CHECK',
-        'CARD',
-      ]),
+      paymentMethod: z.string(), // Dynamic payment methods from database
       paymentMethodId: z
         .string()
         .uuid('Payment method ID is required for financial tracking'),
@@ -328,7 +316,7 @@ class PaymentService {
     page: number = 1,
     limit: number = 10
   ): Promise<{
-    payments: PaymentRecord[];
+    payments: any[];
     total: number;
     page: number;
     limit: number;
@@ -355,6 +343,17 @@ class PaymentService {
               email: true,
             },
           },
+          loan: {
+            select: {
+              loanNumber: true,
+              client: {
+                select: {
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+            },
+          },
         },
         orderBy: {
           paymentDate: 'desc',
@@ -371,7 +370,35 @@ class PaymentService {
     ]);
 
     return {
-      payments: payments.map(payment => this.mapPaymentToRecord(payment)),
+      payments: payments.map(payment => ({
+        id: payment.id,
+        loan_id: payment.loanId,
+        loan_number: payment.loan?.loanNumber,
+        client_name: payment.loan?.client
+          ? `${payment.loan.client.firstName} ${payment.loan.client.lastName}`
+          : '',
+        transaction_type: 'repayment',
+        description: `Payment for ${payment.loan?.loanNumber}`,
+        debit: 0,
+        credit: parseFloat(payment.amount.toString()),
+        amount: parseFloat(payment.amount.toString()),
+        principal_amount: parseFloat(payment.principalAmount.toString()),
+        interest_amount: parseFloat(payment.interestAmount.toString()),
+        penalty_amount: parseFloat(payment.penaltyAmount.toString()),
+        payment_method: payment.method,
+        transaction_ref: payment.transactionRef,
+        status:
+          payment.status === 'COMPLETED'
+            ? 'approved'
+            : payment.status?.toLowerCase(),
+        created_at: payment.paymentDate.toISOString(),
+        payment_date: payment.paymentDate.toISOString(),
+        received_by: payment.receivedBy,
+        receiver_name: payment.receiver
+          ? `${payment.receiver.firstName} ${payment.receiver.lastName}`
+          : '',
+        notes: payment.notes,
+      })),
       total,
       page,
       limit,

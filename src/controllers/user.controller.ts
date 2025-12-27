@@ -598,6 +598,15 @@ class UserController {
       const { id } = req.params;
       const organizationId = req.user?.organizationId;
 
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID required',
+          error: 'MISSING_USER_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       if (!organizationId) {
         return res.status(400).json({
           success: false,
@@ -647,6 +656,15 @@ class UserController {
       const { branchIds, primaryBranchId } = req.body;
       const assignedBy = req.user?.id || req.user?.userId;
       const organizationId = req.user?.organizationId;
+
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID required',
+          error: 'MISSING_USER_ID',
+          timestamp: new Date().toISOString(),
+        });
+      }
 
       if (!assignedBy || !organizationId) {
         return res.status(400).json({
