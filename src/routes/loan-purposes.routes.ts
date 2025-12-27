@@ -13,6 +13,9 @@ import { PERMISSIONS } from '../constants/permissions';
 
 const router = Router();
 
+// Loan class enum values
+const LoanClassEnum = z.enum(['CONSUMER', 'COMMERCIAL']);
+
 // Validation schemas
 const createLoanPurposeSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
@@ -25,6 +28,7 @@ const createLoanPurposeSchema = z.object({
       'Code must be uppercase alphanumeric with underscores'
     ),
   description: z.string().max(500).optional(),
+  loanClass: LoanClassEnum.optional().default('CONSUMER'),
   sortOrder: z.number().int().min(0).optional(),
 });
 
@@ -40,6 +44,7 @@ const updateLoanPurposeSchema = z.object({
     )
     .optional(),
   description: z.string().max(500).optional(),
+  loanClass: LoanClassEnum.optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().min(0).optional(),
 });
@@ -65,11 +70,14 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const { activeOnly } = req.query;
+    const { activeOnly, loanClass } = req.query;
 
     const where: any = { organizationId };
     if (activeOnly === 'true') {
       where.isActive = true;
+    }
+    if (loanClass && (loanClass === 'CONSUMER' || loanClass === 'COMMERCIAL')) {
+      where.loanClass = loanClass;
     }
 
     const purposes = await prisma.loanPurpose.findMany({
@@ -175,7 +183,7 @@ router.post(
         });
       }
 
-      const { name, code, description, sortOrder } = req.body;
+      const { name, code, description, loanClass, sortOrder } = req.body;
 
       // Check for duplicate code
       const existing = await prisma.loanPurpose.findFirst({
@@ -197,6 +205,7 @@ router.post(
           name,
           code,
           description,
+          loanClass: loanClass ?? 'CONSUMER',
           sortOrder: sortOrder ?? 0,
         },
       });

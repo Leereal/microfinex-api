@@ -428,6 +428,7 @@ model LoanPurpose {
   name           String
   code           String
   description    String?
+  loanClass      LoanClass    @default(CONSUMER)
   isActive       Boolean      @default(true)
   sortOrder      Int          @default(0)
   createdAt      DateTime     @default(now())
@@ -1437,6 +1438,11 @@ enum ClientType {
   INDIVIDUAL
   GROUP
   BUSINESS
+}
+
+enum LoanClass {
+  CONSUMER
+  COMMERCIAL
 }
 
 enum LoanType {
