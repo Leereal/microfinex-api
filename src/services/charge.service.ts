@@ -115,10 +115,27 @@ class ChargeService {
     if (input.calculationType !== undefined)
       normalized.calculationType = input.calculationType;
 
-    const defaultPercentage =
-      input.defaultPercentage !== undefined
-        ? input.defaultPercentage
-        : input.percentageValue;
+    // Handle percentage - frontend sends 0-100, database expects 0-1
+    let defaultPercentage: number | undefined;
+    if (
+      input.defaultPercentage !== undefined &&
+      input.defaultPercentage !== null
+    ) {
+      // If already in 0-1 range, use as is; otherwise convert from 0-100
+      defaultPercentage =
+        input.defaultPercentage > 1
+          ? input.defaultPercentage / 100
+          : input.defaultPercentage;
+    } else if (
+      input.percentageValue !== undefined &&
+      input.percentageValue !== null
+    ) {
+      // percentageValue from frontend is always 0-100, convert to 0-1
+      defaultPercentage =
+        input.percentageValue > 1
+          ? input.percentageValue / 100
+          : input.percentageValue;
+    }
 
     if (defaultPercentage !== undefined) {
       normalized.defaultPercentage = defaultPercentage;
@@ -127,7 +144,12 @@ class ChargeService {
     const defaultAmount =
       input.defaultAmount ?? input.amount ?? input.fixedAmount;
 
-    if (defaultAmount !== undefined) {
+    // Only set defaultAmount if it's a valid positive number
+    if (
+      defaultAmount !== undefined &&
+      defaultAmount !== null &&
+      defaultAmount > 0
+    ) {
       normalized.defaultAmount = defaultAmount;
     }
 

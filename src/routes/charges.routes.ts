@@ -42,8 +42,9 @@ const createChargeSchema = z.object({
   calculationType: z
     .enum(['FIXED', 'PERCENTAGE', 'PERCENTAGE_BALANCE'])
     .optional(),
-  defaultAmount: z.number().positive().optional(),
-  defaultPercentage: z.number().min(0).max(1).optional(),
+  defaultAmount: z.number().nonnegative().optional().nullable(),
+  defaultPercentage: z.number().min(0).max(100).optional().nullable(),
+  percentageValue: z.number().min(0).max(100).optional().nullable(), // Alias from frontend
   appliesAt: z
     .enum([
       'DISBURSEMENT',
@@ -56,7 +57,7 @@ const createChargeSchema = z.object({
     .optional(),
   isDeductedFromPrincipal: z.boolean().optional(),
   isMandatory: z.boolean().optional(),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).optional().nullable(),
   isActive: z.boolean().optional(),
   rates: z.array(chargeRateSchema).optional(),
 });

@@ -9,36 +9,33 @@ import { z, ZodError, ZodSchema } from 'zod';
 export const validateRequest = (schema: ZodSchema) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
-      // Check if schema has params/body/query structure by attempting to parse
-      // the full request object first
-      const fullRequest = {
-        params: req.params,
-        body: req.body,
-        query: req.query,
-      };
-
-      // Try parsing the full structure
-      const result = schema.safeParse(fullRequest);
-
-      if (result.success) {
-        // Schema expects { params, body, query } structure
-        if (result.data.params) req.params = result.data.params;
-        if (result.data.body) req.body = result.data.body;
-        if (result.data.query) req.query = result.data.query;
-        next();
-        return;
-      }
-
-      // If that failed, try parsing just the body (for simple body-only schemas)
+      // First, try parsing just the body (most common case for POST/PUT requests)
       const bodyResult = schema.safeParse(req.body);
+
       if (bodyResult.success) {
         req.body = bodyResult.data;
         next();
         return;
       }
 
-      // Neither worked, throw the error from the full request parse
-      throw result.error;
+      // If body parsing failed, check if schema expects { params, body, query } structure
+      const fullRequest = {
+        params: req.params,
+        body: req.body,
+        query: req.query,
+      };
+
+      const fullResult = schema.safeParse(fullRequest);
+      if (fullResult.success) {
+        if (fullResult.data.params) req.params = fullResult.data.params;
+        if (fullResult.data.body) req.body = fullResult.data.body;
+        if (fullResult.data.query) req.query = fullResult.data.query;
+        next();
+        return;
+      }
+
+      // Neither worked, throw the body error (more relevant for API endpoints)
+      throw bodyResult.error;
     } catch (error) {
       if (error instanceof ZodError) {
         const validationErrors = error.errors.map(err => ({
