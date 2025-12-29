@@ -32,7 +32,18 @@ const createProductSchema = z.object({
   currency: z
     .enum(['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'HTG', 'DOP', 'CAD'])
     .optional(),
-  interestRate: z.number().min(0).max(1), // Annual rate as decimal (0.15 = 15%)
+  interestRate: z.number().min(0).max(1), // Rate as decimal (0.15 = 15%)
+  interestRateFrequency: z
+    .enum([
+      'DAILY',
+      'WEEKLY',
+      'BIWEEKLY',
+      'MONTHLY',
+      'QUARTERLY',
+      'SEMI_ANNUAL',
+      'ANNUAL',
+    ])
+    .optional(),
   calculationMethod: z
     .enum([
       'FLAT_RATE',
@@ -88,6 +99,17 @@ const updateProductSchema = z.object({
     .enum(['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'HTG', 'DOP', 'CAD'])
     .optional(),
   interestRate: z.number().min(0).max(1).optional(),
+  interestRateFrequency: z
+    .enum([
+      'DAILY',
+      'WEEKLY',
+      'BIWEEKLY',
+      'MONTHLY',
+      'QUARTERLY',
+      'SEMI_ANNUAL',
+      'ANNUAL',
+    ])
+    .optional(),
   calculationMethod: z
     .enum([
       'FLAT_RATE',

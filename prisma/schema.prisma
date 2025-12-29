@@ -448,6 +448,7 @@ model LoanProduct {
   maxAmount             Decimal                   @db.Decimal(15, 2)
   currency              Currency                  @default(USD)
   interestRate          Decimal                   @db.Decimal(5, 4)
+  interestRateFrequency RepaymentFrequency        @default(ANNUAL)
   calculationMethod     LoanCalculationMethod     @default(REDUCING_BALANCE)
   minTerm               Int
   maxTerm               Int
