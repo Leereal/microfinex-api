@@ -25,8 +25,7 @@ import {
   ChargeCalculationType,
   ChargeType,
   Prisma,
-  LoanCalculationEngineType,
-  DurationUnit,
+  LoanType,
   ChargeMode,
   ChargeApplication,
 } from '@prisma/client';
@@ -37,7 +36,7 @@ import { settingsService } from './settings.service';
 // ============================================
 
 interface LoanEngineSettings {
-  engineType: LoanCalculationEngineType;
+  engineType: LoanType;
   loanApprovalRequired: boolean;
   autoProcessEnabled: boolean;
 }
@@ -178,9 +177,7 @@ class LoanEngineService {
     const settings = await settingsService.getAll(organizationId);
 
     return {
-      engineType:
-        (settings.loan_engine_type as LoanCalculationEngineType) ||
-        LoanCalculationEngineType.SHORT_TERM,
+      engineType: (settings.loan_engine_type as LoanType) || 'SHORT_TERM',
       loanApprovalRequired: settings.loan_approval_required ?? true,
       autoProcessEnabled: settings.loan_auto_process_enabled ?? true,
     };
@@ -272,23 +269,40 @@ class LoanEngineService {
       const now = disbursementDate || loan.disbursedDate || new Date();
       const product = loan.product;
 
-      // Calculate interest (simple interest for short-term)
-      // Interest = Principal * Rate (where rate is already in decimal form)
+      // Calculate interest based on rate frequency and loan term
+      // For short-term loans with monthly rate, apply the rate directly per month of term
       const interestRate = loan.interestRate;
-      const interestAmount = loan.amount.mul(interestRate);
+      let interestAmount: Prisma.Decimal;
 
       // Get duration settings from product
       const durationUnit = product.durationUnit || DurationUnit.MONTHS;
       // Use loan term (in months) or fall back to product settings
       const loanPeriod = loan.term || product.minPeriod || 1;
+
+      if (product.interestRateFrequency === 'MONTHLY') {
+        // Rate is per month, multiply by number of months
+        interestAmount = loan.amount.mul(interestRate).div(100).mul(loanPeriod);
+      } else if (product.interestRateFrequency === 'ANNUAL') {
+        // Rate is annual, divide by 12 and multiply by months
+        interestAmount = loan.amount
+          .mul(interestRate)
+          .div(100)
+          .div(12)
+          .mul(loanPeriod);
+      } else {
+        // Default: treat as per-period rate for the loan term
+        interestAmount = loan.amount.mul(interestRate).div(100).mul(loanPeriod);
+      }
+
       const gracePeriodDays =
         product.gracePeriodDays || product.gracePeriod || 0;
 
       // Expected repayment date = start date + loan period
       const expectedRepaymentDate = addDuration(now, loanPeriod, durationUnit);
 
-      // Next due date for first payment (could be same as expected for short-term, or first installment for long-term)
-      const nextDueDate = expectedRepaymentDate;
+      // Next due date: use existing nextDueDate if already set (from firstDueDate during creation),
+      // otherwise calculate it (same as expected for short-term, or first installment for long-term)
+      const nextDueDate = loan.nextDueDate || expectedRepaymentDate;
 
       // Update loan with calculated values
       const updatedLoan = await prisma.loan.update({
@@ -373,9 +387,9 @@ class LoanEngineService {
       const product = loan.product;
 
       // Calculate interest (simple interest for short-term)
-      // Interest = Principal * Rate (where rate is already in decimal form)
+      // Interest = Principal * Rate / 100 (rate is stored as percentage, e.g., 15 for 15%)
       const interestRate = loan.interestRate;
-      const interestAmount = loan.amount.mul(interestRate);
+      const interestAmount = loan.amount.mul(interestRate).div(100);
 
       // Calculate expected repayment date based on product term
       const durationUnit = product.durationUnit;
@@ -665,7 +679,7 @@ class LoanEngineService {
         // Recalculate interest on balance
         // interest = (loan.interest_rate / 100) * loan.balance
         const balance = await this.getLoanBalanceInTx(tx, loan.id);
-        const interestRate = parseFloat(loan.interestRate.toString());
+        const interestRate = parseFloat(loan.interestRate.toString()) / 100;
         const interest = new Prisma.Decimal(
           (balance.toNumber() * interestRate).toFixed(2)
         );

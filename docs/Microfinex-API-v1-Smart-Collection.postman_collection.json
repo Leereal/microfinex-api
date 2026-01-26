@@ -195,6 +195,11 @@
       "key": "currencyId",
       "value": "",
       "description": "Last created/retrieved currency ID"
+    },
+    {
+      "key": "monthlyTargetId",
+      "value": "",
+      "description": "Last created/retrieved monthly target ID"
     }
   ],
   "auth": {
@@ -10183,6 +10188,453 @@
               "path": ["loan-engine", "loans", "{{loanId}}", "balance"]
             },
             "description": "Calculate and return the current balance for a loan including all payments and charges."
+          }
+        }
+      ]
+    },
+    {
+      "name": "📊 Monthly Targets",
+      "description": "Monthly disbursement and repayment target management endpoints for tracking and performance monitoring",
+      "item": [
+        {
+          "name": "Get All Monthly Targets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📋 Monthly Targets: ' + (response.data?.length || 0));",
+                  "    if (response.data?.length > 0) {",
+                  "        pm.collectionVariables.set('monthlyTargetId', response.data[0].id);",
+                  "        console.log('📌 First target ID set');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets?year=2026&month=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "1" },
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}",
+                  "disabled": true
+                },
+                { "key": "currency", "value": "USD", "disabled": true },
+                {
+                  "key": "targetType",
+                  "value": "DISBURSEMENT",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all monthly targets with optional filters for branch, currency, target type, year, and month."
+          }
+        },
+        {
+          "name": "Get Target Progress",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📈 Target Progress:');",
+                  "    if (response.data) {",
+                  "        response.data.forEach((p, i) => {",
+                  "            console.log('  ' + (i+1) + '. ' + p.targetType + ': ' + p.achieved + '/' + p.target + ' (' + p.percentageAchieved + '%)');",
+                  "        });",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/progress?year=2026&month=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "progress"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "1" },
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}",
+                  "disabled": true
+                },
+                { "key": "currency", "value": "USD", "disabled": true },
+                {
+                  "key": "targetType",
+                  "value": "DISBURSEMENT",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get target progress for a specific month showing achieved vs target amounts."
+          }
+        },
+        {
+          "name": "Get Target Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📊 Organization Target Summary:');",
+                  "    if (response.data) {",
+                  "        console.log('  Total Target: ' + response.data.totalTarget);",
+                  "        console.log('  Total Achieved: ' + response.data.totalAchieved);",
+                  "        console.log('  Overall Progress: ' + response.data.overallProgress + '%');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/summary?year=2026&month=1",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "summary"],
+              "query": [
+                { "key": "year", "value": "2026" },
+                { "key": "month", "value": "1" },
+                { "key": "currency", "value": "USD", "disabled": true },
+                {
+                  "key": "targetType",
+                  "value": "DISBURSEMENT",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get organization-wide target summary for a specific month."
+          }
+        },
+        {
+          "name": "Get Dashboard Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📊 Dashboard Summary:');",
+                  "    if (response.data) {",
+                  "        console.log(JSON.stringify(response.data, null, 2));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "dashboard"],
+              "query": [
+                { "key": "branchId", "value": "{{branchId}}", "disabled": true }
+              ]
+            },
+            "description": "Get dashboard summary for current month targets and progress."
+          }
+        },
+        {
+          "name": "Get Historical Data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('📈 Historical Data: ' + (response.data?.length || 0) + ' months');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/historical?months=12",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "historical"],
+              "query": [
+                { "key": "months", "value": "12" },
+                {
+                  "key": "branchId",
+                  "value": "{{branchId}}",
+                  "disabled": true
+                },
+                { "key": "currency", "value": "USD", "disabled": true },
+                {
+                  "key": "targetType",
+                  "value": "DISBURSEMENT",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get historical target data for trend analysis."
+          }
+        },
+        {
+          "name": "Get Target by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        console.log('📋 Target Details:');",
+                  "        console.log('  Type: ' + response.data.targetType);",
+                  "        console.log('  Amount: ' + response.data.targetAmount);",
+                  "        console.log('  Period: ' + response.data.month + '/' + response.data.year);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/{{monthlyTargetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "{{monthlyTargetId}}"]
+            },
+            "description": "Get a single monthly target by ID."
+          }
+        },
+        {
+          "name": "Create Monthly Target",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        pm.collectionVariables.set('monthlyTargetId', response.data.id);",
+                  "        console.log('✅ Target created with ID: ' + response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": \"{{branchId}}\",\n  \"currency\": \"USD\",\n  \"targetType\": \"DISBURSEMENT\",\n  \"targetAmount\": 100000,\n  \"year\": 2026,\n  \"month\": 1,\n  \"notes\": \"January disbursement target\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets"]
+            },
+            "description": "Create a new monthly target. Target types: DISBURSEMENT, REPAYMENT."
+          }
+        },
+        {
+          "name": "Upsert Monthly Target",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.data) {",
+                  "        pm.collectionVariables.set('monthlyTargetId', response.data.id);",
+                  "        console.log('✅ Target upserted with ID: ' + response.data.id);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"branchId\": \"{{branchId}}\",\n  \"currency\": \"USD\",\n  \"targetType\": \"DISBURSEMENT\",\n  \"targetAmount\": 150000,\n  \"year\": 2026,\n  \"month\": 1,\n  \"notes\": \"Updated January disbursement target\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/upsert",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "upsert"]
+            },
+            "description": "Create or update a monthly target. If a target exists for the same branch/currency/type/period, it will be updated."
+          }
+        },
+        {
+          "name": "Bulk Create/Update Targets",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    console.log('✅ ' + response.message);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targets\": [\n    {\n      \"branchId\": \"{{branchId}}\",\n      \"currency\": \"USD\",\n      \"targetType\": \"DISBURSEMENT\",\n      \"targetAmount\": 100000,\n      \"year\": 2026,\n      \"month\": 1\n    },\n    {\n      \"branchId\": \"{{branchId}}\",\n      \"currency\": \"USD\",\n      \"targetType\": \"REPAYMENT\",\n      \"targetAmount\": 80000,\n      \"year\": 2026,\n      \"month\": 1\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "bulk"]
+            },
+            "description": "Bulk create or update multiple monthly targets at once."
+          }
+        },
+        {
+          "name": "Update Monthly Target",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Target updated successfully');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetAmount\": 120000,\n  \"notes\": \"Revised target amount\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/{{monthlyTargetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "{{monthlyTargetId}}"]
+            },
+            "description": "Update an existing monthly target."
+          }
+        },
+        {
+          "name": "Delete Monthly Target",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "if (pm.response.code === 200) {",
+                  "    console.log('✅ Target deleted successfully');",
+                  "    pm.collectionVariables.set('monthlyTargetId', '');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/monthly-targets/{{monthlyTargetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["monthly-targets", "{{monthlyTargetId}}"]
+            },
+            "description": "Delete a monthly target."
           }
         }
       ]

@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { Prisma } from '@prisma/client';
+import { Currency, Prisma } from '@prisma/client';
 import { prisma } from '../config/database';
 const Decimal = Prisma.Decimal;
 import { financialTransactionService } from './financial-transaction.service';
+import { clientLimitService } from './client-limit.service';
 
 export interface PaymentRecord {
   id: string;
@@ -135,6 +136,7 @@ class PaymentService {
         },
         product: { select: { currency: true } },
         branch: { select: { id: true } },
+        client: { select: { id: true } },
       },
     });
 
@@ -204,6 +206,8 @@ class PaymentService {
     const newOutstandingBalance =
       newPenaltyBalance + newInterestBalance + newPrincipalBalance;
 
+    const loanIsCompleted = newOutstandingBalance === 0;
+
     await prisma.loan.update({
       where: { id: paymentData.loanId },
       data: {
@@ -212,9 +216,31 @@ class PaymentService {
         principalBalance: newPrincipalBalance,
         outstandingBalance: newOutstandingBalance,
         lastPaymentDate: new Date(),
-        status: newOutstandingBalance === 0 ? 'COMPLETED' : loan.status,
+        status: loanIsCompleted ? 'COMPLETED' : loan.status,
       },
     });
+
+    // If the loan is fully paid, restore the client's available credit limit
+    if (loanIsCompleted) {
+      const loanAmount = parseFloat(loan.amount.toString());
+      const currency = loan.product?.currency || Currency.USD;
+
+      const limitResult = await clientLimitService.increaseAvailableBalance(
+        loan.clientId,
+        currency,
+        loanAmount,
+        'REPAYMENT',
+        paymentData.loanId
+      );
+
+      if (!limitResult.success) {
+        console.warn(
+          `Failed to restore client limit for completed loan ${paymentData.loanId}:`,
+          limitResult.error
+        );
+        // Continue - the payment is processed, limit can be fixed manually
+      }
+    }
 
     // Update repayment schedule
     await this.updateRepaymentSchedule(paymentData.loanId, paymentData.amount);

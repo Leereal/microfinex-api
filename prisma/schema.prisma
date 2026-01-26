@@ -285,6 +285,9 @@ model User {
   visits                LoanVisit[]
   workflowChanges       LoanWorkflowHistory[]
   createdLoans          Loan[]                 @relation("LoanOfficer")
+  loansCreatedByUser    Loan[]                 @relation("LoanCreatedBy")
+  loansDisbursedByUser  Loan[]                 @relation("LoanDisbursedBy")
+  createdLoanProducts   LoanProduct[]
   notes                 Note[]
   payments              Payment[]
   refreshTokens         RefreshToken[]
@@ -370,6 +373,10 @@ model Client {
   passportNumber   String?
   placeOfBirth     String?
   title            String?
+  // Default guarantor - another client who acts as guarantor for this client
+  defaultGuarantorId String?
+  defaultGuarantor   Client?            @relation("ClientDefaultGuarantor", fields: [defaultGuarantorId], references: [id])
+  guarantorFor       Client[]           @relation("ClientDefaultGuarantor")
   addresses        ClientAddress[]
   business         ClientBusiness?
   collaterals      ClientCollateral[]
@@ -443,33 +450,28 @@ model LoanProduct {
   id                    String                    @id @default(uuid())
   name                  String
   description           String?
-  type                  LoanType                  @default(PERSONAL)
+  type                  LoanType                  @default(SHORT_TERM)
   minAmount             Decimal                   @db.Decimal(15, 2)
   maxAmount             Decimal                   @db.Decimal(15, 2)
   currency              Currency                  @default(USD)
-  interestRate          Decimal                   @db.Decimal(5, 4)
+  interestRate          Decimal                   @db.Decimal(5, 2)
   interestRateFrequency RepaymentFrequency        @default(ANNUAL)
   calculationMethod     LoanCalculationMethod     @default(REDUCING_BALANCE)
   minTerm               Int
   maxTerm               Int
   repaymentFrequency    RepaymentFrequency        @default(MONTHLY)
-  gracePeriod           Int
-  penaltyRate           Decimal                   @default(0) @db.Decimal(5, 4)
+  gracePeriod           Int                       @default(0)
+  penaltyRate           Decimal                   @default(0) @db.Decimal(5, 2)
   isActive              Boolean                   @default(true)
   requiresCollateral    Boolean                   @default(false)
   requiresGuarantor     Boolean                   @default(false)
-  categoryId            String?
   isOnlineEligible      Boolean                   @default(false)
   organizationId        String
+  createdById           String?
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
-  gracePeriodDays       Int                       @default(0)
-  durationUnit          DurationUnit              @default(MONTHS)
-  minPeriod             Int                       @default(1)
-  maxPeriod             Int                       @default(12)
-  engineType            LoanCalculationEngineType @default(SHORT_TERM)
   allowAutoCalculations Boolean                   @default(true)
-  category              LoanCategory?             @relation(fields: [categoryId], references: [id])
+  createdBy             User?                     @relation(fields: [createdById], references: [id])
   organization          Organization              @relation(fields: [organizationId], references: [id])
   loans                 Loan[]
   productCharges        ProductCharge[]
@@ -486,9 +488,11 @@ model Loan {
   organizationId        String
   branchId              String
   loanOfficerId         String
+  createdById           String?
+  disbursedById         String?
   amount                Decimal                @db.Decimal(15, 2)
   currency              Currency               @default(USD)
-  interestRate          Decimal                @db.Decimal(5, 4)
+  interestRate          Decimal                @db.Decimal(5, 2)
   calculationMethod     LoanCalculationMethod  @default(REDUCING_BALANCE)
   term                  Int
   repaymentFrequency    RepaymentFrequency
@@ -532,6 +536,8 @@ model Loan {
   workflowHistory       LoanWorkflowHistory[]
   branch                Branch                 @relation(fields: [branchId], references: [id])
   client                Client                 @relation(fields: [clientId], references: [id])
+  createdBy             User?                  @relation("LoanCreatedBy", fields: [createdById], references: [id])
+  disbursedBy           User?                  @relation("LoanDisbursedBy", fields: [disbursedById], references: [id])
   disbursementBranch    Branch?                @relation("LoanDisbursementBranch", fields: [disbursementBranchId], references: [id])
   group                 Group?                 @relation(fields: [groupId], references: [id])
   loanOfficer           User                   @relation("LoanOfficer", fields: [loanOfficerId], references: [id])
@@ -735,17 +741,19 @@ model NextOfKin {
 }
 
 model ClientLimit {
-  id         String    @id @default(uuid())
-  clientId   String
-  maxAmount  Decimal   @db.Decimal(15, 2)
-  currency   Currency  @default(USD)
-  usedAmount Decimal   @default(0) @db.Decimal(15, 2)
-  isActive   Boolean   @default(true)
-  validFrom  DateTime  @default(now())
-  validTo    DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  client     Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  id               String    @id @default(uuid())
+  clientId         String
+  maxAmount        Decimal   @db.Decimal(15, 2)
+  availableBalance Decimal   @db.Decimal(15, 2) // Initially equals maxAmount, decreases on disbursement, increases on repayment/cancellation
+  currency         Currency  @default(USD)
+  usedAmount       Decimal   @default(0) @db.Decimal(15, 2)
+  enforceLimit     Boolean   @default(false) // When true, check this limit when creating loans
+  isActive         Boolean   @default(true)
+  validFrom        DateTime  @default(now())
+  validTo          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_limits")
 }
@@ -1144,7 +1152,6 @@ model LoanCategory {
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
   organization           Organization  @relation(fields: [organizationId], references: [id])
-  products               LoanProduct[]
 
   @@unique([organizationId, code])
   @@map("loan_categories")
@@ -1447,11 +1454,9 @@ enum LoanClass {
 }
 
 enum LoanType {
-  PERSONAL
-  BUSINESS
-  AGRICULTURAL
-  EMERGENCY
-  GROUP
+  SHORT_TERM
+  LONG_TERM
+  PRODUCT
 }
 
 enum LoanStatus {
@@ -1495,6 +1500,8 @@ enum ChargeApplication {
   PRINCIPAL
   BALANCE
   OTHER
+  CASHED_AMOUNT
+  APPLIED_AMOUNT
 }
 
 enum VisitType {
@@ -1581,6 +1588,7 @@ enum ChargeAppliesAt {
   REPAYMENT
   OVERDUE
   CLOSURE
+  LOAN_CREATION
 }
 
 enum RepaymentFrequency {
@@ -1634,10 +1642,30 @@ enum ApiTier {
 }
 
 enum Currency {
-  ZWG
-  USD
-  ZAR
-  BWP
+  // African currencies
+  ZWG  // Zimbabwe Gold
+  ZIG  // Zimbabwe ZiG
+  ZAR  // South African Rand
+  BWP  // Botswana Pula
+  KES  // Kenyan Shilling
+  NGN  // Nigerian Naira
+  GHS  // Ghanaian Cedi
+  TZS  // Tanzanian Shilling
+  UGX  // Ugandan Shilling
+  // Major world currencies
+  USD  // US Dollar
+  EUR  // Euro
+  GBP  // British Pound
+  JPY  // Japanese Yen
+  CNY  // Chinese Yuan
+  CAD  // Canadian Dollar
+  AUD  // Australian Dollar
+  // Caribbean/Americas
+  HTG  // Haitian Gourde
+  DOP  // Dominican Peso
+  JMD  // Jamaican Dollar
+  TTD  // Trinidad Dollar
+  XCD  // East Caribbean Dollar
 }
 
 enum AddressType {

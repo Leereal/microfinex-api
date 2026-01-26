@@ -3,6 +3,7 @@ import {
   ChargeType,
   ChargeCalculationType,
   ChargeAppliesAt,
+  ChargeApplication,
   Currency,
   PaymentStatus,
   Prisma,
@@ -25,6 +26,7 @@ export interface CreateChargeInput {
   amount?: number;
   fixedAmount?: number;
   appliesAt?: ChargeAppliesAt;
+  chargeApplication?: ChargeApplication;
   isDeductedFromPrincipal?: boolean;
   isMandatory?: boolean;
   description?: string;
@@ -50,6 +52,7 @@ export interface UpdateChargeInput {
   amount?: number;
   fixedAmount?: number;
   appliesAt?: ChargeAppliesAt;
+  chargeApplication?: ChargeApplication;
   isDeductedFromPrincipal?: boolean;
   isMandatory?: boolean;
   description?: string;
@@ -115,26 +118,20 @@ class ChargeService {
     if (input.calculationType !== undefined)
       normalized.calculationType = input.calculationType;
 
-    // Handle percentage - frontend sends 0-100, database expects 0-1
+    // Handle percentage - store as whole number (10 = 10%)
     let defaultPercentage: number | undefined;
     if (
       input.defaultPercentage !== undefined &&
       input.defaultPercentage !== null
     ) {
-      // If already in 0-1 range, use as is; otherwise convert from 0-100
-      defaultPercentage =
-        input.defaultPercentage > 1
-          ? input.defaultPercentage / 100
-          : input.defaultPercentage;
+      // Store percentage as whole number (10 = 10%)
+      defaultPercentage = input.defaultPercentage;
     } else if (
       input.percentageValue !== undefined &&
       input.percentageValue !== null
     ) {
-      // percentageValue from frontend is always 0-100, convert to 0-1
-      defaultPercentage =
-        input.percentageValue > 1
-          ? input.percentageValue / 100
-          : input.percentageValue;
+      // percentageValue from frontend - store as-is (10 = 10%)
+      defaultPercentage = input.percentageValue;
     }
 
     if (defaultPercentage !== undefined) {
@@ -154,6 +151,8 @@ class ChargeService {
     }
 
     if (input.appliesAt !== undefined) normalized.appliesAt = input.appliesAt;
+    if (input.chargeApplication !== undefined)
+      (normalized as any).chargeApplication = input.chargeApplication;
     if (input.isDeductedFromPrincipal !== undefined)
       normalized.isDeductedFromPrincipal = input.isDeductedFromPrincipal;
     if (input.isMandatory !== undefined)
@@ -196,6 +195,7 @@ class ChargeService {
           defaultAmount: normalized.defaultAmount,
           defaultPercentage: normalized.defaultPercentage,
           appliesAt: normalized.appliesAt || 'DISBURSEMENT',
+          chargeApplication: normalized.chargeApplication,
           isDeductedFromPrincipal: normalized.isDeductedFromPrincipal ?? false,
           isMandatory: normalized.isMandatory ?? false,
           description: normalized.description,
@@ -246,6 +246,9 @@ class ChargeService {
       }),
       ...(normalized.appliesAt !== undefined && {
         appliesAt: normalized.appliesAt,
+      }),
+      ...(normalized.chargeApplication !== undefined && {
+        chargeApplication: normalized.chargeApplication,
       }),
       ...(normalized.isDeductedFromPrincipal !== undefined && {
         isDeductedFromPrincipal: normalized.isDeductedFromPrincipal,
@@ -402,27 +405,49 @@ class ChargeService {
         minAmount: Prisma.Decimal | null;
         maxAmount: Prisma.Decimal | null;
       }[];
+      // Optional custom values from ProductCharge
+      customAmount?: Prisma.Decimal | number | null;
+      customPercentage?: Prisma.Decimal | number | null;
     },
     loanAmount: number,
     currency: Currency
   ): number {
     // Find currency-specific rate
-    const currencyRate = charge.chargeRates.find(r => r.currency === currency);
+    const currencyRate = charge.chargeRates?.find(r => r.currency === currency);
 
     let amount = 0;
 
     if (charge.calculationType === 'FIXED') {
-      // Use currency-specific amount or default
-      if (currencyRate?.amount) {
+      // Priority: custom amount > currency-specific amount > default
+      if (charge.customAmount) {
+        amount =
+          typeof charge.customAmount === 'number'
+            ? charge.customAmount
+            : parseFloat(charge.customAmount.toString());
+      } else if (currencyRate?.amount) {
         amount = parseFloat(currencyRate.amount.toString());
       } else if (charge.defaultAmount) {
         amount = parseFloat(charge.defaultAmount.toString());
       }
     } else {
       // PERCENTAGE or PERCENTAGE_BALANCE
-      const percentage = currencyRate?.percentage || charge.defaultPercentage;
+      // Priority: custom percentage > currency-specific percentage > default
+      let percentage: number | null = null;
+
+      if (charge.customPercentage) {
+        percentage =
+          typeof charge.customPercentage === 'number'
+            ? charge.customPercentage
+            : parseFloat(charge.customPercentage.toString());
+      } else if (currencyRate?.percentage) {
+        percentage = parseFloat(currencyRate.percentage.toString());
+      } else if (charge.defaultPercentage) {
+        percentage = parseFloat(charge.defaultPercentage.toString());
+      }
+
       if (percentage) {
-        amount = loanAmount * parseFloat(percentage.toString());
+        // percentage is stored as a whole number (e.g., 10 for 10%), so divide by 100
+        amount = (loanAmount * percentage) / 100;
       }
 
       // Apply min/max constraints for percentage calculations
@@ -522,7 +547,19 @@ class ChargeService {
         organizationId: true,
         branchId: true,
         productId: true,
-        product: { select: { currency: true } },
+        product: {
+          select: {
+            currency: true,
+            productCharges: {
+              where: { isActive: true },
+              include: {
+                charge: {
+                  include: { chargeRates: true },
+                },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -534,8 +571,10 @@ class ChargeService {
     const currency = loan.product?.currency || 'USD';
 
     // Get charges to apply
-    let charges;
+    let charges: any[] = [];
+
     if (input.chargeIds && input.chargeIds.length > 0) {
+      // Apply specific charges by ID
       charges = await prisma.charge.findMany({
         where: {
           id: { in: input.chargeIds },
@@ -545,16 +584,38 @@ class ChargeService {
         include: { chargeRates: true },
       });
     } else {
-      // Apply all mandatory disbursement charges
-      charges = await prisma.charge.findMany({
+      // First, get product-specific charges (from ProductCharge relationship)
+      const productCharges = loan.product?.productCharges || [];
+      const productChargesList = productCharges
+        .filter(
+          (pc: any) =>
+            pc.charge &&
+            pc.charge.isActive &&
+            (pc.charge.appliesAt === 'DISBURSEMENT' ||
+              pc.charge.appliesAt === 'LOAN_CREATION')
+        )
+        .map((pc: any) => ({
+          ...pc.charge,
+          customAmount: pc.customAmount,
+          customPercentage: pc.customPercentage,
+        }));
+
+      charges = [...productChargesList];
+
+      // Also get organization-wide mandatory charges not already in product
+      const productChargeIds = productChargesList.map((c: any) => c.id);
+      const orgCharges = await prisma.charge.findMany({
         where: {
           organizationId: loan.organizationId,
           isActive: true,
-          appliesAt: 'DISBURSEMENT',
+          appliesAt: { in: ['DISBURSEMENT', 'LOAN_CREATION'] },
           isMandatory: true,
+          id: { notIn: productChargeIds },
         },
         include: { chargeRates: true },
       });
+
+      charges = [...charges, ...orgCharges];
     }
 
     const loanCharges: any[] = [];

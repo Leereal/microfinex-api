@@ -1,6 +1,7 @@
 import app from './app';
 import { config } from './config';
 import { prisma } from './config/database';
+import { cacheService } from './services/cache.service';
 
 const PORT = config.port;
 
@@ -12,6 +13,14 @@ const startServer = async () => {
     // Test database connection
     await prisma.$connect();
     console.log('✅ Database connected successfully');
+
+    // Initialize Redis cache
+    try {
+      await cacheService.connect();
+      console.log('✅ Redis cache connected successfully');
+    } catch (error) {
+      console.warn('⚠️ Redis cache not available, running without caching');
+    }
 
     // Start the server
     const server = app.listen(PORT, () => {
@@ -34,11 +43,13 @@ const startServer = async () => {
         console.log('HTTP server closed.');
 
         try {
+          await cacheService.disconnect();
+          console.log('Redis cache disconnected.');
           await prisma.$disconnect();
           console.log('Database connection closed.');
           process.exit(0);
         } catch (error) {
-          console.error('Error during database disconnect:', error);
+          console.error('Error during shutdown:', error);
           process.exit(1);
         }
       });
@@ -51,11 +62,13 @@ const startServer = async () => {
         console.log('HTTP server closed.');
 
         try {
+          await cacheService.disconnect();
+          console.log('Redis cache disconnected.');
           await prisma.$disconnect();
           console.log('Database connection closed.');
           process.exit(0);
         } catch (error) {
-          console.error('Error during database disconnect:', error);
+          console.error('Error during shutdown:', error);
           process.exit(1);
         }
       });

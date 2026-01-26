@@ -164,8 +164,8 @@ export const productCreditService = {
     const frequency = repaymentFrequency || loanProduct.repaymentFrequency;
     const interestRate = loanProduct.interestRate;
 
-    // Simple interest calculation for now
-    const totalInterest = totalAmount.mul(interestRate).mul(term).div(12);
+    // Simple interest calculation for now (interest rate is stored as whole number, e.g., 15 = 15%)
+    const totalInterest = totalAmount.mul(interestRate).mul(term).div(1200); // Divide by 100 for percentage, then by 12 for monthly
     const totalLoanAmount = totalAmount.add(totalInterest);
 
     // Calculate number of installments based on frequency

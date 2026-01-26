@@ -1,0 +1,138 @@
+=== TOP-LEVEL FOLDERS ===
+Total Folders: 42
+1. ðŸ” Authentication (10 requests/subfolders)
+2. ðŸ¢ Organizations (6 requests/subfolders)
+3. ðŸ‘¥ Client Management (10 requests/subfolders)
+4. ðŸ“ Notes (8 requests/subfolders)
+5. ðŸ›¡ï¸ Collaterals (15 requests/subfolders)
+6. ðŸ’° Loans & Payments (2 requests/subfolders)
+7. ðŸ‘¤ User Management (13 requests/subfolders)
+8. âš™ï¸ Settings (4 requests/subfolders)
+9. ðŸ’± Exchange Rates (4 requests/subfolders)
+10. ðŸ“‚ Loan Categories (5 requests/subfolders)
+11. ðŸ“¦ Loan Products (9 requests/subfolders)
+12. ðŸŽ¯ Loan Purposes (7 requests/subfolders)
+13. ðŸ“‹ Loan Workflow (10 requests/subfolders)
+14. ðŸª Shops & Products (10 requests/subfolders)
+15. ðŸ›’ Loan Items (5 requests/subfolders)
+16. ðŸ“± Online Applications (8 requests/subfolders)
+17. ðŸ” Roles & Permissions (RBAC) (18 requests/subfolders)
+18. ðŸ“œ Audit Trail (9 requests/subfolders)
+19. ðŸ”„ Loan Workflow Engine (17 requests/subfolders)
+20. ðŸŒ Public API (No Auth) (8 requests/subfolders)
+21. ðŸ“ Online Applications (Admin) (8 requests/subfolders)
+22. ðŸ“¤ File Uploads & Biometrics (9 requests/subfolders)
+23. ðŸ”„ Offline Sync (6 requests/subfolders)
+24. ðŸ›ï¸ Product Credit (4 requests/subfolders)
+25. ðŸ”§ System & Health (2 requests/subfolders)
+26. ðŸ“§ Notifications (7 requests/subfolders)
+27. ðŸ“¥ Data Import (7 requests/subfolders)
+28. ðŸ“Š Dashboard (6 requests/subfolders)
+29. ðŸ“ˆ Enhanced Reports (6 requests/subfolders)
+30. ðŸ¢ Branch Management (8 requests/subfolders)
+31. ðŸ‘” User Administration (7 requests/subfolders)
+32. ðŸ’³ Payment Enhancements (5 requests/subfolders)
+33. ðŸ“ Loan Adjustments (6 requests/subfolders)
+34. ðŸ’° Financial Management (4 requests/subfolders)
+35. ðŸ” Security (6 requests/subfolders)
+36. ðŸ¤– AI & Document Intelligence (4 requests/subfolders)
+37. ðŸ” Data Encryption (6 requests/subfolders)
+38. ðŸ’± Currencies (10 requests/subfolders)
+39. ðŸ’° Charges (13 requests/subfolders)
+40. âš™ï¸ Organization Settings (7 requests/subfolders)
+41. ðŸ”§ Loan Engine (8 requests/subfolders)
+42. ðŸ“Š Monthly Targets (11 requests/subfolders)
+
+Loan Types that we have 
+Type	Description
+SHORT_TERM	Salary-based loans with 30 days or less maturity
+LONG_TERM	2-18 months, monthly installments, entry by months or date range
+PRODUCT	Like long-term but includes product details (name, serial number, model, shop)
+Never save audit logs for read 
+
+1. In our db loan products tabel enginetype is not necessary since we have loanType we use that where engineType is needed in our code.
+2. Grace period days is also not necessary since graceperiod is always days
+3. We should also save the user who created a product for audit sake
+4. Whenever we save new loan product or update that should reflect in audit logs as well
+5. When creating loan product there is no need to add loan category so remove that and update database as well
+7. Where it say min term (monthly), that monthly should be replaced by selected frequency
+8. When creating loan with collateral (create new loan) that's only when we should display collateral field and also the same with guarantor
+9. Guarantor should be searchable the same way we do clients and is also from clients table that mean a client can also be a guarantor for another client
+
+6. If the loantype is for short term then on frequency rate make sure you disable anything bigger than monthly (frontend)
+1. Where it's saying Amount it should be Applied Amount then remove that other applied Amount
+2. Term (Months) should be removed since it's already in the loan product
+3. In Client Limit let's also have the available_balance that will be increased when someone clears their loan after repayment and also be reduced when someone applied for loan and that should be by applied amount. For example if I am creating client the first time we add Client Limit Max Amount and available_balance then whenever we disburse that's when we reduce that balance with applied amount and when ever we repayment we also increase. Canceling loan must also increase the balance. We should also have a field when creating client limit where we say always use it when creating loan such that whenever someone is creating loan we must check that balance
+4. Max Loan should be displayed from selected client's limit available_balance only if the always use is set on client limit if not don't display it or use it when creating loan. And remember it's current based so a client sometimes can have limit for another currency but not for another one so check that as well using the selected currency when creating loan
+
+1. Display the currency as well on the table maybe remove the amount range
+2. The bottom of create loan is hidden if we select expanded fields it should be fully visible
+3. Attach guarantor when adding or editing client that's the guarantor that we use as default and when creating loan if that loan requires guarantor if the guarantor if there then use that default guarantor or allow search and  selecting another client to use 
+
+1. ADMIN_FEE and or any other charges must also be added by default to loan product. So when creating loan product also attach all charges necessary. Like example we charge admin fee on a SSB Loan that is short term so I want to be able to attach charges for that Loan product or to remove them. If charges are attached they must be used to calculate the loan value and also calculate that during creation  and display. For example if Cashed amount is $100 then we apply the admin fee (charge) to that $100 to come up with (applied amount) the amount that we then apply interest to it. Also allow reverse calculate when we enter applied amount then we must be able to get the cashout 
+2. Since the Loan Product contains the currency then there is no need to select currency for the loan we can simple take the one from product and use it as selected currency, then just display the currency after product selection don't allow changing it
+3. On Credits Limits I am getting error Expected number, received nan but remember currency is from database now
+4. Disbursement Method must also show the balance per method so we won't select a method that is empty. It must also be related to the currency used for the selected product
+5. First Due Date We use the date format dd/mm/yyyy by default and the field must also allow us to type in dates. The calendar being used is simple and urgly make it niceer and user friendly
+
+1. ADMIN_FEE and or any other charges must also be added by default to loan product. So when creating loan product also attach all charges necessary. Like example we charge admin fee on a SSB Loan that is short term so I want to be able to attach charges for that Loan product or to remove them. If charges are attached they must be used to calculate the loan value and also calculate that during creation  and display. For example if Cashed amount is $100 then we apply the admin fee (charge) to that $100 to come up with (applied amount) the amount that we then apply interest to it. Also allow reverse calculate when we enter applied amount then we must be able to get the cashout 
+
+1. Please allow entering values properly without the 0 at the beginning like what the field is enforcing
+2. I don't see the option to add charges to a loan product on the screen
+3. When adding or editing the charge the applies at we must add also at loan create so that we add the charges that we need to add to the products and use them when creating the loan like the admin fee that we want applied to applied amount or cashed amount so let's have also that for the applies at that is Loan creation
+4. Charge Name must be used to generate charge code on create new charge
+5. On charge create page the currency is not from currency table
+6. When edit client the update client button seems like not working if it's validation iussue it's not showing
+
+
+1. The charges percentages are wrong 0.1 is 10% because in the database it's saved as 0.1 please save properly as 10 and fix everywhere we are using that
+2. I can't update product but I can create. That doesn't make sense allow me since I can also create{
+    "success": false,
+    "message": "Insufficient permissions",
+    "error": "FORBIDDEN",
+    "details": {
+        "required": [
+            "loan_products:update"
+        ],
+        "missing": [
+            "loan_products:update"
+        ]
+    },
+    "timestamp": "2026-01-25T09:24:21.070Z"
+}
+3. Fix the Credit Limits edit error there
+
+1. I am getting that validation error after selecting the currency
+2. For charges percentage I want to add them like 10% not 0.1 also update the database and everywhere we are using them.
+2. I can't update product but I can create. That doesn't make sense allow me since I can also create{
+    "success": false,
+    "message": "Insufficient permissions",
+    "error": "FORBIDDEN",
+    "details": {
+        "required": [
+            "loan_products:update"
+        ],
+        "missing": [
+            "loan_products:update"
+        ]
+    },
+    "timestamp": "2026-01-25T09:24:21.070Z"
+} 
+
+
+1. Remember I said if the charge is applied at creation (at loan creation selected) please also add another option to say it should be either applied to cashed amount or applied amount. 
+2. I want to do these calculations let's say I enter amount on cashed amount it should calculate and  enter applied amount automaticatically. The calculation should be based on cashed amount * any charges that are applied to loan creation and also to cashed amount. Also allow reverse calculate when we enter applied amount then we must be able to get the cashout  
+3. There is something wrong here. You see our interest on the loan statement is 1%% but it saying interested charged 1.25$ which is not 15% of 100 so the calculation is wrong. Also I don't see charges there even though we have admin fee set to be charged on creation
+
+1. On the loans table the date must display with time as well
+2. The amount displayed on Repayment Schedule is fine and I am happy with it but I don't understand the Overview tab it's showing Total amount due as 125 but the charges were 9.09 not 10 and where is the 10 coming from and remember that 10 is a charge on cashed amount not the $100 applied amount. What it means is the person was supposed to pay or paid 9.09  as admin fee to get a $100 loan that is exactly  what it means. So maybe I am wrong on the best way to calculate and record that
+
+1. There is a calendar icon at the middle of date and the other icon. Remove the middle one we no longer using it
+2. I said maturity date is the first due date that we select if we selected it or whatever that you are currently using 
+3. We must also show the name of the user who created the loan and also the one who disbursed it on the loan statement 
+
+1. The right icon is not working properly there on calendar. It's not clicking
+2. The statement was supposed to include the admin fee as well and any other charges. The Loan statement must also breakdown as principal first, then interest on another line then charges and any other payment or additions made to the loans so we see the whole history of that loan
+
+1. Admin Fee since was paid since the person went out cashed amount is not $100 so which means the 9.09 was for the admin fee. Please make sure that is also handled in the database
+

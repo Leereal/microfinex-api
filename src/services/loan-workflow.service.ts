@@ -9,6 +9,7 @@ import {
 import { financialTransactionService } from './financial-transaction.service';
 import { chargeService } from './charge.service';
 import { loanEngineService } from './loan-engine.service';
+import { clientLimitService } from './client-limit.service';
 
 // ============================================
 // WORKFLOW STEP REQUIREMENTS
@@ -1075,6 +1076,7 @@ class CategoryAwareWorkflowEngine {
         organization: { select: { id: true } },
         branch: { select: { id: true } },
         product: { select: { currency: true } },
+        client: { select: { id: true } },
       },
     });
 
@@ -1095,6 +1097,25 @@ class CategoryAwareWorkflowEngine {
     const disbursementDate =
       disbursementDetails?.disbursementDate || new Date();
     const loanAmount = parseFloat(loan.amount.toString());
+
+    // Check client limit before disbursement
+    const currency = loan.product?.currency || Currency.USD;
+    const limitCheck = await clientLimitService.checkLimitForLoan(
+      loan.clientId,
+      currency,
+      loanAmount
+    );
+
+    if (
+      limitCheck.hasLimit &&
+      limitCheck.isEnforced &&
+      !limitCheck.isWithinLimit
+    ) {
+      return {
+        success: false,
+        error: `Client has exceeded credit limit. Available: ${limitCheck.availableBalance} ${currency}, Required: ${loanAmount} ${currency}`,
+      };
+    }
 
     // Apply disbursement charges if requested
     let chargesResult = null;
@@ -1178,6 +1199,22 @@ class CategoryAwareWorkflowEngine {
         engineResult.error
       );
       // Continue - the loan is disbursed, calculations can be done later
+    }
+
+    // Reduce client's available balance on their credit limit
+    const limitResult = await clientLimitService.reduceAvailableBalance(
+      loan.clientId,
+      currency,
+      loanAmount,
+      loanId
+    );
+
+    if (!limitResult.success) {
+      console.warn(
+        `Failed to reduce client limit for loan ${loanId}:`,
+        limitResult.error
+      );
+      // Continue - the loan is disbursed, limit update can be fixed manually
     }
 
     // Record the transition

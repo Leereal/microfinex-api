@@ -151,11 +151,17 @@ export async function loadUserPermissions(
         permissions.add(PERMISSIONS.BRANCHES_UPDATE);
         permissions.add(PERMISSIONS.BRANCHES_DELETE);
 
-        // Products
+        // Products (shop products)
         permissions.add(PERMISSIONS.PRODUCTS_VIEW);
         permissions.add(PERMISSIONS.PRODUCTS_CREATE);
         permissions.add(PERMISSIONS.PRODUCTS_UPDATE);
         permissions.add(PERMISSIONS.PRODUCTS_DELETE);
+
+        // Loan Products
+        permissions.add(PERMISSIONS.LOAN_PRODUCTS_VIEW);
+        permissions.add(PERMISSIONS.LOAN_PRODUCTS_CREATE);
+        permissions.add(PERMISSIONS.LOAN_PRODUCTS_UPDATE);
+        permissions.add(PERMISSIONS.LOAN_PRODUCTS_DELETE);
 
         // Categories
         permissions.add(PERMISSIONS.CATEGORIES_VIEW);

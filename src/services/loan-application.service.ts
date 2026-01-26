@@ -20,6 +20,10 @@ export interface LoanApplication {
   branchName?: string;
   loanOfficerId: string;
   loanOfficerName?: string;
+  createdById?: string;
+  createdByName?: string;
+  disbursedById?: string;
+  disbursedByName?: string;
   amount: number;
   interestRate: number;
   calculationMethod: string;
@@ -28,11 +32,13 @@ export interface LoanApplication {
   installmentAmount: number;
   totalAmount: number;
   totalInterest: number;
+  totalCharges?: number;
   status: string;
   applicationDate: Date;
   approvedDate?: Date;
   disbursedDate?: Date;
   maturityDate?: Date;
+  nextDueDate?: Date;
   purpose?: string;
   collateralValue?: number;
   collateralDescription?: string;
@@ -41,6 +47,16 @@ export interface LoanApplication {
   outstandingBalance?: number;
   principalBalance?: number;
   interestBalance?: number;
+  loanCharges?: Array<{
+    id: string;
+    chargeId: string;
+    chargeName: string;
+    chargeCode: string;
+    amount: number;
+    isDeductedFromPrincipal: boolean;
+    status: string;
+    appliesAt: string;
+  }>;
 }
 
 export interface LoanApplicationFilters {
@@ -72,6 +88,7 @@ export const createLoanApplicationSchema = z.object({
   guarantorInfo: z.any().optional(),
   notes: z.string().optional(),
   branchId: z.string().uuid('Invalid branch ID').optional(),
+  firstDueDate: z.string().datetime().optional(),
 });
 
 export const approveLoanSchema = z.object({
@@ -129,12 +146,19 @@ class LoanApplicationService {
     branchId: string,
     loanOfficerId: string
   ): Promise<LoanApplication> {
-    // Get loan product details
+    // Get loan product details with charges
     const product = await prisma.loanProduct.findFirst({
       where: {
         id: applicationData.productId,
         organizationId,
         isActive: true,
+      },
+      include: {
+        productCharges: {
+          include: {
+            charge: true,
+          },
+        },
       },
     });
 
@@ -163,9 +187,21 @@ class LoanApplicationService {
     }
 
     // Calculate loan details
+    // Convert interest rate to annual if it's stored as monthly or other frequency
+    let annualRate = product.interestRate;
+    if (product.interestRateFrequency === 'MONTHLY') {
+      // If rate is monthly (e.g., 15% per month), multiply by 12 for annual
+      annualRate = product.interestRate.mul(12);
+    } else if (product.interestRateFrequency === 'WEEKLY') {
+      annualRate = product.interestRate.mul(52);
+    } else if (product.interestRateFrequency === 'DAILY') {
+      annualRate = product.interestRate.mul(365);
+    }
+    // If ANNUAL, use as-is
+
     const calculationInput: LoanCalculationInput = {
       principalAmount: new Decimal(applicationData.amount),
-      annualInterestRate: product.interestRate,
+      annualInterestRate: annualRate,
       termInMonths: applicationData.termInMonths,
       repaymentFrequency: product.repaymentFrequency as any,
       calculationMethod: product.calculationMethod as any,
@@ -189,6 +225,7 @@ class LoanApplicationService {
         organizationId,
         branchId,
         loanOfficerId,
+        createdById: loanOfficerId, // Track who created the loan
         amount: applicationData.amount,
         interestRate: product.interestRate,
         calculationMethod: product.calculationMethod,
@@ -200,6 +237,10 @@ class LoanApplicationService {
         status: 'PENDING',
         applicationDate: new Date(),
         maturityDate,
+        // Use firstDueDate if provided, otherwise will be calculated on disbursement
+        nextDueDate: applicationData.firstDueDate
+          ? new Date(applicationData.firstDueDate)
+          : null,
         purpose: applicationData.purpose,
         collateralValue: applicationData.collateralValue,
         collateralDescription: applicationData.collateralDescription,
@@ -222,6 +263,14 @@ class LoanApplicationService {
             email: true,
           },
         },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
 
@@ -231,7 +280,100 @@ class LoanApplicationService {
       loanCalculation.repaymentSchedule
     );
 
-    return this.mapLoanToApplication(loan);
+    // Create loan charges from product charges (LOAN_CREATION charges)
+    const productCharges = product.productCharges || [];
+    const loanCreationCharges = productCharges.filter(
+      (pc: any) => pc.charge?.appliesAt === 'LOAN_CREATION'
+    );
+
+    for (const pc of loanCreationCharges) {
+      const charge = pc.charge;
+      if (!charge) continue;
+
+      // Determine base amount based on chargeApplication setting
+      // If CASHED_AMOUNT, we need to calculate the cashed amount first
+      // Cashed amount = Applied amount / (1 + sum of cashed-based percentage charges / 100)
+      let baseAmountForCharge = new Decimal(applicationData.amount);
+
+      if (charge.chargeApplication === 'CASHED_AMOUNT') {
+        // Calculate total percentage of charges applied to cashed amount
+        let totalCashedPercentage = new Decimal(0);
+        for (const otherPc of loanCreationCharges) {
+          const otherCharge = otherPc.charge;
+          if (
+            otherCharge &&
+            otherCharge.chargeApplication === 'CASHED_AMOUNT' &&
+            otherCharge.calculationType === 'PERCENTAGE'
+          ) {
+            totalCashedPercentage = totalCashedPercentage.add(
+              otherCharge.defaultPercentage || new Decimal(0)
+            );
+          }
+        }
+        // Cashed = Applied / (1 + totalPercentage/100)
+        const multiplier = new Decimal(1).add(totalCashedPercentage.div(100));
+        baseAmountForCharge = new Decimal(applicationData.amount).div(
+          multiplier
+        );
+      }
+
+      // Calculate charge amount
+      let chargeAmount = new Decimal(0);
+      if (charge.calculationType === 'FIXED') {
+        chargeAmount = charge.defaultAmount || new Decimal(0);
+      } else if (charge.calculationType === 'PERCENTAGE') {
+        // Percentage is stored as whole number (e.g., 10 for 10%)
+        const percentage = charge.defaultPercentage || new Decimal(0);
+        chargeAmount = baseAmountForCharge.mul(percentage).div(100);
+      }
+
+      if (chargeAmount.gt(0)) {
+        const isDeducted = charge.chargeMode === 'DEDUCTED';
+        await prisma.loanCharge.create({
+          data: {
+            loanId: loan.id,
+            chargeId: charge.id,
+            amount: chargeAmount,
+            baseAmount: baseAmountForCharge,
+            calculatedAmount: chargeAmount,
+            isDeductedFromPrincipal: isDeducted,
+            // If charge is deducted from principal, it's already paid at loan creation
+            status: isDeducted ? 'COMPLETED' : 'PENDING',
+            paidAmount: isDeducted ? chargeAmount : new Decimal(0),
+            paidAt: isDeducted ? new Date() : null,
+            chargeName: charge.name,
+            chargeType: charge.type,
+            calculationType: charge.calculationType,
+            currency: product.currency || 'USD',
+          },
+        });
+      }
+    }
+
+    // Refetch loan with charges included
+    const loanWithCharges = await prisma.loan.findUnique({
+      where: { id: loan.id },
+      include: {
+        client: true,
+        product: true,
+        branch: true,
+        loanOfficer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        loanCharges: {
+          include: {
+            charge: true,
+          },
+        },
+      },
+    });
+
+    return this.mapLoanToApplication(loanWithCharges);
   }
 
   /**
@@ -337,6 +479,22 @@ class LoanApplicationService {
         product: true,
         branch: true,
         loanOfficer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        disbursedBy: {
           select: {
             id: true,
             firstName: true,
@@ -527,6 +685,7 @@ class LoanApplicationService {
       data: {
         status: 'ACTIVE',
         disbursedDate: disbursementDate,
+        disbursedById: disbursedBy, // Track who disbursed the loan
         notes: disbursementData.notes
           ? `${loan.notes || ''}\n\nDisbursement Notes: ${disbursementData.notes}`
           : loan.notes,
@@ -536,6 +695,22 @@ class LoanApplicationService {
         product: true,
         branch: true,
         loanOfficer: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        disbursedBy: {
           select: {
             id: true,
             firstName: true,
@@ -677,6 +852,37 @@ class LoanApplicationService {
       ? `${loan.loanOfficer.firstName || ''} ${loan.loanOfficer.lastName || ''}`.trim()
       : undefined;
 
+    // Build created by name from createdBy relation if available
+    const createdByName = loan.createdBy
+      ? `${loan.createdBy.firstName || ''} ${loan.createdBy.lastName || ''}`.trim()
+      : undefined;
+
+    // Build disbursed by name from disbursedBy relation if available
+    const disbursedByName = loan.disbursedBy
+      ? `${loan.disbursedBy.firstName || ''} ${loan.disbursedBy.lastName || ''}`.trim()
+      : undefined;
+
+    // Map loan charges if available
+    const loanCharges =
+      loan.loanCharges?.map((lc: any) => ({
+        id: lc.id,
+        chargeId: lc.chargeId,
+        chargeName: lc.charge?.name || lc.chargeName || '',
+        chargeCode: lc.charge?.code || lc.chargeCode || '',
+        amount: parseFloat(lc.amount?.toString() || '0'),
+        paidAmount: parseFloat(lc.paidAmount?.toString() || '0'),
+        isDeductedFromPrincipal: lc.isDeductedFromPrincipal || false,
+        status: lc.status || 'PENDING',
+        paidAt: lc.paidAt,
+        appliesAt: lc.appliesAt || lc.charge?.appliesAt || 'LOAN_CREATION',
+      })) || [];
+
+    // Calculate total charges
+    const totalCharges = loanCharges.reduce(
+      (sum: number, lc: any) => sum + lc.amount,
+      0
+    );
+
     return {
       id: loan.id,
       loanNumber: loan.loanNumber,
@@ -689,6 +895,10 @@ class LoanApplicationService {
       branchName: loan.branch?.name,
       loanOfficerId: loan.loanOfficerId,
       loanOfficerName,
+      createdById: loan.createdById,
+      createdByName,
+      disbursedById: loan.disbursedById,
+      disbursedByName,
       amount: parseFloat(loan.amount.toString()),
       interestRate: parseFloat(loan.interestRate.toString()),
       calculationMethod: loan.calculationMethod,
@@ -697,11 +907,13 @@ class LoanApplicationService {
       installmentAmount: parseFloat(loan.installmentAmount.toString()),
       totalAmount: parseFloat(loan.totalAmount.toString()),
       totalInterest: parseFloat(loan.totalInterest.toString()),
+      totalCharges,
       status: loan.status,
       applicationDate: loan.applicationDate,
       approvedDate: loan.approvedDate,
       disbursedDate: loan.disbursedDate,
       maturityDate: loan.maturityDate,
+      nextDueDate: loan.nextDueDate,
       purpose: loan.purpose,
       collateralValue: loan.collateralValue
         ? parseFloat(loan.collateralValue.toString())
@@ -718,6 +930,7 @@ class LoanApplicationService {
       interestBalance: loan.interestBalance
         ? parseFloat(loan.interestBalance.toString())
         : undefined,
+      loanCharges,
     };
   }
 }

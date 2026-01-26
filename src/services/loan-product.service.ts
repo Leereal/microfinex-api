@@ -5,17 +5,18 @@ import {
   LoanType,
   Currency,
 } from '@prisma/client';
+import { auditService } from './audit.service';
 
 interface CreateLoanProductInput {
   name: string;
   description?: string;
   type?: LoanType;
   organizationId: string;
-  categoryId?: string;
   minAmount: number;
   maxAmount: number;
   currency?: Currency;
   interestRate: number;
+  interestRateFrequency?: RepaymentFrequency;
   calculationMethod?: LoanCalculationMethod;
   minTerm: number;
   maxTerm: number;
@@ -25,17 +26,18 @@ interface CreateLoanProductInput {
   requiresCollateral?: boolean;
   requiresGuarantor?: boolean;
   isOnlineEligible?: boolean;
+  createdById?: string;
 }
 
 interface UpdateLoanProductInput {
   name?: string;
   description?: string;
   type?: LoanType;
-  categoryId?: string;
   minAmount?: number;
   maxAmount?: number;
   currency?: Currency;
   interestRate?: number;
+  interestRateFrequency?: RepaymentFrequency;
   calculationMethod?: LoanCalculationMethod;
   minTerm?: number;
   maxTerm?: number;
@@ -49,32 +51,18 @@ interface UpdateLoanProductInput {
 }
 
 class LoanProductService {
-  async create(input: CreateLoanProductInput) {
-    // Verify category exists if provided
-    if (input.categoryId) {
-      const category = await prisma.loanCategory.findFirst({
-        where: {
-          id: input.categoryId,
-          organizationId: input.organizationId,
-        },
-      });
-
-      if (!category) {
-        throw new Error('Loan category not found');
-      }
-    }
-
-    return prisma.loanProduct.create({
+  async create(input: CreateLoanProductInput, userId?: string) {
+    const product = await prisma.loanProduct.create({
       data: {
         name: input.name,
         description: input.description,
-        type: input.type || 'PERSONAL',
+        type: input.type || 'SHORT_TERM',
         organizationId: input.organizationId,
-        categoryId: input.categoryId,
         minAmount: input.minAmount,
         maxAmount: input.maxAmount,
         currency: input.currency || 'USD',
         interestRate: input.interestRate,
+        interestRateFrequency: input.interestRateFrequency || 'ANNUAL',
         calculationMethod: input.calculationMethod || 'REDUCING_BALANCE',
         minTerm: input.minTerm,
         maxTerm: input.maxTerm,
@@ -84,17 +72,46 @@ class LoanProductService {
         requiresCollateral: input.requiresCollateral || false,
         requiresGuarantor: input.requiresGuarantor || false,
         isOnlineEligible: input.isOnlineEligible || false,
+        createdById: input.createdById || userId,
       },
       include: {
-        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
+
+    // Create audit log
+    if (userId) {
+      await auditService.createAuditLog({
+        userId,
+        organizationId: input.organizationId,
+        action: 'CREATE',
+        resource: 'LoanProduct',
+        resourceId: product.id,
+        newValue: {
+          name: product.name,
+          type: product.type,
+          minAmount: product.minAmount.toString(),
+          maxAmount: product.maxAmount.toString(),
+          interestRate: product.interestRate.toString(),
+        },
+      });
+    }
+
+    return product;
   }
 
   async update(
     id: string,
     organizationId: string,
-    input: UpdateLoanProductInput
+    input: UpdateLoanProductInput,
+    userId?: string
   ) {
     const product = await prisma.loanProduct.findFirst({
       where: { id, organizationId },
@@ -104,34 +121,75 @@ class LoanProductService {
       throw new Error('Loan product not found');
     }
 
-    // Verify category exists if being updated
-    if (input.categoryId) {
-      const category = await prisma.loanCategory.findFirst({
-        where: {
-          id: input.categoryId,
-          organizationId,
-        },
-      });
+    const oldValues = {
+      name: product.name,
+      type: product.type,
+      minAmount: product.minAmount.toString(),
+      maxAmount: product.maxAmount.toString(),
+      interestRate: product.interestRate.toString(),
+      isActive: product.isActive,
+    };
 
-      if (!category) {
-        throw new Error('Loan category not found');
-      }
-    }
-
-    return prisma.loanProduct.update({
+    const updatedProduct = await prisma.loanProduct.update({
       where: { id },
       data: input,
       include: {
-        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
       },
     });
+
+    // Create audit log
+    if (userId) {
+      await auditService.createAuditLog({
+        userId,
+        organizationId,
+        action: 'UPDATE',
+        resource: 'LoanProduct',
+        resourceId: id,
+        previousValue: oldValues,
+        newValue: {
+          name: updatedProduct.name,
+          type: updatedProduct.type,
+          minAmount: updatedProduct.minAmount.toString(),
+          maxAmount: updatedProduct.maxAmount.toString(),
+          interestRate: updatedProduct.interestRate.toString(),
+          isActive: updatedProduct.isActive,
+        },
+      });
+    }
+
+    return updatedProduct;
   }
 
   async get(id: string, organizationId: string) {
     return prisma.loanProduct.findFirst({
       where: { id, organizationId },
       include: {
-        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        productCharges: {
+          where: { isActive: true },
+          include: {
+            charge: {
+              include: {
+                chargeRates: true,
+              },
+            },
+          },
+        },
         _count: {
           select: { loans: true },
         },
@@ -139,18 +197,31 @@ class LoanProductService {
     });
   }
 
-  async getAll(
-    organizationId: string,
-    options?: { categoryId?: string; isActive?: boolean }
-  ) {
+  async getAll(organizationId: string, options?: { isActive?: boolean }) {
     return prisma.loanProduct.findMany({
       where: {
         organizationId,
-        ...(options?.categoryId && { categoryId: options.categoryId }),
         ...(options?.isActive !== undefined && { isActive: options.isActive }),
       },
       include: {
-        category: true,
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+        productCharges: {
+          where: { isActive: true },
+          include: {
+            charge: {
+              include: {
+                chargeRates: true,
+              },
+            },
+          },
+        },
         _count: {
           select: { loans: true },
         },
@@ -159,7 +230,7 @@ class LoanProductService {
     });
   }
 
-  async delete(id: string, organizationId: string) {
+  async delete(id: string, organizationId: string, userId?: string) {
     const product = await prisma.loanProduct.findFirst({
       where: { id, organizationId },
       include: {
@@ -179,9 +250,26 @@ class LoanProductService {
       );
     }
 
-    return prisma.loanProduct.delete({
+    const deleted = await prisma.loanProduct.delete({
       where: { id },
     });
+
+    // Create audit log
+    if (userId) {
+      await auditService.createAuditLog({
+        userId,
+        organizationId,
+        action: 'DELETE',
+        resource: 'LoanProduct',
+        resourceId: id,
+        previousValue: {
+          name: product.name,
+          type: product.type,
+        },
+      });
+    }
+
+    return deleted;
   }
 
   async getProductsForLoanCalculation(organizationId: string) {
@@ -202,46 +290,48 @@ class LoanProductService {
         calculationMethod: true,
         repaymentFrequency: true,
         gracePeriod: true,
-        category: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            isLongTerm: true,
-          },
-        },
+        requiresCollateral: true,
+        requiresGuarantor: true,
       },
       orderBy: { name: 'asc' },
     });
   }
 
-  async duplicateProduct(id: string, organizationId: string, newName: string) {
+  async duplicateProduct(
+    id: string,
+    organizationId: string,
+    newName: string,
+    userId?: string
+  ) {
     const product = await this.get(id, organizationId);
 
     if (!product) {
       throw new Error('Loan product not found');
     }
 
-    return this.create({
-      name: newName,
-      description: product.description || undefined,
-      type: product.type,
-      organizationId: product.organizationId,
-      categoryId: product.categoryId || undefined,
-      minAmount: Number(product.minAmount),
-      maxAmount: Number(product.maxAmount),
-      currency: product.currency,
-      interestRate: Number(product.interestRate),
-      calculationMethod: product.calculationMethod,
-      minTerm: product.minTerm,
-      maxTerm: product.maxTerm,
-      repaymentFrequency: product.repaymentFrequency,
-      gracePeriod: product.gracePeriod,
-      penaltyRate: Number(product.penaltyRate),
-      requiresCollateral: product.requiresCollateral,
-      requiresGuarantor: product.requiresGuarantor,
-      isOnlineEligible: product.isOnlineEligible,
-    });
+    return this.create(
+      {
+        name: newName,
+        description: product.description || undefined,
+        type: product.type,
+        organizationId: product.organizationId,
+        minAmount: Number(product.minAmount),
+        maxAmount: Number(product.maxAmount),
+        currency: product.currency,
+        interestRate: Number(product.interestRate),
+        calculationMethod: product.calculationMethod,
+        minTerm: product.minTerm,
+        maxTerm: product.maxTerm,
+        repaymentFrequency: product.repaymentFrequency,
+        gracePeriod: product.gracePeriod,
+        penaltyRate: Number(product.penaltyRate),
+        requiresCollateral: product.requiresCollateral,
+        requiresGuarantor: product.requiresGuarantor,
+        isOnlineEligible: product.isOnlineEligible,
+        createdById: userId,
+      },
+      userId
+    );
   }
 }
 

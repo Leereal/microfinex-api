@@ -12,27 +12,11 @@ const router = Router();
 const createProductSchema = z.object({
   name: z.string().min(1),
   description: z.string().optional(),
-  type: z
-    .enum([
-      'PERSONAL',
-      'BUSINESS',
-      'AGRICULTURE',
-      'EDUCATION',
-      'MEDICAL',
-      'HOUSING',
-      'EMERGENCY',
-      'GROUP',
-      'SME',
-      'OTHER',
-    ])
-    .optional(),
-  categoryId: z.string().uuid().optional(),
+  type: z.enum(['SHORT_TERM', 'LONG_TERM', 'PRODUCT']).optional(),
   minAmount: z.number().positive(),
   maxAmount: z.number().positive(),
-  currency: z
-    .enum(['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'HTG', 'DOP', 'CAD'])
-    .optional(),
-  interestRate: z.number().min(0).max(1), // Rate as decimal (0.15 = 15%)
+  currency: z.string().min(3).max(3).optional(), // Dynamic currency from database
+  interestRate: z.number().min(0).max(100), // Rate as percentage (15 = 15%)
   interestRateFrequency: z
     .enum([
       'DAILY',
@@ -69,7 +53,7 @@ const createProductSchema = z.object({
     ])
     .optional(),
   gracePeriod: z.number().int().min(0).optional(),
-  penaltyRate: z.number().min(0).max(1).optional(),
+  penaltyRate: z.number().min(0).max(100).optional(), // Rate as percentage
   requiresCollateral: z.boolean().optional(),
   requiresGuarantor: z.boolean().optional(),
   isOnlineEligible: z.boolean().optional(),
@@ -78,27 +62,11 @@ const createProductSchema = z.object({
 const updateProductSchema = z.object({
   name: z.string().min(1).optional(),
   description: z.string().optional(),
-  type: z
-    .enum([
-      'PERSONAL',
-      'BUSINESS',
-      'AGRICULTURE',
-      'EDUCATION',
-      'MEDICAL',
-      'HOUSING',
-      'EMERGENCY',
-      'GROUP',
-      'SME',
-      'OTHER',
-    ])
-    .optional(),
-  categoryId: z.string().uuid().optional(),
+  type: z.enum(['SHORT_TERM', 'LONG_TERM', 'PRODUCT']).optional(),
   minAmount: z.number().positive().optional(),
   maxAmount: z.number().positive().optional(),
-  currency: z
-    .enum(['USD', 'EUR', 'GBP', 'JPY', 'CNY', 'HTG', 'DOP', 'CAD'])
-    .optional(),
-  interestRate: z.number().min(0).max(1).optional(),
+  currency: z.string().min(3).max(3).optional(), // Dynamic currency from database
+  interestRate: z.number().min(0).max(100).optional(), // Rate as percentage
   interestRateFrequency: z
     .enum([
       'DAILY',
@@ -135,7 +103,7 @@ const updateProductSchema = z.object({
     ])
     .optional(),
   gracePeriod: z.number().int().min(0).optional(),
-  penaltyRate: z.number().min(0).max(1).optional(),
+  penaltyRate: z.number().min(0).max(100).optional(), // Rate as percentage
   requiresCollateral: z.boolean().optional(),
   requiresGuarantor: z.boolean().optional(),
   isOnlineEligible: z.boolean().optional(),
@@ -164,10 +132,9 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const { categoryId, isActive } = req.query;
+    const { isActive } = req.query;
 
     const products = await loanProductService.getAll(organizationId, {
-      categoryId: categoryId as string | undefined,
       isActive: isActive !== undefined ? isActive === 'true' : undefined,
     });
 
@@ -243,7 +210,7 @@ router.post(
   '/',
   authenticate,
   loadPermissions,
-  requirePermission(PERMISSIONS.PRODUCTS_CREATE),
+  requirePermission(PERMISSIONS.LOAN_PRODUCTS_CREATE),
   validateRequest(createProductSchema),
   async (req, res) => {
     try {
@@ -373,7 +340,7 @@ router.put(
   '/:id',
   authenticate,
   loadPermissions,
-  requirePermission(PERMISSIONS.PRODUCTS_UPDATE),
+  requirePermission(PERMISSIONS.LOAN_PRODUCTS_UPDATE),
   validateRequest(updateProductSchema),
   async (req, res) => {
     try {

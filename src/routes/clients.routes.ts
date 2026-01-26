@@ -11,8 +11,12 @@ import {
   ClientSearchFilters,
 } from '../services/client.service';
 import { logCreate } from '../services/audit.service';
+import { cacheService } from '../services/cache.service';
 
 const router = Router();
+
+// Cache TTL in seconds (30 minutes)
+const CLIENTS_CACHE_TTL = 30 * 60;
 
 // Query validation schemas
 const searchQuerySchema = z.object({
@@ -87,12 +91,38 @@ router.get(
             : 10,
       };
 
+      // Check if client wants to skip cache (refresh button clicked)
+      const skipCache =
+        req.headers['x-skip-cache'] === 'true' || req.query.refresh === 'true';
+
+      // Generate cache key
+      const cacheKey = cacheService.generateClientsKey(organizationId, filters);
+
+      // Try to get from cache (unless skip cache is requested)
+      if (!skipCache) {
+        const cachedResult = await cacheService.get<any>(cacheKey);
+        if (cachedResult) {
+          return res.json({
+            success: true,
+            message: 'Clients retrieved successfully (cached)',
+            data: cachedResult,
+            cached: true,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
+      // If not in cache or skip cache, fetch from database
       const result = await clientService.searchClients(filters, organizationId);
+
+      // Store in cache with TTL (30 minutes)
+      await cacheService.set(cacheKey, result, CLIENTS_CACHE_TTL);
 
       res.json({
         success: true,
         message: 'Clients retrieved successfully',
         data: result,
+        cached: false,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
@@ -106,6 +136,72 @@ router.get(
     }
   }
 );
+
+/**
+ * @swagger
+ * /api/v1/clients/cache/invalidate:
+ *   post:
+ *     summary: Invalidate clients cache for the organization
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post('/cache/invalidate', authenticate, async (req, res) => {
+  try {
+    const organizationId = req.userContext?.organizationId;
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    await cacheService.invalidateClientsCache(organizationId);
+
+    res.json({
+      success: true,
+      message: 'Clients cache invalidated successfully',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Cache invalidation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to invalidate cache',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/clients/cache/stats:
+ *   get:
+ *     summary: Get cache statistics
+ *     tags: [Clients]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/cache/stats', authenticate, async (req, res) => {
+  try {
+    const stats = await cacheService.getStats();
+    res.json({
+      success: true,
+      data: stats,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get cache stats',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 // ============================================
 // SUPER ADMIN ROUTES - Global Client Management
@@ -325,6 +421,9 @@ router.post(
         // Don't fail the request if audit logging fails
       }
 
+      // Invalidate clients cache after creating new client
+      await cacheService.invalidateClientsCache(organizationId);
+
       res.status(201).json({
         success: true,
         message: 'Client created successfully',
@@ -480,6 +579,9 @@ router.put(
         req.body,
         organizationId!
       );
+
+      // Invalidate clients cache after updating client
+      await cacheService.invalidateClientsCache(organizationId);
 
       res.json({
         success: true,
@@ -728,6 +830,9 @@ router.delete(
       }
 
       const client = await clientService.deleteClient(clientId, organizationId);
+
+      // Invalidate clients cache after deleting client
+      await cacheService.invalidateClientsCache(organizationId);
 
       res.json({
         success: true,

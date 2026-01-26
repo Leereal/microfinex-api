@@ -120,6 +120,17 @@ export interface ClientProfile {
   nextOfKins?: NextOfKin[];
   employers?: ClientEmployer[];
   limits?: ClientLimit[];
+  // Default guarantor
+  defaultGuarantorId?: string;
+  defaultGuarantor?: {
+    id: string;
+    clientNumber: string;
+    firstName?: string;
+    lastName?: string;
+    businessName?: string;
+    phone: string;
+    type: 'INDIVIDUAL' | 'GROUP' | 'BUSINESS';
+  };
 }
 
 export interface ClientSearchFilters {
@@ -201,6 +212,7 @@ export const createClientSchema = z
     signatureImage: z.string().optional(),
     branchId: z.string().uuid(),
     homeBranchId: z.string().uuid().optional(),
+    defaultGuarantorId: z.string().uuid().optional().nullable(),
   })
   .refine(
     data => {
@@ -275,6 +287,7 @@ export const updateClientSchema = z.object({
   signatureImage: z.string().optional().nullable(),
   branchId: z.string().uuid().optional(),
   homeBranchId: z.string().uuid().optional().nullable(),
+  defaultGuarantorId: z.string().uuid().optional().nullable(),
 });
 
 export const kycDocumentSchema = z.object({
@@ -474,6 +487,17 @@ class ClientService {
         },
         addresses: true,
         contacts: true,
+        defaultGuarantor: {
+          select: {
+            id: true,
+            clientNumber: true,
+            firstName: true,
+            lastName: true,
+            businessName: true,
+            phone: true,
+            type: true,
+          },
+        },
       },
     });
 
@@ -864,6 +888,19 @@ class ClientService {
         availableAmount: parseFloat(limit.availableAmount?.toString() || '0'),
         isActive: limit.isActive,
       })),
+      // Default guarantor for this client
+      defaultGuarantorId: client.defaultGuarantorId,
+      defaultGuarantor: client.defaultGuarantor
+        ? {
+            id: client.defaultGuarantor.id,
+            clientNumber: client.defaultGuarantor.clientNumber,
+            firstName: client.defaultGuarantor.firstName,
+            lastName: client.defaultGuarantor.lastName,
+            businessName: client.defaultGuarantor.businessName,
+            phone: client.defaultGuarantor.phone,
+            type: client.defaultGuarantor.type,
+          }
+        : undefined,
     };
   }
 
