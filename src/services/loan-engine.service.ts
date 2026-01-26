@@ -28,6 +28,7 @@ import {
   LoanType,
   ChargeMode,
   ChargeApplication,
+  DurationUnit,
 } from '@prisma/client';
 import { settingsService } from './settings.service';
 
@@ -274,10 +275,10 @@ class LoanEngineService {
       const interestRate = loan.interestRate;
       let interestAmount: Prisma.Decimal;
 
-      // Get duration settings from product
-      const durationUnit = product.durationUnit || DurationUnit.MONTHS;
+      // Get duration settings from product - default to MONTHS for term-based products
+      const durationUnit = DurationUnit.MONTHS;
       // Use loan term (in months) or fall back to product settings
-      const loanPeriod = loan.term || product.minPeriod || 1;
+      const loanPeriod = loan.term || product.minTerm || 1;
 
       if (product.interestRateFrequency === 'MONTHLY') {
         // Rate is per month, multiply by number of months
@@ -294,8 +295,7 @@ class LoanEngineService {
         interestAmount = loan.amount.mul(interestRate).div(100).mul(loanPeriod);
       }
 
-      const gracePeriodDays =
-        product.gracePeriodDays || product.gracePeriod || 0;
+      const gracePeriodDays = product.gracePeriod || 0;
 
       // Expected repayment date = start date + loan period
       const expectedRepaymentDate = addDuration(now, loanPeriod, durationUnit);
@@ -391,11 +391,10 @@ class LoanEngineService {
       const interestRate = loan.interestRate;
       const interestAmount = loan.amount.mul(interestRate).div(100);
 
-      // Calculate expected repayment date based on product term
-      const durationUnit = product.durationUnit;
-      const minPeriod = product.minPeriod;
-      const gracePeriodDays =
-        product.gracePeriodDays || product.gracePeriod || 0;
+      // Calculate expected repayment date based on product term - default to months
+      const durationUnit = DurationUnit.MONTHS;
+      const minPeriod = loan.term || product.minTerm || 1;
+      const gracePeriodDays = product.gracePeriod || 0;
 
       // Expected repayment date = start date + min period
       const expectedRepaymentDate = addDuration(now, minPeriod, durationUnit);
@@ -851,10 +850,9 @@ class LoanEngineService {
         product: {
           select: {
             name: true,
-            durationUnit: true,
-            minPeriod: true,
-            maxPeriod: true,
-            gracePeriodDays: true,
+            minTerm: true,
+            maxTerm: true,
+            gracePeriod: true,
           },
         },
         client: { select: { firstName: true, lastName: true, phone: true } },

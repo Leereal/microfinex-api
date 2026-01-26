@@ -617,17 +617,13 @@ class CategoryAwareWorkflowEngine {
   private workflowHistory = new LoanWorkflowHistoryService();
 
   /**
-   * Get workflow requirements from loan category
+   * Get workflow requirements from loan product
    */
   async getWorkflowRequirements(loanId: string): Promise<WorkflowRequirements> {
     const loan = await prisma.loan.findUnique({
       where: { id: loanId },
       include: {
-        product: {
-          include: {
-            category: true,
-          },
-        },
+        product: true,
       },
     });
 
@@ -635,15 +631,15 @@ class CategoryAwareWorkflowEngine {
       throw new Error('Loan not found');
     }
 
-    const category = loan.product?.category;
+    const product = loan.product;
 
     return {
       requiresAssessment: true, // All loans require assessment
-      requiresBusinessVisit: category?.requiresBusinessVisit ?? false,
-      requiresHomeVisit: category?.requiresHomeVisit ?? false,
-      requiresSecurityPledge: category?.requiresSecurityPledge ?? false,
-      requiresCollateral: category?.requiresCollateral ?? false,
-      isLongTerm: category?.isLongTerm ?? false,
+      requiresBusinessVisit: false,
+      requiresHomeVisit: false,
+      requiresSecurityPledge: false,
+      requiresCollateral: product?.requiresCollateral ?? false,
+      isLongTerm: product?.type === 'LONG_TERM',
     };
   }
 

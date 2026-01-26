@@ -328,7 +328,7 @@ class LoanApplicationService {
       }
 
       if (chargeAmount.gt(0)) {
-        const isDeducted = charge.chargeMode === 'DEDUCTED';
+        const isDeducted = charge.isDeductedFromPrincipal || false;
         await prisma.loanCharge.create({
           data: {
             loanId: loan.id,

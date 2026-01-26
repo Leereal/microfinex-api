@@ -38,14 +38,7 @@ router.get('/products', async (req, res) => {
         calculationMethod: true,
         repaymentFrequency: true,
         gracePeriod: true,
-        category: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            isLongTerm: true,
-          },
-        },
+        type: true,
         organization: {
           select: {
             id: true,
@@ -101,18 +94,9 @@ router.get('/products/:id', async (req, res) => {
         calculationMethod: true,
         repaymentFrequency: true,
         gracePeriod: true,
-        category: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            isLongTerm: true,
-            requiresBusinessVisit: true,
-            requiresHomeVisit: true,
-            requiresSecurityPledge: true,
-            requiresCollateral: true,
-          },
-        },
+        type: true,
+        requiresCollateral: true,
+        requiresGuarantor: true,
         organization: {
           select: {
             id: true,

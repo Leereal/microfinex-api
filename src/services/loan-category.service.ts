@@ -68,15 +68,7 @@ export class LoanCategoryService {
       throw new Error('Loan category not found');
     }
 
-    // Check if used by any products
-    const productsCount = await prisma.loanProduct.count({
-      where: { categoryId: id },
-    });
-
-    if (productsCount > 0) {
-      throw new Error('Cannot delete category that is used by loan products');
-    }
-
+    // Category is no longer linked to products directly - can be deleted
     await prisma.loanCategory.delete({
       where: { id },
     });
