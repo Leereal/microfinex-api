@@ -4,6 +4,7 @@ import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest } from '../middleware/validation';
 import { UserRole } from '../types';
 import { authController } from '../controllers/auth.controller';
+import { authRateLimiter } from '../utils/security';
 
 const router = Router();
 
@@ -11,6 +12,10 @@ const router = Router();
 const loginSchema = z.object({
   email: z.string().email('Invalid email format'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
 });
 
 const registerSchema = z.object({
@@ -110,8 +115,40 @@ const changePasswordSchema = z.object({
  */
 router.post(
   '/login',
+  // Credential endpoints get a stricter budget than the global limiter, so a
+  // stolen email cannot be password-sprayed at the global 100-per-window rate.
+  authRateLimiter,
   validateRequest(loginSchema),
   authController.login.bind(authController)
+);
+
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Exchange a refresh token for a new access token
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: A new access token and a rotated refresh token
+ *       401:
+ *         description: Refresh token missing, expired, or already used
+ */
+router.post(
+  '/refresh',
+  authRateLimiter,
+  validateRequest(refreshSchema),
+  authController.refresh.bind(authController)
 );
 
 /**
@@ -150,6 +187,7 @@ router.post(
  */
 router.post(
   '/register',
+  authRateLimiter,
   validateRequest(registerSchema),
   authController.register.bind(authController)
 );
@@ -373,6 +411,7 @@ router.get('/me', authenticate, authController.getProfile.bind(authController));
  */
 router.post(
   '/change-password',
+  authRateLimiter,
   authenticate,
   validateRequest(changePasswordSchema),
   authController.changePassword.bind(authController)

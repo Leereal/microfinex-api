@@ -1611,6 +1611,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...AUDIT_PERMISSIONS.map(p => p.code),
     ...BRANCH_PERMISSIONS.map(p => p.code),
     ...PRODUCT_PERMISSIONS.map(p => p.code),
+    // Loan products are a separate module from shop products; omitting them
+    // here left admins unable to manage loan products at all.
+    ...LOAN_PRODUCT_PERMISSIONS.map(p => p.code),
     ...CATEGORY_PERMISSIONS.map(p => p.code),
     ...GROUP_PERMISSIONS.map(p => p.code),
     ...EMPLOYER_PERMISSIONS.map(p => p.code),
@@ -1646,6 +1649,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...AUDIT_PERMISSIONS.map(p => p.code),
     ...BRANCH_PERMISSIONS.map(p => p.code),
     ...PRODUCT_PERMISSIONS.map(p => p.code),
+    // Loan products are a separate module from shop products; omitting them
+    // here left admins unable to manage loan products at all.
+    ...LOAN_PRODUCT_PERMISSIONS.map(p => p.code),
     ...CATEGORY_PERMISSIONS.map(p => p.code),
     ...GROUP_PERMISSIONS.map(p => p.code),
     ...EMPLOYER_PERMISSIONS.map(p => p.code),
@@ -1713,6 +1719,11 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.PAYMENT_METHODS_VIEW,
     PERMISSIONS.PAYMENT_METHODS_CREATE,
     PERMISSIONS.PAYMENT_METHODS_UPDATE,
+    // Managers configure the products their branch lends against, but
+    // cannot delete them.
+    PERMISSIONS.LOAN_PRODUCTS_VIEW,
+    PERMISSIONS.LOAN_PRODUCTS_CREATE,
+    PERMISSIONS.LOAN_PRODUCTS_UPDATE,
     PERMISSIONS.INCOME_CATEGORIES_VIEW,
     PERMISSIONS.INCOME_CATEGORIES_CREATE,
     PERMISSIONS.INCOME_CATEGORIES_UPDATE,

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
+import { resolveDataScope } from '../utils/scope';
 import {
   clientService,
   createClientSchema,
@@ -79,7 +80,11 @@ router.get(
           typeof req.query.isActive === 'string'
             ? req.query.isActive === 'true'
             : undefined,
-        branchId: req.query.branchId as string,
+        // Enforced from the caller's role and branch assignment rather than
+        // accepted from the query string.
+        branchId: resolveDataScope(req, {
+          branchId: req.query.branchId as string,
+        }).branchId,
         employmentStatus: req.query.employmentStatus as any,
         page:
           typeof req.query.page === 'string'

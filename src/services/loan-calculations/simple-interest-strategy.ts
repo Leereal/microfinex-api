@@ -77,18 +77,22 @@ export class SimpleInterestStrategy implements ILoanCalculationStrategy {
     let cumulativePrincipal = new Decimal(0);
     let cumulativeInterest = new Decimal(0);
 
-    // Calculate first payment date (considering grace period)
-    let currentDate = new Date(disbursementDate);
-    if (gracePeriodDays > 0) {
-      currentDate.setDate(currentDate.getDate() + gracePeriodDays);
-    }
+    // First instalment falls one full period after disbursement (plus any
+    // grace days) - a loan is not repayable on the day it is advanced.
+    const firstDueDate = LoanCalculationUtils.getFirstDueDate(
+      disbursementDate,
+      gracePeriodDays,
+      repaymentFrequency
+    );
+    const currentDate = firstDueDate;
 
     for (let i = 1; i <= numberOfPayments; i++) {
       // Calculate due date
-      const dueDate = LoanCalculationUtils.addPeriod(
-        currentDate,
-        i - 1,
-        repaymentFrequency
+      const dueDate = LoanCalculationUtils.getInstallmentDueDate(
+        disbursementDate,
+        gracePeriodDays,
+        repaymentFrequency,
+        i
       );
 
       let principalPayment = principalPerInstallment;
@@ -134,7 +138,14 @@ export class SimpleInterestStrategy implements ILoanCalculationStrategy {
 
     // For simple interest, effective rate equals stated rate
     const effectiveInterestRate = annualInterestRate;
-    const apr = totalAmount.div(principalAmount).sub(1).mul(100);
+    // APR from the actual cash flows, annualised. The previous
+    // totalAmount/principal - 1 ratio ignored the term and overstated the
+    // annual rate by roughly the number of years on the loan.
+    const apr = LoanCalculationUtils.calculateAPR(
+      principalAmount,
+      repaymentSchedule.map(i => i.totalAmount),
+      repaymentFrequency
+    );
 
     // Calculate average monthly payment
     const totalPayments = repaymentSchedule.reduce(

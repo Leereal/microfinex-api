@@ -4,6 +4,7 @@ import { prisma } from '../config/database';
 import { authenticate } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
+import { resolveDataScope } from '../utils/scope';
 import { Prisma } from '@prisma/client';
 const Decimal = Prisma.Decimal;
 import {
@@ -602,12 +603,20 @@ router.get('/applications', authenticate, async (req, res) => {
       });
     }
 
+    // Branch and officer are enforced from the caller's role and assignment,
+    // not taken from the query string - otherwise any user with loans:view
+    // could list every loan in the organisation by omitting the filter.
+    const scope = resolveDataScope(req, {
+      branchId: req.query.branchId as string,
+      loanOfficerId: req.query.loanOfficerId as string,
+    });
+
     const filters: LoanApplicationFilters = {
       status: req.query.status as string,
       clientId: req.query.clientId as string,
       productId: req.query.productId as string,
-      branchId: req.query.branchId as string,
-      loanOfficerId: req.query.loanOfficerId as string,
+      branchId: scope.branchId,
+      loanOfficerId: scope.loanOfficerId,
       amountFrom: req.query.amountFrom
         ? parseFloat(req.query.amountFrom as string)
         : undefined,

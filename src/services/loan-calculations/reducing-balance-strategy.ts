@@ -85,18 +85,22 @@ export class ReducingBalanceStrategy implements ILoanCalculationStrategy {
     let cumulativeInterest = new Decimal(0);
     let totalInterest = new Decimal(0);
 
-    // Calculate first payment date (considering grace period)
-    let currentDate = new Date(disbursementDate);
-    if (gracePeriodDays > 0) {
-      currentDate.setDate(currentDate.getDate() + gracePeriodDays);
-    }
+    // First instalment falls one full period after disbursement (plus any
+    // grace days) - a loan is not repayable on the day it is advanced.
+    const firstDueDate = LoanCalculationUtils.getFirstDueDate(
+      disbursementDate,
+      gracePeriodDays,
+      repaymentFrequency
+    );
+    const currentDate = firstDueDate;
 
     for (let i = 1; i <= numberOfPayments; i++) {
       // Calculate due date
-      const dueDate = LoanCalculationUtils.addPeriod(
-        currentDate,
-        i - 1,
-        repaymentFrequency
+      const dueDate = LoanCalculationUtils.getInstallmentDueDate(
+        disbursementDate,
+        gracePeriodDays,
+        repaymentFrequency,
+        i
       );
 
       // Calculate interest for this period
@@ -150,8 +154,22 @@ export class ReducingBalanceStrategy implements ILoanCalculationStrategy {
     const totalAmount = principalAmount.add(totalInterest).add(totalFees);
 
     // Calculate effective interest rate (APR)
-    const effectiveRate = totalInterest.div(principalAmount).mul(100);
-    const apr = totalAmount.div(principalAmount).sub(1).mul(100);
+    // Effective annual rate implied by the interest actually charged. Like
+    // APR this must be annualised rather than expressed as a whole-of-term
+    // ratio, but excludes fees so it can be compared against the nominal rate.
+    const effectiveRate = LoanCalculationUtils.calculateAPR(
+      principalAmount,
+      repaymentSchedule.map(i => i.principalAmount.add(i.interestAmount)),
+      repaymentFrequency
+    );
+    // APR from the actual cash flows, annualised. The previous
+    // totalAmount/principal - 1 ratio ignored the term and overstated the
+    // annual rate by roughly the number of years on the loan.
+    const apr = LoanCalculationUtils.calculateAPR(
+      principalAmount,
+      repaymentSchedule.map(i => i.totalAmount),
+      repaymentFrequency
+    );
 
     // Calculate average monthly payment
     const totalPayments = repaymentSchedule.reduce(
@@ -246,17 +264,47 @@ export class ReducingBalanceStrategy implements ILoanCalculationStrategy {
       new Decimal(0)
     );
 
-    // Calculate rebate (usually 78th rule or actuarial method)
-    // Using simple proportional rebate for this example
-    const totalTerm = originalCalculation.summary.numberOfInstallments;
-    const remainingTerm = totalTerm - paymentsMade;
-    const rebatePercentage = new Decimal(remainingTerm).div(totalTerm);
-    const rebateAmount = remainingInterest.mul(rebatePercentage).mul(0.8); // 80% rebate
+    // Under reducing balance, interest is earned only on principal actually
+    // outstanding over time. Settling early means the lender never earns the
+    // scheduled future interest, so all of it is rebated and the borrower owes
+    // principal plus interest accrued since the last instalment.
+    //
+    // Accrual for the part-period is prorated from the interest the next
+    // instalment would have charged, which already reflects the correct
+    // periodic rate on the current balance.
+    const previousDueDate =
+      paymentsMade > 0
+        ? (originalCalculation.repaymentSchedule[paymentsMade - 1]?.dueDate ??
+          null)
+        : null;
+    const nextInstallment =
+      originalCalculation.repaymentSchedule[paymentsMade] ?? null;
 
-    // Settlement amount = remaining principal + remaining interest - rebate
-    const totalSettlementAmount = remainingPrincipal
-      .add(remainingInterest)
-      .sub(rebateAmount);
+    let accruedInterest = new Decimal(0);
+
+    if (nextInstallment && previousDueDate) {
+      const periodDays = LoanCalculationUtils.daysBetween(
+        previousDueDate,
+        nextInstallment.dueDate
+      );
+      const elapsedDays = LoanCalculationUtils.daysBetween(
+        previousDueDate,
+        settlementDate
+      );
+
+      if (periodDays > 0 && elapsedDays > 0) {
+        const fraction = new Decimal(Math.min(elapsedDays, periodDays)).div(
+          periodDays
+        );
+        accruedInterest = nextInstallment.interestAmount.mul(fraction);
+      }
+    }
+
+    // Everything scheduled but not yet earned is rebated.
+    const rebateAmount = remainingInterest.sub(accruedInterest);
+
+    // Settlement amount = outstanding principal + interest earned to date
+    const totalSettlementAmount = remainingPrincipal.add(accruedInterest);
 
     // Calculate savings
     const originalRemainingPayments = remainingInstallments.reduce(

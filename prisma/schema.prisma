@@ -196,6 +196,9 @@ model FinancialTransaction {
 
   @@index([organizationId, transactionDate])
   @@index([paymentMethodId])
+
+  @@index([relatedLoanId])
+  @@index([relatedPaymentId])
   @@map("financial_transactions")
 }
 
@@ -236,6 +239,8 @@ model Branch {
   userBranches          UserBranch[]
   users                 User[]                 @relation("BranchUsers")
   monthlyTargets        MonthlyTarget[]
+
+  @@index([organizationId, isActive])
 
   @@map("branches")
 }
@@ -297,6 +302,9 @@ model User {
   sessions              UserSession[]
   branch                Branch?                @relation("BranchUsers", fields: [branchId], references: [id])
   organization          Organization?          @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, isActive])
+  @@index([branchId])
 
   @@map("users")
 }
@@ -392,6 +400,10 @@ model Client {
   loans            Loan[]
   nextOfKins       NextOfKin[]
 
+  @@index([organizationId, isActive])
+  @@index([organizationId, branchId])
+  @@index([email])
+
   @@map("clients")
 }
 
@@ -476,6 +488,8 @@ model LoanProduct {
   loans                 Loan[]
   productCharges        ProductCharge[]
 
+  @@index([organizationId, isActive])
+
   @@map("loan_products")
 }
 
@@ -549,6 +563,15 @@ model Loan {
   repaymentSchedule     RepaymentSchedule[]
   pledges               SecurityPledge[]
 
+  // Tenant-scoped listings and the loan engine's status sweeps are the
+  // hottest queries in the system. PostgreSQL does not index foreign keys
+  // automatically, so without these every listing is a sequential scan.
+  @@index([organizationId, status])
+  @@index([organizationId, branchId])
+  @@index([clientId])
+  @@index([loanOfficerId])
+  @@index([status, maturityDate])
+
   @@map("loans")
 }
 
@@ -569,6 +592,9 @@ model RepaymentSchedule {
   loan              Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@unique([loanId, installmentNumber])
+
+  @@index([loanId, dueDate])
+  @@index([status, dueDate])
   @@map("repayment_schedule")
 }
 
@@ -595,6 +621,10 @@ model Payment {
   loan              Loan            @relation(fields: [loanId], references: [id])
   processedBranch   Branch?         @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
   receiver          User            @relation(fields: [receivedBy], references: [id])
+
+  @@index([loanId, paymentDate])
+  @@index([status])
+  @@index([paymentDate])
 
   @@map("payments")
 }
@@ -633,7 +663,10 @@ model ChargeRate {
   id         String   @id @default(uuid())
   chargeId   String
   amount     Decimal? @db.Decimal(15, 2)
-  percentage Decimal? @db.Decimal(5, 4)
+  // Percentages are stored as whole numbers (10 = 10%), matching
+  // Charge.defaultPercentage. Decimal(5,4) capped this at 9.9999 and rejected
+  // any rate of 10% or more with a numeric overflow.
+  percentage Decimal? @db.Decimal(10, 4)
   minAmount  Decimal? @db.Decimal(15, 2)
   maxAmount  Decimal? @db.Decimal(15, 2)
   isActive   Boolean  @default(true)
@@ -687,6 +720,8 @@ model LoanCharge {
   currency                Currency
   charge                  Charge                @relation(fields: [chargeId], references: [id])
   loan                    Loan                  @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@index([loanId])
 
   @@map("loan_charges")
 }
@@ -754,6 +789,8 @@ model ClientLimit {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, isActive])
 
   @@map("client_limits")
 }
@@ -881,6 +918,8 @@ model ClientDocument {
   updatedAt        DateTime       @updatedAt
   client           Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   documentType     DocumentType   @relation(fields: [documentTypeId], references: [id])
+
+  @@index([clientId])
 
   @@map("client_documents")
 }
@@ -1055,6 +1094,10 @@ model AuditLog {
   @@index([timestamp])
   @@index([requestId])
   @@index([resourceId])
+
+  @@index([organizationId, timestamp])
+  @@index([userId, timestamp])
+  @@index([resource, resourceId])
   @@map("audit_logs")
 }
 

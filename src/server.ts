@@ -2,6 +2,7 @@ import app from './app';
 import { config } from './config';
 import { prisma } from './config/database';
 import { cacheService } from './services/cache.service';
+import { startScheduler, stopScheduler } from './jobs/scheduler';
 
 const PORT = config.port;
 
@@ -20,6 +21,18 @@ const startServer = async () => {
       console.log('✅ Redis cache connected successfully');
     } catch (error) {
       console.warn('⚠️ Redis cache not available, running without caching');
+    }
+
+    // Start background jobs (loan engine, arrears, reminders). Without these
+    // loans never transition to OVERDUE and penalties never accrue.
+    if (process.env.ENABLE_SCHEDULER === 'true') {
+      const count = startScheduler();
+      console.log(`✅ Scheduler started with ${count} job(s)`);
+    } else {
+      console.warn(
+        '⚠️  Scheduler disabled. Loan status transitions, penalties and ' +
+          'reminders will not run. Set ENABLE_SCHEDULER=true to enable.'
+      );
     }
 
     // Start the server
@@ -43,6 +56,8 @@ const startServer = async () => {
         console.log('HTTP server closed.');
 
         try {
+          await stopScheduler();
+          console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');
           await prisma.$disconnect();
@@ -62,6 +77,8 @@ const startServer = async () => {
         console.log('HTTP server closed.');
 
         try {
+          await stopScheduler();
+          console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');
           await prisma.$disconnect();

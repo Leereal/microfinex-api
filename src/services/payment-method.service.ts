@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { Prisma, PaymentMethodType } from '@prisma/client';
+import { toMoney, roundMoney } from '../utils/money';
 
 export interface CreatePaymentMethodInput {
   organizationId: string;
@@ -604,9 +605,11 @@ class PaymentMethodService {
   async adjustBalanceInternal(
     paymentMethodId: string,
     amount: number,
-    reason: string
+    reason: string,
+    client?: Prisma.TransactionClient
   ): Promise<void> {
-    const paymentMethod = await prisma.paymentMethod.findUnique({
+    const db = client ?? prisma;
+    const paymentMethod = await db.paymentMethod.findUnique({
       where: { id: paymentMethodId },
     });
 
@@ -617,10 +620,11 @@ class PaymentMethodService {
       return;
     }
 
-    const currentBalance = parseFloat(paymentMethod.currentBalance.toString());
-    const newBalance = currentBalance + amount;
+    const newBalance = roundMoney(
+      toMoney(paymentMethod.currentBalance).add(toMoney(amount))
+    );
 
-    await prisma.paymentMethod.update({
+    await db.paymentMethod.update({
       where: { id: paymentMethodId },
       data: {
         currentBalance: newBalance,
@@ -628,7 +632,7 @@ class PaymentMethodService {
     });
 
     console.log(
-      `Payment method ${paymentMethod.name} balance adjusted by ${amount}: ${reason}. New balance: ${newBalance}`
+      `Payment method ${paymentMethod.name} balance adjusted by ${amount}: ${reason}. New balance: ${newBalance.toFixed(2)}`
     );
   }
 }

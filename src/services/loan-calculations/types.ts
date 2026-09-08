@@ -234,20 +234,48 @@ export class LoanCalculationUtils {
         newDate.setDate(newDate.getDate() + periods * 14);
         break;
       case RepaymentFrequency.MONTHLY:
-        newDate.setMonth(newDate.getMonth() + periods);
-        break;
+        return LoanCalculationUtils.addMonths(date, periods);
       case RepaymentFrequency.QUARTERLY:
-        newDate.setMonth(newDate.getMonth() + periods * 3);
-        break;
+        return LoanCalculationUtils.addMonths(date, periods * 3);
       case RepaymentFrequency.SEMI_ANNUAL:
-        newDate.setMonth(newDate.getMonth() + periods * 6);
-        break;
+        return LoanCalculationUtils.addMonths(date, periods * 6);
       case RepaymentFrequency.ANNUAL:
-        newDate.setFullYear(newDate.getFullYear() + periods);
-        break;
+        return LoanCalculationUtils.addMonths(date, periods * 12);
     }
 
     return newDate;
+  }
+
+  /**
+   * Add whole months, clamping to the last day of the target month.
+   *
+   * `Date.setMonth` overflows rather than clamping: 31 January plus one month
+   * yields 3 March, and plus three months yields 1 May. For a repayment
+   * schedule that silently shifts due dates into the following month and, for
+   * a loan disbursed on the 31st, makes instalments drift further apart every
+   * short month. Lending convention is to fall due on the last day of the
+   * month instead.
+   */
+  static addMonths(date: Date, months: number): Date {
+    const month = date.getMonth();
+    const day = date.getDate();
+
+    // Anchor to the 1st before shifting the month, so the shift itself cannot
+    // overflow, then clamp the day to the target month's length.
+    const result = new Date(date);
+    result.setDate(1);
+    result.setMonth(month + months);
+
+    // Day 0 of the following month is the last day of the target month.
+    const daysInTargetMonth = new Date(
+      result.getFullYear(),
+      result.getMonth() + 1,
+      0
+    ).getDate();
+
+    result.setDate(Math.min(day, daysInTargetMonth));
+
+    return result;
   }
 
   /**
@@ -255,6 +283,117 @@ export class LoanCalculationUtils {
    */
   static roundDecimal(value: Decimal, places: number = 2): Decimal {
     return value.toDecimalPlaces(places);
+  }
+
+  /**
+   * Date on which the first instalment falls due.
+   *
+   * A loan disbursed today is not repayable today: the borrower gets one full
+   * repayment period (plus any grace days) before the first instalment. The
+   * schedule therefore starts one period after disbursement, and instalment
+   * `n` falls `n` periods out.
+   */
+  static getFirstDueDate(
+    disbursementDate: Date,
+    gracePeriodDays: number,
+    frequency: RepaymentFrequency
+  ): Date {
+    const start = new Date(disbursementDate);
+    if (gracePeriodDays > 0) {
+      start.setDate(start.getDate() + gracePeriodDays);
+    }
+    return LoanCalculationUtils.addPeriod(start, 1, frequency);
+  }
+
+  /**
+   * Due date for instalment `installmentNumber` (1-based).
+   */
+  static getInstallmentDueDate(
+    disbursementDate: Date,
+    gracePeriodDays: number,
+    frequency: RepaymentFrequency,
+    installmentNumber: number
+  ): Date {
+    const start = new Date(disbursementDate);
+    if (gracePeriodDays > 0) {
+      start.setDate(start.getDate() + gracePeriodDays);
+    }
+    return LoanCalculationUtils.addPeriod(start, installmentNumber, frequency);
+  }
+
+  /**
+   * Annual Percentage Rate, derived from the actual cash flows.
+   *
+   * APR is the annualised rate that discounts the repayment schedule back to
+   * the amount the borrower actually received. It is NOT
+   * `totalAmount / principal - 1`: that ratio ignores the term entirely, so a
+   * three-year loan and a one-year loan with the same total cost report the
+   * same figure, overstating the annual rate by roughly the number of years.
+   *
+   * The periodic internal rate of return is found by bisection (robust for
+   * ordinary loan cash flows, which cross zero exactly once) and then scaled
+   * to a nominal annual rate, the convention used for consumer credit
+   * disclosure.
+   *
+   * @param amountAdvanced What the borrower receives - principal less any fee
+   *                       deducted at disbursement.
+   * @param payments       Each instalment's total outflow, in order.
+   */
+  static calculateAPR(
+    amountAdvanced: Decimal,
+    payments: Decimal[],
+    frequency: RepaymentFrequency
+  ): Decimal {
+    const advanced = parseFloat(amountAdvanced.toString());
+    const flows = payments.map(p => parseFloat(p.toString()));
+
+    if (advanced <= 0 || flows.length === 0) {
+      return new Prisma.Decimal(0);
+    }
+
+    const totalRepaid = flows.reduce((sum, p) => sum + p, 0);
+    if (totalRepaid <= advanced) {
+      return new Prisma.Decimal(0);
+    }
+
+    // Present value of the schedule at a given periodic rate, less what was
+    // advanced. Monotonically decreasing in `rate`, so bisection converges.
+    const netPresentValue = (rate: number): number => {
+      let pv = 0;
+      for (let i = 0; i < flows.length; i++) {
+        pv += (flows[i] ?? 0) / Math.pow(1 + rate, i + 1);
+      }
+      return pv - advanced;
+    };
+
+    let low = 0;
+    let high = 1; // 100% per period - far above any legitimate loan
+
+    // Expand the bracket if the rate is extraordinarily high.
+    let guard = 0;
+    while (netPresentValue(high) > 0 && guard < 20) {
+      high *= 2;
+      guard++;
+    }
+
+    for (let i = 0; i < 200; i++) {
+      const mid = (low + high) / 2;
+      const npv = netPresentValue(mid);
+      if (Math.abs(npv) < 1e-9) {
+        low = mid;
+        break;
+      }
+      if (npv > 0) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+
+    const periodicRate = (low + high) / 2;
+    const periodsPerYear = LoanCalculationUtils.getPeriodsPerYear(frequency);
+
+    return new Prisma.Decimal(periodicRate * periodsPerYear * 100);
   }
 
   /**

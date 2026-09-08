@@ -57,6 +57,71 @@ const SKIP_AUDIT_PATHS = [
   '/swagger',
 ];
 
+/**
+ * Field names whose values must never reach the audit log.
+ *
+ * The generic logger records the request body when a response carries no
+ * `data` payload, which is exactly what happens on a failed login - so
+ * without this list every rejected sign-in would persist the submitted
+ * password in plaintext, and every successful one would persist the issued
+ * access token. Auth events are recorded separately by logAuthEvent, which
+ * stores no credentials.
+ */
+const REDACTED_FIELDS = new Set([
+  'password',
+  'newpassword',
+  'oldpassword',
+  'currentpassword',
+  'confirmpassword',
+  'passwordconfirmation',
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'idtoken',
+  'apikey',
+  'secret',
+  'clientsecret',
+  'servicerolekey',
+  'authorization',
+  'pin',
+  'otp',
+  'mfacode',
+  'totp',
+  'sessiontoken',
+  'privatekey',
+]);
+
+const REDACTED_PLACEHOLDER = '[REDACTED]';
+
+/**
+ * Recursively strip credential-bearing fields from a value before it is
+ * persisted. Returns a copy; the caller's object is never mutated.
+ */
+function redactSensitive(value: any, depth = 0): any {
+  // Guard against deeply nested or cyclic payloads.
+  if (depth > 8 || value === null || value === undefined) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(entry => redactSensitive(entry, depth + 1));
+  }
+
+  if (typeof value !== 'object' || value instanceof Date) {
+    return value;
+  }
+
+  const result: Record<string, any> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (REDACTED_FIELDS.has(key.toLowerCase())) {
+      result[key] = REDACTED_PLACEHOLDER;
+    } else {
+      result[key] = redactSensitive(entry, depth + 1);
+    }
+  }
+  return result;
+}
+
 // Routes that should log READ operations (sensitive data)
 const LOG_READ_PATHS = [
   '/api/v1/clients',
@@ -73,15 +138,13 @@ export function initAuditContext(
   res: Response,
   next: NextFunction
 ): void {
+  // This middleware runs globally, before any route-level authentication has
+  // had a chance to populate req.userContext. Identity is therefore resolved
+  // lazily by resolveActor() when the entry is actually written, not captured
+  // here - reading it now would stamp every audit record with a null user.
   req.auditContext = {
     requestId: generateRequestId(),
     startTime: Date.now(),
-    userId: req.userContext?.id,
-    organizationId:
-      req.userContext?.organizationId ||
-      req.body?.organizationId ||
-      req.params?.organizationId,
-    branchId: req.body?.branchId || req.params?.branchId,
     sessionId: req.headers['x-session-id'] as string,
   };
 
@@ -89,6 +152,33 @@ export function initAuditContext(
   res.setHeader('X-Request-ID', req.auditContext.requestId);
 
   next();
+}
+
+/**
+ * Resolve who performed the request, at the point the audit entry is written.
+ *
+ * The three authentication middlewares populate different shapes
+ * (auth.ts sets req.user.userId, auth-supabase.ts sets req.userContext.id and
+ * req.user.id), so all of them are consulted.
+ */
+function resolveActor(req: Request): {
+  userId: string | null;
+  organizationId: string | null;
+  branchId: string | null;
+} {
+  const user = (req as any).user;
+
+  return {
+    userId: req.userContext?.id || user?.id || user?.userId || null,
+    organizationId:
+      req.userContext?.organizationId ||
+      user?.organizationId ||
+      req.body?.organizationId ||
+      req.params?.organizationId ||
+      null,
+    branchId:
+      user?.branchId || req.body?.branchId || req.params?.branchId || null,
+  };
 }
 
 /**
@@ -233,21 +323,26 @@ async function logAuditEntry(
       req.socket?.remoteAddress ||
       'unknown';
 
+    // Resolved now rather than at request start, so authentication has run.
+    const actor = resolveActor(req);
+
     const auditEntry = {
       action,
       resource,
       resourceId,
-      userId: ctx.userId || null, // Don't use 'anonymous' - use null for unknown users
-      organizationId: ctx.organizationId || null,
-      branchId: ctx.branchId || null,
-      previousValue: req.previousEntityState || null,
+      userId: actor.userId, // Don't use 'anonymous' - use null for unknown users
+      organizationId: actor.organizationId,
+      branchId: actor.branchId,
+      previousValue: redactSensitive(req.previousEntityState) || null,
       newValue:
-        action === 'DELETE' ? null : responseBody?.data || req.body || null,
+        action === 'DELETE'
+          ? null
+          : redactSensitive(responseBody?.data ?? req.body) || null,
       changes: {
         path: req.path,
         method: req.method,
         statusCode: res.statusCode,
-        query: req.query,
+        query: redactSensitive(req.query),
       },
       status,
       duration,
@@ -287,16 +382,18 @@ export async function logCustomAction(
       startTime: Date.now(),
     };
 
+    const actor = resolveActor(req);
+
     await auditService.createAuditLog({
       action,
       resource,
       resourceId,
-      userId: req.userContext?.id || 'anonymous',
-      organizationId: req.userContext?.organizationId,
-      branchId: req.body?.branchId,
-      previousValue: details.previousValue,
-      newValue: details.newValue,
-      changes: details.changes,
+      userId: actor.userId,
+      organizationId: actor.organizationId ?? undefined,
+      branchId: actor.branchId ?? undefined,
+      previousValue: redactSensitive(details.previousValue),
+      newValue: redactSensitive(details.newValue),
+      changes: redactSensitive(details.changes),
       status: details.status || 'SUCCESS',
       duration: Date.now() - ctx.startTime,
       requestId: ctx.requestId,

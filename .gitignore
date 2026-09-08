@@ -61,7 +61,10 @@ temp/
 *.sqlite3
 
 # Prisma
-prisma/migrations/
+# Migrations are intentionally tracked: they are the reproducible record of
+# every schema change and must travel with the code to each environment.
+# Only the local shadow-database scratch directory is ignored.
+prisma/migrations/**/shadow/
 
 # Husky
 .husky/_

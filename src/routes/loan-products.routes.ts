@@ -409,7 +409,7 @@ router.delete(
   '/:id',
   authenticate,
   loadPermissions,
-  requirePermission(PERMISSIONS.PRODUCTS_DELETE),
+  requirePermission(PERMISSIONS.LOAN_PRODUCTS_DELETE),
   async (req, res) => {
     try {
       const id = req.params.id;
@@ -472,7 +472,7 @@ router.post(
   '/:id/duplicate',
   authenticate,
   loadPermissions,
-  requirePermission(PERMISSIONS.PRODUCTS_CREATE),
+  requirePermission(PERMISSIONS.LOAN_PRODUCTS_CREATE),
   async (req, res) => {
     try {
       const id = req.params.id;
