@@ -164,3 +164,5 @@ console.log(interaction.output_text); that's genai.
 - Invalid argument for gemma models is something to also look at
 - Fix the issue whenever we use 2.5 flash model
 - When we click edit client on the edit page the ID Type and Phone number code it deselects what was selected before. Check all other dropdowns if that is also working fine. It should work
+
+1. This view screen does not look close to the create / edit screen. It won't make sense if it's like this 

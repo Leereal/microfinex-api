@@ -58,29 +58,45 @@ class InAppNotificationService {
    * then checked individually. The result is cached by the permission
    * middleware, so this is a handful of queries, not one per user per request.
    *
-   * `excludeUserId` keeps the person who acted from being told about their own
-   * action.
+   * `branchId` prefers staff at the branch the work belongs to, plus anyone not
+   * tied to a branch (head office). If that leaves nobody it falls back to
+   * every holder in the organization: a notification nobody receives is worse
+   * than one that travels a little further than intended.
+   *
+   * Note there is no exclusion for the person who acted. A small branch may
+   * have one person who can both raise and approve, and excluding them made the
+   * request invisible to everyone.
    */
   async notifyPermissionHolders(
     input: Omit<CreateNotificationInput, 'recipientId'> & {
       permission: string;
-      excludeUserId?: string;
+      /** The branch the work belongs to, when it belongs to one. */
+      branchId?: string | null;
     }
   ): Promise<number> {
     const candidates = await prisma.user.findMany({
       where: {
         organizationId: input.organizationId,
         isActive: true,
-        ...(input.excludeUserId ? { id: { not: input.excludeUserId } } : {}),
       },
-      select: { id: true },
+      select: { id: true, branchId: true },
     });
 
-    const recipients: string[] = [];
+    const holders: Array<{ id: string; branchId: string | null }> = [];
     for (const user of candidates) {
       const permissions = await loadUserPermissions(user.id);
-      if (permissions.has(input.permission)) recipients.push(user.id);
+      if (permissions.has(input.permission)) holders.push(user);
     }
+
+    const atBranch = input.branchId
+      ? holders.filter(
+          user => user.branchId === input.branchId || user.branchId === null
+        )
+      : holders;
+
+    const recipients = (atBranch.length > 0 ? atBranch : holders).map(
+      user => user.id
+    );
 
     if (recipients.length === 0) return 0;
 

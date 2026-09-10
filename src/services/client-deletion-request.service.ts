@@ -158,6 +158,7 @@ class ClientDeletionRequestService {
         firstName: true,
         lastName: true,
         businessName: true,
+        branchId: true,
       },
     });
 
@@ -193,6 +194,8 @@ class ClientDeletionRequestService {
     await inAppNotificationService.notifyPermissionHolders({
       organizationId: actor.organizationId,
       permission: PERMISSIONS.CLIENTS_DELETE,
+      // Staff at the client's branch, plus anyone not tied to one.
+      branchId: client.branchId,
       type: NOTIFICATION_TYPES.CLIENT_DELETION_REQUESTED,
       title: 'Client deletion requested',
       body: `${requesterName} asked for ${clientLabel(client)} to be deleted.${
@@ -201,7 +204,6 @@ class ClientDeletionRequestService {
       link: `/clients/deletion-requests?request=${request.id}`,
       resource: 'ClientDeletionRequest',
       resourceId: request.id,
-      excludeUserId: actor.userId,
     });
 
     await logCreate('ClientDeletionRequest', request.id, request, {

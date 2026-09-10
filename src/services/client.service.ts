@@ -305,31 +305,71 @@ export const kycDocumentSchema = z.object({
   notes: z.string().optional(),
 });
 
+/**
+ * How many client numbers to try before giving up.
+ *
+ * Each attempt is one number further along, so this only runs out when several
+ * are taken in a row - concurrent creates, or another organization holding the
+ * same values.
+ */
+const CLIENT_NUMBER_ATTEMPTS = 5;
+
 class ClientService {
   /**
    * Generate unique client number
    */
-  private async generateClientNumber(organizationId: string): Promise<string> {
+  /**
+   * The next client number for this organization, as CL{yy}{mm}{0000}.
+   *
+   * Derived from the highest number already issued this month, not from a row
+   * count. Counting is wrong the moment the two disagree - delete a client and
+   * the count drops, so the next client is handed a number that is already
+   * taken. The insert then fails on the unique constraint with "A client with
+   * this client number already exists", which the operator can do nothing
+   * about: they never chose the number.
+   *
+   * `offset` walks past a number that turns out to be taken anyway. That
+   * happens because clientNumber is unique across the whole database while
+   * this sequence is per organization, so two organizations creating clients
+   * in the same month compete for the same values.
+   */
+  private async generateClientNumber(
+    organizationId: string,
+    offset = 0
+  ): Promise<string> {
     const today = new Date();
     const year = today.getFullYear().toString().slice(-2);
     const month = (today.getMonth() + 1).toString().padStart(2, '0');
+    const prefix = `CL${year}${month}`;
 
-    // Get count of clients this month
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    const count = await prisma.client.count({
+    // Zero-padded to a fixed width, so lexical ordering is numeric ordering.
+    const latest = await prisma.client.findFirst({
       where: {
         organizationId,
-        createdAt: {
-          gte: startOfMonth,
-          lte: endOfMonth,
-        },
+        clientNumber: { startsWith: prefix },
       },
+      orderBy: { clientNumber: 'desc' },
+      select: { clientNumber: true },
     });
 
-    const sequence = (count + 1).toString().padStart(4, '0');
-    return `CL${year}${month}${sequence}`;
+    const lastSequence = latest
+      ? parseInt(latest.clientNumber.slice(prefix.length), 10) || 0
+      : 0;
+
+    const sequence = (lastSequence + 1 + offset).toString().padStart(4, '0');
+    return `${prefix}${sequence}`;
+  }
+
+  /** True when a failed insert was the generated client number colliding. */
+  private isClientNumberCollision(error: any): boolean {
+    if (error?.code !== 'P2002') return false;
+
+    const target = error?.meta?.target;
+    const asText = Array.isArray(target)
+      ? target.join(',')
+      : String(target ?? error?.message ?? '');
+
+    return asText.toLowerCase().includes('clientnumber');
   }
 
   /**
@@ -379,33 +419,55 @@ class ClientService {
       }
     }
 
-    const clientNumber = await this.generateClientNumber(organizationId);
-
-    const client = await prisma.client.create({
-      data: {
-        ...clientData,
-        clientNumber,
+    // Two operators creating a client at the same moment resolve the same next
+    // number, and only one insert can win. Rather than fail the loser with an
+    // error about a number they never chose, take the next one along.
+    for (let attempt = 0; attempt < CLIENT_NUMBER_ATTEMPTS; attempt++) {
+      const clientNumber = await this.generateClientNumber(
         organizationId,
-        createdBy,
-        creditScore: clientData.monthlyIncome
-          ? this.calculateInitialCreditScore(clientData.monthlyIncome)
-          : null,
-      },
-      include: {
-        organization: true,
-        branch: true,
-        creator: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
+        attempt
+      );
 
-    return this.mapClientToProfile(client);
+      try {
+        const client = await prisma.client.create({
+          data: {
+            ...clientData,
+            clientNumber,
+            organizationId,
+            createdBy,
+            creditScore: clientData.monthlyIncome
+              ? this.calculateInitialCreditScore(clientData.monthlyIncome)
+              : null,
+          },
+          include: {
+            organization: true,
+            branch: true,
+            creator: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        });
+
+        return this.mapClientToProfile(client);
+      } catch (error) {
+        // Anything else - a duplicate phone, a bad branch - is the caller's to
+        // see, and retrying would only repeat it.
+        if (!this.isClientNumberCollision(error)) throw error;
+
+        console.warn(
+          `[Clients] ${clientNumber} was taken; trying the next number.`
+        );
+      }
+    }
+
+    throw new Error(
+      'Could not allocate a client number. Please try again in a moment.'
+    );
   }
 
   /**
