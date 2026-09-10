@@ -235,6 +235,23 @@ class StorageService {
   }
 
   /**
+   * Read a stored object back into memory.
+   * Used to re-run AI extraction against a document already in MinIO.
+   */
+  async download(storagePath: string): Promise<Buffer> {
+    await this.initialize();
+
+    const stream = await this.client.getObject(BUCKET_NAME, storagePath);
+    const chunks: Buffer[] = [];
+
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
+  }
+
+  /**
    * Get a presigned URL for uploading a file directly
    */
   async getUploadUrl(

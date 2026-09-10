@@ -132,6 +132,7 @@ export async function loadUserPermissions(
         permissions.add(PERMISSIONS.CLIENTS_CREATE);
         permissions.add(PERMISSIONS.CLIENTS_UPDATE);
         permissions.add(PERMISSIONS.CLIENTS_DELETE);
+        permissions.add(PERMISSIONS.CLIENTS_DELETE_REQUEST);
         permissions.add(PERMISSIONS.CLIENTS_EXPORT);
         permissions.add(PERMISSIONS.CLIENTS_IMPORT);
 

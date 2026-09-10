@@ -36,6 +36,32 @@ router.get(
 );
 
 /**
+ * List selectable models for a provider (catalog + previously discovered)
+ * GET /api/v1/ai/models?provider=gemini
+ */
+router.get(
+  '/models',
+  requirePermission('ai:view'),
+  handleAsync(aiController.getProviderModels.bind(aiController))
+);
+
+/**
+ * Check which models the configured API key can actually use, and persist them
+ * POST /api/v1/ai/models/discover
+ */
+const discoverModelsSchema = z.object({
+  aiProviderId: z.string().uuid('Invalid provider ID'),
+  apiKey: z.string().min(1).optional(),
+});
+
+router.post(
+  '/models/discover',
+  requirePermission('ai:manage'),
+  validateRequest(discoverModelsSchema),
+  handleAsync(aiController.discoverModels.bind(aiController))
+);
+
+/**
  * Get organization's AI configurations
  * GET /api/v1/ai/configs
  */
@@ -57,6 +83,7 @@ const configureProviderSchema = z.object({
   isPrimary: z.boolean().optional(),
   maxTokens: z.number().int().positive().optional(),
   temperature: z.number().min(0).max(2).optional(),
+  thinkingLevel: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
   settings: z.record(z.unknown()).optional(),
 });
 
@@ -78,6 +105,7 @@ const updateConfigSchema = z.object({
   isPrimary: z.boolean().optional(),
   maxTokens: z.number().int().positive().optional(),
   temperature: z.number().min(0).max(2).optional(),
+  thinkingLevel: z.enum(['minimal', 'low', 'medium', 'high']).optional(),
   settings: z.record(z.unknown()).optional(),
 });
 
@@ -138,6 +166,31 @@ router.post(
   requirePermission('ai:extract'),
   validateRequest(extractSchema),
   handleAsync(aiController.extractFromDocument.bind(aiController))
+);
+
+/**
+ * Extract from several documents for one client in a single model call
+ * POST /api/v1/ai/extract-batch
+ */
+const extractBatchSchema = z.object({
+  documents: z
+    .array(
+      z.object({
+        documentType: z.string().optional(),
+        data: z.string().min(1, 'Document data is required'),
+        mimeType: z.string().optional(),
+        fileName: z.string().optional(),
+      })
+    )
+    .min(1, 'At least one document is required')
+    .max(20, 'At most 20 documents can be extracted at once'),
+});
+
+router.post(
+  '/extract-batch',
+  requirePermission('ai:extract'),
+  validateRequest(extractBatchSchema),
+  handleAsync(aiController.extractFromDocuments.bind(aiController))
 );
 
 /**

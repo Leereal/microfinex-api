@@ -75,7 +75,14 @@ export const CLIENT_PERMISSIONS: PermissionDefinition[] = [
   {
     code: 'clients:delete',
     name: 'Delete Client',
-    description: 'Delete or deactivate clients',
+    description: 'Delete or deactivate clients, and approve deletion requests',
+    module: PERMISSION_MODULES.CLIENTS,
+  },
+  {
+    code: 'clients:delete:request',
+    name: 'Request Client Deletion',
+    description:
+      'Ask for a client to be deleted, for a holder of clients:delete to approve',
     module: PERMISSION_MODULES.CLIENTS,
   },
   {
@@ -1337,6 +1344,7 @@ export const PERMISSIONS = {
   CLIENTS_CREATE: 'clients:create',
   CLIENTS_UPDATE: 'clients:update',
   CLIENTS_DELETE: 'clients:delete',
+  CLIENTS_DELETE_REQUEST: 'clients:delete:request',
   CLIENTS_EXPORT: 'clients:export',
   CLIENTS_IMPORT: 'clients:import',
   CLIENTS_KYC_VIEW: 'clients:kyc:view',
@@ -1676,6 +1684,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_UPDATE,
+    // May ask for a deletion; approving one needs CLIENTS_DELETE.
+    PERMISSIONS.CLIENTS_DELETE_REQUEST,
     PERMISSIONS.CLIENTS_KYC_VIEW,
     PERMISSIONS.CLIENTS_KYC_UPDATE,
     PERMISSIONS.CLIENTS_STATISTICS,
@@ -1775,6 +1785,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_UPDATE,
+    // May ask for a deletion; approving one needs CLIENTS_DELETE.
+    PERMISSIONS.CLIENTS_DELETE_REQUEST,
     PERMISSIONS.CLIENTS_KYC_VIEW,
     PERMISSIONS.CLIENTS_KYC_UPLOAD,
     PERMISSIONS.LOANS_VIEW,

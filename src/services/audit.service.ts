@@ -1,6 +1,9 @@
 import { prisma } from '../config/database';
 import { AuditLog, Prisma } from '@prisma/client';
-import { v4 as uuidv4 } from 'uuid';
+// randomUUID rather than the uuid package: same output, no dependency, and
+// uuid ships ESM-only, which made every module importing this file unusable
+// from the Jest suites.
+import { randomUUID } from 'node:crypto';
 
 // AuditStatus type (matches Prisma enum)
 export type AuditStatus = 'SUCCESS' | 'FAILURE' | 'PARTIAL';
@@ -639,7 +642,7 @@ export async function archiveOldLogs(
  * Generate a unique request ID for tracking
  */
 export function generateRequestId(): string {
-  return uuidv4();
+  return randomUUID();
 }
 
 export const auditService = {

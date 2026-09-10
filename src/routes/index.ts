@@ -43,6 +43,8 @@ import documentRoutes from './document.routes';
 import collateralRoutes from './collateral.routes';
 import aiRoutes from './ai.routes';
 import clientDraftRoutes from './client-drafts.routes';
+import clientDeletionRequestRoutes from './client-deletion-requests.routes';
+import inboxRoutes from './inbox.routes';
 // Currency management
 import currencyRoutes from './currency.routes';
 // Financial Management routes
@@ -109,6 +111,12 @@ router.use(`${apiVersion}/documents`, documentRoutes);
 router.use(`${apiVersion}/collaterals`, collateralRoutes);
 router.use(`${apiVersion}/ai`, aiRoutes);
 router.use(`${apiVersion}/client-drafts`, clientDraftRoutes);
+router.use(
+  `${apiVersion}/client-deletion-requests`,
+  clientDeletionRequestRoutes
+);
+// The signed-in user's own notification inbox (the bell in the header).
+router.use(`${apiVersion}/inbox`, inboxRoutes);
 
 // Currency management
 router.use(`${apiVersion}/currencies`, currencyRoutes);

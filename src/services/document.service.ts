@@ -67,6 +67,23 @@ export interface ClientDocumentFilters {
   isExpired?: boolean;
 }
 
+export interface OrganizationDocumentFilters extends ClientDocumentFilters {
+  clientId?: string;
+  /** Matches file name, client name or client number. */
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+/** A client "folder" in the documents browser. */
+export interface ClientDocumentFolder {
+  clientId: string;
+  clientNumber: string | null;
+  clientName: string;
+  documentCount: number;
+  lastUploadedAt: Date | null;
+}
+
 // ===== SERVICE =====
 
 class DocumentService {
@@ -327,6 +344,198 @@ class DocumentService {
       ...document,
       storageUrl,
     };
+  }
+
+  /**
+   * List every document in the organization, newest first.
+   * Backs the Documents browser, which groups them into client folders.
+   */
+  async getOrganizationDocuments(
+    organizationId: string,
+    filters: OrganizationDocumentFilters = {}
+  ) {
+    const page = Math.max(1, filters.page || 1);
+    const limit = Math.min(200, Math.max(1, filters.limit || 50));
+
+    const where: Prisma.ClientDocumentWhereInput = {
+      client: { organizationId },
+    };
+
+    if (filters.clientId) {
+      where.clientId = filters.clientId;
+    }
+
+    if (filters.status) {
+      where.status = filters.status;
+    }
+
+    if (filters.documentTypeId) {
+      where.documentTypeId = filters.documentTypeId;
+    }
+
+    if (filters.isExpired) {
+      where.expiryDate = { lt: new Date() };
+    }
+
+    if (filters.search) {
+      const search = filters.search;
+      where.OR = [
+        { fileName: { contains: search, mode: 'insensitive' } },
+        { documentNumber: { contains: search, mode: 'insensitive' } },
+        {
+          client: {
+            organizationId,
+            OR: [
+              { firstName: { contains: search, mode: 'insensitive' } },
+              { lastName: { contains: search, mode: 'insensitive' } },
+              { clientNumber: { contains: search, mode: 'insensitive' } },
+            ],
+          },
+        },
+      ];
+    }
+
+    const [documents, total] = await Promise.all([
+      prisma.clientDocument.findMany({
+        where,
+        include: {
+          documentType: true,
+          client: {
+            select: {
+              id: true,
+              clientNumber: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.clientDocument.count({ where }),
+    ]);
+
+    // Presign every URL so thumbnails and downloads work straight from the list
+    const withUrls = await Promise.all(
+      documents.map(async doc => ({
+        ...doc,
+        documentTypeName: doc.documentType?.name || 'Document',
+        documentTypeCode: doc.documentType?.code || null,
+        clientName: [doc.client?.firstName, doc.client?.lastName]
+          .filter(Boolean)
+          .join(' '),
+        storageUrl: await this.safeSignedUrl(doc.storagePath),
+      }))
+    );
+
+    return {
+      documents: withUrls,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
+  /**
+   * Clients that have at least one document, with counts — the folder list in
+   * the Documents browser.
+   */
+  async getClientDocumentFolders(
+    organizationId: string,
+    search?: string
+  ): Promise<ClientDocumentFolder[]> {
+    const grouped = await prisma.clientDocument.groupBy({
+      by: ['clientId'],
+      where: { client: { organizationId } },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    });
+
+    if (grouped.length === 0) {
+      return [];
+    }
+
+    const clients = await prisma.client.findMany({
+      where: {
+        id: { in: grouped.map(g => g.clientId) },
+        organizationId,
+        ...(search
+          ? {
+              OR: [
+                { firstName: { contains: search, mode: 'insensitive' } },
+                { lastName: { contains: search, mode: 'insensitive' } },
+                { clientNumber: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        clientNumber: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    const countsByClient = new Map(grouped.map(g => [g.clientId, g]));
+
+    return clients
+      .map(client => {
+        const stats = countsByClient.get(client.id);
+        return {
+          clientId: client.id,
+          clientNumber: client.clientNumber,
+          clientName:
+            [client.firstName, client.lastName].filter(Boolean).join(' ') ||
+            client.clientNumber ||
+            'Unnamed client',
+          documentCount: stats?._count._all || 0,
+          lastUploadedAt: stats?._max.createdAt || null,
+        };
+      })
+      .sort((a, b) => a.clientName.localeCompare(b.clientName));
+  }
+
+  /**
+   * Presigned download URL for a single document.
+   */
+  async getDownloadUrl(
+    documentId: string,
+    organizationId: string
+  ): Promise<{ downloadUrl: string; fileName: string; mimeType: string }> {
+    const document = await prisma.clientDocument.findFirst({
+      where: {
+        id: documentId,
+        client: { organizationId },
+      },
+    });
+
+    if (!document) {
+      throw new Error('Document not found');
+    }
+
+    return {
+      downloadUrl: await storageService.getSignedUrl(document.storagePath),
+      fileName: document.fileName,
+      mimeType: document.mimeType,
+    };
+  }
+
+  /**
+   * Presign a path, returning null instead of throwing so one missing object
+   * never blanks out a whole listing.
+   */
+  private async safeSignedUrl(storagePath: string): Promise<string | null> {
+    try {
+      return await storageService.getSignedUrl(storagePath);
+    } catch (error) {
+      console.error(`Failed to sign URL for ${storagePath}:`, error);
+      return null;
+    }
   }
 
   /**

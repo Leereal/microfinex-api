@@ -136,3 +136,31 @@ Never save audit logs for read
 
 1. Admin Fee since was paid since the person went out cashed amount is not $100 so which means the 9.09 was for the admin fee. Please make sure that is also handled in the database
 
+
+============
+https://ai.google.dev/gemini-api/docs/models
+
+1. You can see that I  have few models but there are a lot of gemini models available to select from so please add all. I also want to be able to click  a biutton then it checks which models are available out and add them to that list as well. 
+2. I want you do also use the latest way of handling gemini :
+
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({});
+
+const interaction = await ai.interactions.create({
+  model: "gemini-3.8-flash",
+  input: "Explain how AI works in a few words",
+});
+console.log(interaction.output_text); that's genai. 
+
+3. I see gemini is failing to extract text from the document provided I want it to extract text and auto fill the client form it does not matter which document is uploaded AI must be able to detect also the type of document and uploaded as well. 
+4. After uploading the documents in minio we should be able to put it under a certain client and if we visit documents page we must see those documents on the clients respective folders and be able to download then to view them. 
+5. So if document or documents was uploaded under the client creation please extract information to fill in to the fields. All information possible because a client can send multiple documents so take note of that as well and try to get information from them. 
+
+
+======================
+-If I have permissions to create client and edit I should be able to reuqest for client deletion. Not to delete client. So that the person with permission to delete client will see the request under notifications and then click to go to the list of clients requested to be deleted then we delete completely from the database but should also be in audit logs. Anyone with the permission to delete must be able to see the request under notifications
+- The error message for Gemini low thinking model is fine but it should not tricker that other error must be handled nicely
+- Invalid argument for gemma models is something to also look at
+- Fix the issue whenever we use 2.5 flash model
+- When we click edit client on the edit page the ID Type and Phone number code it deselects what was selected before. Check all other dropdowns if that is also working fine. It should work

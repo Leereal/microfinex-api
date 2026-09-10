@@ -34,6 +34,7 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
+    "@google/genai": "^2.21.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^7.0.1",

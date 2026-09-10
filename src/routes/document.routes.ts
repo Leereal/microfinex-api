@@ -174,6 +174,30 @@ router.put(
 // ===================
 
 /**
+ * List every document in the organization (paginated + filterable)
+ * GET /api/v1/documents
+ *
+ * Registered before /:documentId so the collection route is not swallowed.
+ */
+router.get(
+  '/',
+  requirePermission('documents:view'),
+  handleAsync(
+    documentController.getOrganizationDocuments.bind(documentController)
+  )
+);
+
+/**
+ * Clients that have documents, with counts — the folder list
+ * GET /api/v1/documents/folders
+ */
+router.get(
+  '/folders',
+  requirePermission('documents:view'),
+  handleAsync(documentController.getClientFolders.bind(documentController))
+);
+
+/**
  * Get documents for a client
  * GET /api/v1/documents/client/:clientId
  */

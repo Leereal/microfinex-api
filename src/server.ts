@@ -3,6 +3,7 @@ import { config } from './config';
 import { prisma } from './config/database';
 import { cacheService } from './services/cache.service';
 import { startScheduler, stopScheduler } from './jobs/scheduler';
+import { aiExtractionService } from './services/ai-extraction.service';
 
 const PORT = config.port;
 
@@ -21,6 +22,19 @@ const startServer = async () => {
       console.log('✅ Redis cache connected successfully');
     } catch (error) {
       console.warn('⚠️ Redis cache not available, running without caching');
+    }
+
+    // Move organizations off AI models the provider has shut down. Without
+    // this every extraction request fails against a dead model id.
+    try {
+      const migrated = await aiExtractionService.migrateRetiredModels();
+      if (migrated > 0) {
+        console.log(
+          `✅ Migrated ${migrated} AI config(s) off retired models`
+        );
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not check for retired AI models:', error);
     }
 
     // Start background jobs (loan engine, arrears, reminders). Without these

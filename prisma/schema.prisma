@@ -47,6 +47,8 @@ model Organization {
   shops                 Shop[]
   users                 User[]
   monthlyTargets        MonthlyTarget[]
+  notifications         Notification[]
+  clientDeletionRequests ClientDeletionRequest[]
 
   @@map("organizations")
 }
@@ -302,6 +304,9 @@ model User {
   sessions              UserSession[]
   branch                Branch?                @relation("BranchUsers", fields: [branchId], references: [id])
   organization          Organization?          @relation(fields: [organizationId], references: [id])
+  notifications         Notification[]
+  deletionRequestsRaised   ClientDeletionRequest[] @relation("DeletionRequestedBy")
+  deletionRequestsReviewed ClientDeletionRequest[] @relation("DeletionReviewedBy")
 
   @@index([organizationId, isActive])
   @@index([branchId])
@@ -397,6 +402,7 @@ model Client {
   homeBranch       Branch?            @relation("ClientHomeBranch", fields: [homeBranchId], references: [id])
   organization     Organization       @relation(fields: [organizationId], references: [id])
   groupMemberships GroupMember[]
+  deletionRequests ClientDeletionRequest[]
   loans            Loan[]
   nextOfKins       NextOfKin[]
 
@@ -1839,4 +1845,70 @@ model MonthlyTarget {
   @@index([branchId])
   @@index([year, month])
   @@map("monthly_targets")
+}
+
+/// An in-app message for a member of staff.
+///
+/// Distinct from NotificationService, which delivers SMS and email outward to
+/// clients. This is the bell in the header: work waiting for someone inside the
+/// organization, such as a client deletion awaiting their approval.
+model Notification {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// The member of staff this is addressed to.
+  recipientId    String
+  type           String
+  title          String
+  body           String
+  /// Where clicking the notification should take the recipient.
+  link           String?
+  /// What the notification is about, for de-duplication and cleanup.
+  resource       String?
+  resourceId     String?
+  readAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  recipient    User         @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, readAt])
+  @@index([recipientId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([resource, resourceId])
+  @@map("notifications")
+}
+
+/// A request to delete a client, raised by staff who may not delete one
+/// themselves.
+///
+/// Deleting a client destroys records other people rely on, so the permission
+/// to ask and the permission to carry it out are deliberately separate: anyone
+/// who can maintain a client can raise a request, and only a holder of
+/// clients:delete can approve it.
+model ClientDeletionRequest {
+  id             String    @id @default(uuid())
+  organizationId String
+  clientId       String
+  requestedById  String
+  reason         String?
+  /// PENDING | APPROVED | REJECTED | CANCELLED
+  status         String    @default("PENDING")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNotes    String?
+  /// What the client looked like when the request was approved, kept so the
+  /// audit trail still means something once the row itself is gone.
+  clientSnapshot Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("DeletionRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy   User?        @relation("DeletionReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([clientId, status])
+  @@index([requestedById])
+  @@map("client_deletion_requests")
 }
