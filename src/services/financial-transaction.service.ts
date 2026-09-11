@@ -58,9 +58,11 @@ export interface CurrencySummary {
 }
 
 export interface FinancialSummary {
-  totalIncome: number;
-  totalExpenses: number;
-  netBalance: number;
+  /**
+   * Amounts live in byCurrency only. A totalIncome/totalExpenses/netBalance
+   * triple used to sit here, summed across every currency - the figure the
+   * dashboard showed, and one that added USD to ZiG.
+   */
   transactionCount: number;
   incomeCount: number;
   expenseCount: number;
@@ -324,12 +326,10 @@ class FinancialTransactionService {
       a.currency.localeCompare(b.currency)
     );
 
-    // Calculate overall totals (for backwards compatibility - using default currency)
-    const totalIncome = byCurrency.reduce((sum, c) => sum + c.totalIncome, 0);
-    const totalExpenses = byCurrency.reduce(
-      (sum, c) => sum + c.totalExpenses,
-      0
-    );
+    // Counts add across currencies; amounts do not. There used to be a
+    // totalIncome/totalExpenses pair here summing USD, ZAR and ZiG into one
+    // figure "for backwards compatibility" - it was the number the dashboard
+    // displayed, and it meant nothing. Callers read byCurrency instead.
     const incomeCount = byCurrency.reduce((sum, c) => sum + c.incomeCount, 0);
     const expenseCount = byCurrency.reduce((sum, c) => sum + c.expenseCount, 0);
 
@@ -380,9 +380,6 @@ class FinancialTransactionService {
     });
 
     return {
-      totalIncome,
-      totalExpenses,
-      netBalance: totalIncome - totalExpenses,
       transactionCount: incomeCount + expenseCount,
       incomeCount,
       expenseCount,

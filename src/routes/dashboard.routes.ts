@@ -4,6 +4,13 @@
  */
 
 import { Router, Request, Response } from 'express';
+import {
+  combineByCurrency,
+  countAcross,
+  groupByKeyAndCurrency,
+  netByCurrency,
+  toMoneyTotals,
+} from '../utils/money-by-currency';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import {
@@ -40,8 +47,8 @@ router.get(
     const [
       totalLoans,
       activeLoans,
-      totalDisbursed,
-      totalOutstanding,
+      disbursedLoanCount,
+      outstandingLoanCount,
       totalClients,
       activeClients,
       pendingApproval,
@@ -50,16 +57,15 @@ router.get(
     ] = await Promise.all([
       prisma.loan.count({ where: loanWhere }),
       prisma.loan.count({ where: { ...loanWhere, status: 'ACTIVE' } }),
-      prisma.loan.aggregate({
+      // Counts only - the amounts come from the per-currency groupBy below.
+      prisma.loan.count({
         where: {
           ...loanWhere,
           status: { in: ['ACTIVE', 'COMPLETED', 'OVERDUE'] },
         },
-        _sum: { amount: true },
       }),
-      prisma.loan.aggregate({
+      prisma.loan.count({
         where: { ...loanWhere, status: { in: ['ACTIVE', 'OVERDUE'] } },
-        _sum: { outstandingBalance: true },
       }),
       prisma.client.count({
         where: {
@@ -95,14 +101,14 @@ router.get(
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    const paymentsThisMonth = await prisma.payment.aggregate({
+    // Count only - the amount is taken from paymentsByCurrency below, which
+    // is the same query grouped by denomination.
+    const paymentsThisMonth = await prisma.payment.count({
       where: {
         loan: { organizationId, ...(branchId && { branchId }) },
         status: 'COMPLETED',
         paymentDate: { gte: startOfMonth },
       },
-      _sum: { amount: true },
-      _count: true,
     });
 
     // Overdue loans
@@ -176,10 +182,8 @@ router.get(
           pendingApproval,
           pendingDisbursement,
           onlineApplications,
-          totalDisbursed: Number(totalDisbursed._sum?.amount || 0),
-          totalOutstanding: Number(
-            totalOutstanding._sum?.outstandingBalance || 0
-          ),
+          // Amounts are per currency only. A single figure here would have to
+          // add USD to ZiG, which is not a number anyone can act on.
           byCurrency: portfolioByCurrency,
         },
         clients: {
@@ -187,8 +191,8 @@ router.get(
           active: activeClients,
         },
         payments: {
-          countThisMonth: paymentsThisMonth._count || 0,
-          amountThisMonth: Number(paymentsThisMonth._sum?.amount || 0),
+          countThisMonth: paymentsThisMonth,
+          byCurrency: toMoneyTotals(paymentsByCurrency, 'amount'),
         },
         lastUpdated: new Date(),
       },
@@ -369,8 +373,9 @@ router.get(
       ? new Date(req.query.endDate as string)
       : new Date();
 
-    // Total disbursements (cash out)
-    const disbursements = await prisma.loan.aggregate({
+    // Cash out, per currency.
+    const disbursements = await prisma.loan.groupBy({
+      by: ['currency'],
       where: {
         organizationId,
         disbursedDate: { gte: startDate, lte: endDate },
@@ -380,8 +385,9 @@ router.get(
       _count: true,
     });
 
-    // Total payments received (cash in)
-    const paymentsReceived = await prisma.payment.aggregate({
+    // Cash in, per currency.
+    const paymentsReceived = await prisma.payment.groupBy({
+      by: ['currency'],
       where: {
         loan: {
           organizationId,
@@ -394,9 +400,10 @@ router.get(
       _count: true,
     });
 
-    // Breakdown by payment method
+    // Payment method totals are grouped by currency too - a method can take
+    // both, and formatting the combined figure as USD misstates both.
     const paymentsByMethod = await prisma.payment.groupBy({
-      by: ['method'],
+      by: ['method', 'currency'],
       where: {
         loan: {
           organizationId,
@@ -409,31 +416,37 @@ router.get(
       _count: true,
     });
 
-    const cashIn = Number(paymentsReceived._sum?.amount || 0);
-    const cashOut = Number(disbursements._sum?.amount || 0);
+    const cashIn = toMoneyTotals(paymentsReceived, 'amount');
+    const cashOut = toMoneyTotals(disbursements, 'amount');
+    const byMethod = groupByKeyAndCurrency<string>(
+      paymentsByMethod as any,
+      'method',
+      'amount'
+    );
 
     res.json({
       success: true,
       data: {
         period: { startDate, endDate },
         summary: {
-          cashIn,
-          cashOut,
-          netCashFlow: cashIn - cashOut,
+          byCurrency: combineByCurrency({ cashIn, cashOut }),
+          netCashFlow: netByCurrency(cashIn, cashOut),
         },
         disbursements: {
-          amount: cashOut,
-          count: disbursements._count || 0,
+          byCurrency: cashOut,
+          count: countAcross(cashOut),
         },
         collections: {
-          amount: cashIn,
-          count: paymentsReceived._count || 0,
+          byCurrency: cashIn,
+          count: countAcross(cashIn),
         },
-        byPaymentMethod: paymentsByMethod.map(pm => ({
-          method: pm.method,
-          amount: Number(pm._sum?.amount || 0),
-          count: pm._count,
-        })),
+        byPaymentMethod: Array.from(byMethod.entries()).map(
+          ([method, totals]) => ({
+            method,
+            byCurrency: totals,
+            count: countAcross(totals),
+          })
+        ),
       },
     });
   })
@@ -617,55 +630,79 @@ router.get(
       },
     });
 
-    // Get detailed stats for each officer
-    const officerStats = await Promise.all(
-      officers.map(async officer => {
-        const loansCreated = await prisma.loan.aggregate({
-          where: {
-            loanOfficerId: officer.id,
-            createdAt: { gte: startDate, lte: endDate },
-          },
-          _sum: { amount: true },
-          _count: true,
-        });
+    // Three grouped queries rather than three per officer - and grouped by
+    // currency, because an officer can write USD and ZiG business and summing
+    // the two says nothing about their book.
+    const officerIds = officers.map(officer => officer.id);
 
-        const collectionsReceived = await prisma.payment.aggregate({
-          where: {
-            receivedBy: officer.id,
-            status: 'COMPLETED',
-            paymentDate: { gte: startDate, lte: endDate },
-          },
-          _sum: { amount: true },
-          _count: true,
-        });
+    const [disbursedRows, collectedRows, portfolioRows] = await Promise.all([
+      prisma.loan.groupBy({
+        by: ['loanOfficerId', 'currency'],
+        where: {
+          loanOfficerId: { in: officerIds },
+          createdAt: { gte: startDate, lte: endDate },
+        },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.payment.groupBy({
+        by: ['receivedBy', 'currency'],
+        where: {
+          receivedBy: { in: officerIds },
+          status: 'COMPLETED',
+          paymentDate: { gte: startDate, lte: endDate },
+        },
+        _sum: { amount: true },
+        _count: true,
+      }),
+      prisma.loan.groupBy({
+        by: ['loanOfficerId', 'currency'],
+        where: {
+          loanOfficerId: { in: officerIds },
+          status: { in: ['ACTIVE', 'OVERDUE'] },
+        },
+        _sum: { outstandingBalance: true },
+        _count: true,
+      }),
+    ]);
 
-        // Active portfolio
-        const activePortfolio = await prisma.loan.aggregate({
-          where: {
-            loanOfficerId: officer.id,
-            status: { in: ['ACTIVE', 'OVERDUE'] },
-          },
-          _sum: { outstandingBalance: true },
-          _count: true,
-        });
-
-        return {
-          officerId: officer.id,
-          officerName: `${officer.firstName} ${officer.lastName}`,
-          loansCreated: loansCreated._count || 0,
-          disbursedAmount: Number(loansCreated._sum?.amount || 0),
-          collectionsCount: collectionsReceived._count || 0,
-          collectionsAmount: Number(collectionsReceived._sum?.amount || 0),
-          activeLoans: activePortfolio._count || 0,
-          portfolioBalance: Number(
-            activePortfolio._sum?.outstandingBalance || 0
-          ),
-        };
-      })
+    const disbursedByOfficer = groupByKeyAndCurrency<string>(
+      disbursedRows as any,
+      'loanOfficerId',
+      'amount'
+    );
+    const collectedByOfficer = groupByKeyAndCurrency<string>(
+      collectedRows as any,
+      'receivedBy',
+      'amount'
+    );
+    const portfolioByOfficer = groupByKeyAndCurrency<string>(
+      portfolioRows as any,
+      'loanOfficerId',
+      'outstandingBalance'
     );
 
-    // Sort by disbursed amount
-    officerStats.sort((a, b) => b.disbursedAmount - a.disbursedAmount);
+    const officerStats = officers.map(officer => {
+      const disbursed = disbursedByOfficer.get(officer.id) ?? [];
+      const collected = collectedByOfficer.get(officer.id) ?? [];
+      const portfolio = portfolioByOfficer.get(officer.id) ?? [];
+
+      return {
+        officerId: officer.id,
+        officerName: `${officer.firstName} ${officer.lastName}`,
+        loansCreated: countAcross(disbursed),
+        collectionsCount: countAcross(collected),
+        activeLoans: countAcross(portfolio),
+        byCurrency: combineByCurrency({
+          disbursed,
+          collected,
+          portfolio,
+        }),
+      };
+    });
+
+    // Ranked by how many loans were written, which is currency-independent.
+    officerStats.sort((a, b) => b.loansCreated - a.loansCreated);
 
     res.json({
       success: true,
@@ -716,18 +753,22 @@ router.get(
               status: 'ACTIVE',
             },
           }),
-          prisma.loan.aggregate({
+          prisma.loan.groupBy({
+            by: ['currency'],
             where: {
               branchId: branch.id,
             },
             _sum: { amount: true },
+            _count: true,
           }),
-          prisma.loan.aggregate({
+          prisma.loan.groupBy({
+            by: ['currency'],
             where: {
               branchId: branch.id,
               status: { in: ['ACTIVE', 'OVERDUE'] },
             },
             _sum: { outstandingBalance: true },
+            _count: true,
           }),
           prisma.loan.count({
             where: {
@@ -753,18 +794,20 @@ router.get(
           branchCode: branch.code,
           activeLoans,
           overdueLoans,
-          totalDisbursed: Number(totalDisbursed._sum?.amount || 0),
-          totalOutstanding: Number(
-            totalOutstanding._sum?.outstandingBalance || 0
-          ),
+          // Per currency: a branch lending in both USD and ZiG has two
+          // portfolios, not one sum of unlike things.
+          byCurrency: combineByCurrency({
+            disbursed: toMoneyTotals(totalDisbursed, 'amount'),
+            outstanding: toMoneyTotals(totalOutstanding, 'outstandingBalance'),
+          }),
           clientCount,
           parRatio: Math.round(parRatio * 100) / 100,
         };
       })
     );
 
-    // Sort by outstanding balance
-    branchStats.sort((a, b) => b.totalOutstanding - a.totalOutstanding);
+    // Ranked by portfolio at risk, which is a ratio and so currency-neutral.
+    branchStats.sort((a, b) => b.parRatio - a.parRatio);
 
     res.json({
       success: true,
