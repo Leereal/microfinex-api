@@ -27,6 +27,33 @@ export interface CreateOrganizationInput {
 export interface UpdateOrganizationInput
   extends Partial<CreateOrganizationInput> {}
 
+/**
+ * Blank out empty optional unique fields.
+ *
+ * `registrationNumber` and `licenseNumber` carry unique constraints, and an
+ * empty string is a value like any other as far as Postgres is concerned - so
+ * the first organization saved with `""` claimed it, and every later save of a
+ * blank one collided with it. The edit form sends `""` for any field the
+ * operator left empty, so this fired on organizations that had nothing to do
+ * with each other. NULL is exempt from a unique constraint; empty is not.
+ */
+function normaliseUniqueFields<T extends Record<string, any>>(data: T): T {
+  const cleaned: Record<string, any> = { ...data };
+
+  for (const field of ['registrationNumber', 'licenseNumber', 'email'] as const) {
+    if (field in cleaned) {
+      const value = cleaned[field];
+      if (typeof value === 'string' && value.trim() === '') {
+        cleaned[field] = null;
+      } else if (typeof value === 'string') {
+        cleaned[field] = value.trim();
+      }
+    }
+  }
+
+  return cleaned as T;
+}
+
 class OrganizationService {
   /**
    * Get all organizations with filters and pagination
@@ -136,26 +163,76 @@ class OrganizationService {
    * Check if organization with name or email exists
    */
   async exists(name: string, email?: string): Promise<boolean> {
-    const conditions: Prisma.OrganizationWhereInput[] = [{ name }];
-    if (email) {
-      conditions.push({ email });
+    return !!(await this.findConflict({ name, email }));
+  }
+
+  /**
+   * Find the organization that blocks this one from being saved, and say which
+   * field is to blame.
+   *
+   * The old `exists()` answered only yes/no, so the caller could say no more
+   * than "name or email already exists" - leaving the operator to guess which
+   * of the two to change. Every unique field is checked here, in the order a
+   * person reads the form, and the first clash is the one reported.
+   *
+   * `registrationNumber` and `licenseNumber` carry database unique constraints
+   * but were never checked, so a clash there escaped as a P2002 and surfaced as
+   * "Internal server error".
+   */
+  async findConflict(
+    data: {
+      name?: string;
+      email?: string;
+      registrationNumber?: string;
+      licenseNumber?: string;
+    },
+    excludeId?: string
+  ): Promise<{ field: string; label: string; organization: { id: string; name: string } } | null> {
+    const candidates: Array<{ field: string; label: string; value?: string }> = [
+      { field: 'name', label: 'name', value: data.name },
+      { field: 'email', label: 'email address', value: data.email },
+      {
+        field: 'registrationNumber',
+        label: 'registration number',
+        value: data.registrationNumber,
+      },
+      { field: 'licenseNumber', label: 'licence number', value: data.licenseNumber },
+    ];
+
+    for (const candidate of candidates) {
+      const value = candidate.value?.trim();
+      if (!value) continue;
+
+      const where: Prisma.OrganizationWhereInput = {
+        [candidate.field]: value,
+      } as Prisma.OrganizationWhereInput;
+
+      // On an update, an organization does not conflict with itself.
+      if (excludeId) where.NOT = { id: excludeId };
+
+      const organization = await prisma.organization.findFirst({
+        where,
+        select: { id: true, name: true },
+      });
+
+      if (organization) {
+        return { field: candidate.field, label: candidate.label, organization };
+      }
     }
 
-    const existing = await prisma.organization.findFirst({
-      where: { OR: conditions },
-    });
-
-    return !!existing;
+    return null;
   }
 
   /**
    * Create a new organization
    */
   async create(data: CreateOrganizationInput) {
+    const clean = normaliseUniqueFields(data);
+
     return prisma.organization.create({
       data: {
-        ...data,
-        isActive: data.isActive ?? true,
+        ...clean,
+        isActive: clean.isActive ?? true,
       },
       include: {
         _count: {
@@ -175,7 +252,7 @@ class OrganizationService {
   async update(id: string, data: UpdateOrganizationInput) {
     return prisma.organization.update({
       where: { id },
-      data,
+      data: normaliseUniqueFields(data),
       include: {
         _count: {
           select: {

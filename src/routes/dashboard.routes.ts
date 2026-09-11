@@ -238,7 +238,9 @@ router.get(
         break;
     }
 
-    // Get daily disbursements using Prisma groupBy
+    // Daily disbursements, kept apart by currency. Bucketing on date alone
+    // added USD to ZiG, so the trend line plotted a quantity that does not
+    // exist - and its shape moved with the currency mix, not the lending.
     const disbursedLoans = await prisma.loan.findMany({
       where: {
         organizationId,
@@ -248,52 +250,70 @@ router.get(
       select: {
         disbursedDate: true,
         amount: true,
+        currency: true,
       },
     });
 
-    // Group by date
-    const disbursementsByDate: Record<
-      string,
-      { amount: number; count: number }
-    > = {};
+    // date -> currency -> total
+    type DailyTotals = Record<string, Record<string, { amount: number; count: number }>>;
+
+    const addTo = (
+      bucket: DailyTotals,
+      dateStr: string,
+      currency: string,
+      amount: number
+    ) => {
+      const forDate = (bucket[dateStr] ??= {});
+      const forCurrency = (forDate[currency] ??= { amount: 0, count: 0 });
+      forCurrency.amount += amount;
+      forCurrency.count += 1;
+    };
+
+    const disbursementsByDate: DailyTotals = {};
     disbursedLoans.forEach(loan => {
-      if (loan.disbursedDate) {
-        const dateStr: string = loan.disbursedDate
-          .toISOString()
-          .split('T')[0] as string;
-        if (!disbursementsByDate[dateStr]) {
-          disbursementsByDate[dateStr] = { amount: 0, count: 0 };
-        }
-        disbursementsByDate[dateStr].amount += Number(loan.amount);
-        disbursementsByDate[dateStr].count += 1;
-      }
+      if (!loan.disbursedDate) return;
+      const dateStr = loan.disbursedDate.toISOString().split('T')[0] as string;
+      addTo(disbursementsByDate, dateStr, loan.currency, Number(loan.amount));
     });
 
     // Get daily payments
     const completedPayments = await prisma.payment.findMany({
       where: {
-        loan: { organizationId },
+        loan: { organizationId, ...(branchId && { branchId: String(branchId) }) },
         status: 'COMPLETED',
         paymentDate: { gte: startDate, lte: endDate },
       },
       select: {
         paymentDate: true,
         amount: true,
+        currency: true,
       },
     });
 
-    const paymentsByDate: Record<string, { amount: number; count: number }> =
-      {};
+    const paymentsByDate: DailyTotals = {};
     completedPayments.forEach(payment => {
-      const dateStr: string = payment.paymentDate
-        .toISOString()
-        .split('T')[0] as string;
-      if (!paymentsByDate[dateStr]) {
-        paymentsByDate[dateStr] = { amount: 0, count: 0 };
-      }
-      paymentsByDate[dateStr].amount += Number(payment.amount);
-      paymentsByDate[dateStr].count += 1;
+      const dateStr = payment.paymentDate.toISOString().split('T')[0] as string;
+      addTo(paymentsByDate, dateStr, payment.currency, Number(payment.amount));
     });
+
+    /** Flatten date -> currency -> total into one row per date and currency. */
+    const flatten = (bucket: DailyTotals) =>
+      Object.entries(bucket).flatMap(([date, byCurrency]) =>
+        Object.entries(byCurrency).map(([currency, total]) => ({
+          date,
+          currency,
+          amount: total.amount,
+          count: total.count,
+        }))
+      );
+
+    /** Every currency that appears, so the UI can offer them as a filter. */
+    const currenciesPresent = Array.from(
+      new Set([
+        ...Object.values(disbursementsByDate).flatMap(v => Object.keys(v)),
+        ...Object.values(paymentsByDate).flatMap(v => Object.keys(v)),
+      ])
+    ).sort();
 
     // Get new clients trend
     const newClients = await prisma.client.findMany({
@@ -321,20 +341,15 @@ router.get(
         period,
         startDate,
         endDate,
-        disbursements: Object.entries(disbursementsByDate)
-          .map(([date, data]) => ({
-            date,
-            amount: data.amount,
-            count: data.count,
-          }))
-          .sort((a, b) => a.date.localeCompare(b.date)),
-        payments: Object.entries(paymentsByDate)
-          .map(([date, data]) => ({
-            date,
-            amount: data.amount,
-            count: data.count,
-          }))
-          .sort((a, b) => a.date.localeCompare(b.date)),
+        // One row per date AND currency. A line mixing denominations follows
+        // the currency mix rather than the lending.
+        currencies: currenciesPresent,
+        disbursements: flatten(disbursementsByDate).sort(
+          (a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency)
+        ),
+        payments: flatten(paymentsByDate).sort(
+          (a, b) => a.date.localeCompare(b.date) || a.currency.localeCompare(b.currency)
+        ),
         newClients: Object.entries(clientsByDate)
           .map(([date, count]) => ({
             date,

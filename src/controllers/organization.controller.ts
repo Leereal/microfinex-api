@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { organizationService } from '../services/organization.service';
 import { UserRole } from '../types';
+import { describeDuplicateOrganization } from '../utils/duplicate-organization';
 
 class OrganizationController {
   /**
@@ -103,17 +104,15 @@ class OrganizationController {
     try {
       const organizationData = req.body;
 
-      // Check if organization with same name or email exists
-      const exists = await organizationService.exists(
-        organizationData.name,
-        organizationData.email
-      );
+      const conflict = await organizationService.findConflict(organizationData);
 
-      if (exists) {
+      if (conflict) {
         return res.status(409).json({
           success: false,
-          message: 'Organization with this name or email already exists',
+          message: `Another organization (${conflict.organization.name}) already uses this ${conflict.label}`,
           error: 'ORGANIZATION_EXISTS',
+          // Which input to highlight, so the form can point at it.
+          field: conflict.field,
           timestamp: new Date().toISOString(),
         });
       }
@@ -128,6 +127,22 @@ class OrganizationController {
       });
     } catch (error) {
       console.error('Create organization error:', error);
+
+      // A unique constraint can still fire between the check above and the
+      // insert, and covers columns the check does not know about. Reporting it
+      // as "Internal server error" told the operator nothing was wrong on
+      // their side, when in fact one field needed changing.
+      const duplicate = describeDuplicateOrganization(error);
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          message: duplicate.message,
+          error: 'ORGANIZATION_EXISTS',
+          field: duplicate.field,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -171,6 +186,20 @@ class OrganizationController {
         });
       }
 
+      // Renaming onto another organization's name had no check here at all, so
+      // it reached the database and came back as "Internal server error".
+      const conflict = await organizationService.findConflict(updateData, id);
+
+      if (conflict) {
+        return res.status(409).json({
+          success: false,
+          message: `Another organization (${conflict.organization.name}) already uses this ${conflict.label}`,
+          error: 'ORGANIZATION_EXISTS',
+          field: conflict.field,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const organization = await organizationService.update(id, updateData);
 
       res.json({
@@ -181,6 +210,18 @@ class OrganizationController {
       });
     } catch (error) {
       console.error('Update organization error:', error);
+
+      const duplicate = describeDuplicateOrganization(error);
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          message: duplicate.message,
+          error: 'ORGANIZATION_EXISTS',
+          field: duplicate.field,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',
