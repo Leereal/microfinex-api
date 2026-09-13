@@ -751,36 +751,100 @@ class FinancialTransactionService {
       },
     ];
 
-    for (const component of components_) {
-      if (component.amount <= 0) {
-        continue;
-      }
+    /**
+     * Written as one batch rather than three passes.
+     *
+     * Each component used to be created on its own, and each creation looked up
+     * its income category, re-read the payment method, counted every
+     * transaction in the organization to derive a number, wrote the row with
+     * four joins attached, then updated the payment method balance. Five round
+     * trips each, fifteen in all - and against a hosted database at roughly
+     * 300ms a query that alone is most of a five-second transaction budget,
+     * which is why recording a repayment timed out.
+     *
+     * The same work needs one read of the categories, one of the payment
+     * method, one count, one insert and one balance update. The balances are
+     * chained locally so each row still records what the payment method held
+     * before and after it.
+     */
+    const payable = components_.filter(component => component.amount > 0);
+    if (payable.length === 0) return results;
 
-      const category = await db.incomeCategory.findFirst({
-        where: { organizationId, code: component.code },
-      });
+    const categories = await db.incomeCategory.findMany({
+      where: {
+        organizationId,
+        code: { in: payable.map(component => component.code) },
+      },
+      select: { id: true, code: true },
+    });
 
-      if (!category) {
-        continue;
-      }
+    const categoryByCode = new Map(
+      categories.map(category => [category.code, category.id])
+    );
 
-      results[component.key] = await this.create(
-        {
-          organizationId,
-          branchId,
-          type: 'INCOME',
-          incomeCategoryId: category.id,
-          paymentMethodId,
-          amount: component.amount,
-          currency,
-          description: `${component.label} for loan ${loanNumber}`,
-          relatedLoanId: loanId,
-          relatedPaymentId: paymentId,
-          processedBy,
-        },
-        client
-      );
+    const billable = payable.filter(component =>
+      categoryByCode.has(component.code)
+    );
+    if (billable.length === 0) return results;
+
+    const paymentMethod = await db.paymentMethod.findFirst({
+      where: { id: paymentMethodId, organizationId },
+      select: { id: true, currentBalance: true },
+    });
+
+    if (!paymentMethod) {
+      throw new Error('Payment method not found');
     }
+
+    // One count for the batch; the rows that follow take consecutive numbers.
+    const existingCount = await db.financialTransaction.count({
+      where: { organizationId },
+    });
+
+    const date = new Date();
+    const prefix = `TXN${date.getFullYear().toString().slice(-2)}${(
+      date.getMonth() + 1
+    )
+      .toString()
+      .padStart(2, '0')}`;
+
+    let running = toMoney(paymentMethod.currentBalance);
+    const rows = billable.map((component, index) => {
+      const before = running;
+      running = roundMoney(before.add(toMoney(component.amount)));
+
+      return {
+        organizationId,
+        branchId,
+        transactionNumber: `${prefix}${(existingCount + index + 1)
+          .toString()
+          .padStart(6, '0')}`,
+        type: 'INCOME' as const,
+        incomeCategoryId: categoryByCode.get(component.code)!,
+        paymentMethodId,
+        amount: component.amount,
+        currency: currency as any,
+        description: `${component.label} for loan ${loanNumber}`,
+        relatedLoanId: loanId,
+        relatedPaymentId: paymentId,
+        transactionDate: date,
+        balanceBefore: before,
+        balanceAfter: running,
+        status: 'COMPLETED' as const,
+        processedBy,
+      };
+    });
+
+    await db.financialTransaction.createMany({ data: rows });
+
+    await db.paymentMethod.update({
+      where: { id: paymentMethodId },
+      data: { currentBalance: running },
+    });
+
+    billable.forEach((component, index) => {
+      results[component.key] = rows[index];
+    });
 
     return results;
   }

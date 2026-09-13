@@ -132,8 +132,23 @@ export function renderStatementHtml(loan: any): string {
   const isAdvance = (p: any) =>
     p.type === 'LOAN_DISBURSEMENT' || p.type === 'LOAN_TOPUP';
 
+  /**
+   * A reversed payment is not money the client has handed over.
+   *
+   * It stays on the statement - the client saw it taken and is entitled to see
+   * it undone - but it must not be counted, or the loan would read as partly
+   * settled by a payment that was given back.
+   */
+  const isReversed = (p: any) =>
+    p.status === 'REVERSED' || p.status === 'CANCELLED' || p.status === 'FAILED';
+
   const advancePayments = (loan.payments ?? []).filter(isAdvance);
-  const repayments = (loan.payments ?? []).filter((p: any) => !isAdvance(p));
+  const repayments = (loan.payments ?? []).filter(
+    (p: any) => !isAdvance(p) && !isReversed(p)
+  );
+  const reversedPayments = (loan.payments ?? []).filter(
+    (p: any) => !isAdvance(p) && isReversed(p)
+  );
 
   const totalPaid = repayments.reduce(
     (sum: number, p: any) => sum + Number(p.amount ?? 0),
@@ -268,12 +283,25 @@ export function renderStatementHtml(loan: any): string {
     )
     .join('');
 
-  const paymentRows = repayments
+  const paymentRows = [...repayments, ...reversedPayments]
+    .sort(
+      (a: any, b: any) =>
+        new Date(a.paymentDate ?? 0).getTime() -
+        new Date(b.paymentDate ?? 0).getTime()
+    )
     .map(
       (payment: any) => `
-        <tr>
+        <tr${isReversed(payment) ? ' class="reversed"' : ''}>
           <td>${formatDate(payment.paymentDate)}</td>
-          <td>${escapeHtml(payment.reference ?? payment.paymentNumber ?? '-')}</td>
+          <td>${escapeHtml(payment.reference ?? payment.paymentNumber ?? '-')}${
+            isReversed(payment)
+              ? ` <span class="tag tag-reversed">Reversed${
+                  payment.reversalReason
+                    ? `: ${escapeHtml(payment.reversalReason)}`
+                    : ''
+                }</span>`
+              : ''
+          }</td>
           <td>${escapeHtml(payment.method ?? payment.paymentMethod ?? '-')}</td>
           <td class="text-right">${money(payment.amount, currency)}</td>
         </tr>`
@@ -319,6 +347,9 @@ export function renderStatementHtml(loan: any): string {
   .tag { font-size: 9px; color: #047857; background: #ecfdf5; padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
   .tag-topup { color: #b45309; background: #fffbeb; }
   .tag-paid { color: #1d4ed8; background: #eff6ff; }
+  .tag-reversed { color: #b91c1c; background: #fef2f2; }
+  tr.reversed td { color: #999; text-decoration: line-through; }
+  tr.reversed td:first-child, tr.reversed td:nth-child(2) { text-decoration: none; }
   .charge-basis { color: #888; font-size: 10px; }
   .subtotal-row td { font-weight: 600; background: #f7f9fc !important; }
   .footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid #ddd; text-align: center; color: #666; font-size: 10px; }

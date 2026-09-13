@@ -180,7 +180,32 @@ export const authenticateSupabase = async (
 };
 
 /**
+ * Whether this gate is about running the platform rather than an organization.
+ *
+ * A gate naming only SUPER_ADMIN guards something above any single
+ * organization - creating one, deleting one. Every other list is made of roles
+ * that exist inside an organization.
+ */
+const isPlatformOnlyGate = (allowedRoles: UserRole[]): boolean =>
+  allowedRoles.length > 0 &&
+  allowedRoles.every(role => role === UserRole.SUPER_ADMIN);
+
+/**
  * Enhanced authorization middleware with role-based access control
+ *
+ * Two roles pass without being named.
+ *
+ * SUPER_ADMIN runs the platform, so nothing inside an organization is closed to
+ * them. ORG_ADMIN runs their own organization and sits above every role that
+ * exists in it, so any gate an ordinary member could pass, they pass too - but
+ * never a platform gate, which is above them rather than below.
+ *
+ * Without this the lists had to remember to name them, and overwhelmingly did
+ * not: of the role gates in this codebase only a handful mentioned ORG_ADMIN,
+ * so the person who administers an organization was locked out of most of it -
+ * including, absurdly, recording a repayment. Permissions already say ORG_ADMIN
+ * may do anything that is not platform-level; this stops the role gate
+ * contradicting them.
  */
 export const authorizeSupabase = (...allowedRoles: UserRole[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -201,7 +226,14 @@ export const authorizeSupabase = (...allowedRoles: UserRole[]) => {
       return;
     }
 
-    if (!allowedRoles.includes(req.userContext.role)) {
+    const role = req.userContext.role;
+
+    const allowed =
+      allowedRoles.includes(role) ||
+      role === UserRole.SUPER_ADMIN ||
+      (role === UserRole.ORG_ADMIN && !isPlatformOnlyGate(allowedRoles));
+
+    if (!allowed) {
       const errorResponse = {
         success: false,
         message: 'Insufficient permissions',

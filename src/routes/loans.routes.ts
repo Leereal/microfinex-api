@@ -37,6 +37,7 @@ import {
   listReversalRequests,
   canFinaliseReversal,
 } from '../services/loan-reversal.service';
+import { cancelLoan } from '../services/loan-cancellation.service';
 
 const router = Router();
 
@@ -1377,6 +1378,78 @@ router.get('/reversal-requests', authenticate, async (req, res) => {
     });
   }
 });
+
+/**
+ * @swagger
+ * /api/v1/loans/{id}/cancel:
+ *   post:
+ *     summary: Call off a loan that has not been paid out
+ *     tags: [Loans]
+ */
+const cancelLoanSchema = z.object({
+  reason: z
+    .string()
+    .min(
+      5,
+      'Give a reason for cancelling - it is the only record of why this loan did not go ahead'
+    ),
+});
+
+/**
+ * Cancelling is not reversing.
+ *
+ * Nothing has left the till on a loan that is still waiting to be disbursed, so
+ * there is no cash movement to unwind and no second pair of eyes to ask for.
+ * Whoever may turn a loan down may also call one off - the authority is the
+ * same, and it stops an officer quietly undoing an approver's decision.
+ */
+router.post(
+  '/:id/cancel',
+  authenticate,
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_REJECT),
+  validateRequest(cancelLoanSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      // auth-supabase sets `id`; the older token middleware sets `userId`.
+      const userId = req.userContext?.id || req.user?.id || req.user?.userId;
+
+      if (!organizationId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization and user required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await cancelLoan({
+        loanId: req.params.id!,
+        organizationId,
+        cancelledBy: userId,
+        reason: req.body.reason,
+      });
+
+      res.json({
+        success: true,
+        message: `${result.loanNumber} cancelled.`,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Cancel loan error:', error);
+      // These are decisions the operator can act on, not server faults.
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Could not cancel the loan',
+        error: 'LOAN_CANCEL_FAILED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
 
 /**
  * @swagger

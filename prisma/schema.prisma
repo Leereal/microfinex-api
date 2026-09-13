@@ -299,7 +299,8 @@ model User {
   loansToDisburse       Loan[]                 @relation("LoanAssignedDisburser")
   createdLoanProducts   LoanProduct[]
   notes                 Note[]
-  payments              Payment[]
+  payments              Payment[]              @relation("PaymentReceivedBy")
+  reversedPayments      Payment[]              @relation("PaymentReversedBy")
   refreshTokens         RefreshToken[]
   userBranches          UserBranch[]
   userPermissions       UserPermission[]
@@ -646,15 +647,23 @@ model Payment {
   receivedBy        String
   notes             String?
   processedBranchId String?
+  /// Who undid this payment, when, and why. Kept as columns rather than only
+  /// appended to `notes` so a reversal can be listed, counted and reported on
+  /// rather than read out of a free-text field.
+  reversedAt        DateTime?
+  reversedById      String?
+  reversalReason    String?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   loan              Loan            @relation(fields: [loanId], references: [id])
   processedBranch   Branch?         @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
-  receiver          User            @relation(fields: [receivedBy], references: [id])
+  receiver          User            @relation("PaymentReceivedBy", fields: [receivedBy], references: [id])
+  reverser          User?           @relation("PaymentReversedBy", fields: [reversedById], references: [id])
 
   @@index([loanId, paymentDate])
   @@index([status])
   @@index([paymentDate])
+  @@index([reversedById])
 
   @@map("payments")
 }
@@ -1612,6 +1621,9 @@ enum PaymentStatus {
   COMPLETED
   FAILED
   CANCELLED
+  /// Taken, then undone. Distinct from CANCELLED, which never took effect at
+  /// all - a reversal has balances to restore and income to void behind it.
+  REVERSED
   REFUNDED
 }
 

@@ -93,6 +93,9 @@ const PATH_TO_ACTION: Array<[RegExp, string]> = [
   [/\/approve$/i, 'APPROVE'],
   [/\/reject$/i, 'REJECT'],
   [/\/disburse$/i, 'DISBURSE'],
+  [/\/reverse$/i, 'REVERSE'],
+  [/\/cancel$/i, 'CANCEL'],
+  [/\/top-?up$/i, 'TOP_UP'],
 ];
 
 /** HTTP methods that never represent an auditable action. */

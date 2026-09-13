@@ -15,6 +15,20 @@ import {
   sumMoney,
 } from '../utils/money';
 import { withUniqueRetry } from '../utils/db';
+
+/**
+ * How long a payment is allowed to take.
+ *
+ * Prisma's five-second default assumes a database next door. Recording a
+ * repayment is a genuinely multi-step write - lock the loan, allocate across
+ * penalty, interest and principal, write the payment, book the income against
+ * each component, move the payment method balance, settle the schedule - and
+ * against a hosted database every one of those steps costs a round trip of
+ * roughly a third of a second. The work has been cut down to the queries it
+ * actually needs; this is the headroom so a slow moment on the network does not
+ * abandon a payment halfway.
+ */
+const PAYMENT_TRANSACTION_OPTIONS = { timeout: 20_000, maxWait: 10_000 };
 import { createError } from '../middleware/error';
 
 export interface PaymentRecord {
@@ -193,10 +207,16 @@ class PaymentService {
             // Lock the loan row for the duration of the transaction so two
             // concurrent payments cannot both read the same starting balance
             // and overwrite each other's deduction.
+            /**
+             * No ::uuid casts. These id columns are text - Prisma writes
+             * `String @id @default(uuid())` as text unless told `@db.Uuid` -
+             * and Postgres has no `text = uuid` operator, so casting the
+             * parameter made every payment fail with "operator does not exist".
+             */
             const locked = await tx.$queryRaw<Array<{ id: string }>>`
               SELECT id FROM loans
-              WHERE id = ${paymentData.loanId}::uuid
-                AND "organizationId" = ${organizationId}::uuid
+              WHERE id = ${paymentData.loanId}
+                AND "organizationId" = ${organizationId}
                 AND status IN ('ACTIVE', 'OVERDUE')
               FOR UPDATE
             `;
@@ -342,7 +362,7 @@ class PaymentService {
               currency: loan.product?.currency || Currency.USD,
               clientId: loan.clientId,
             };
-          }),
+          }, PAYMENT_TRANSACTION_OPTIONS),
         { field: 'paymentNumber' }
       );
 
@@ -476,6 +496,7 @@ class PaymentService {
               email: true,
             },
           },
+          reverser: { select: { firstName: true, lastName: true } },
           loan: {
             select: {
               loanNumber: true,
@@ -559,6 +580,17 @@ class PaymentService {
           payment.status === 'COMPLETED'
             ? 'approved'
             : payment.status?.toLowerCase(),
+        /**
+         * Whether this payment still stands. A reversed payment stays in the
+         * history - the client saw it taken and is entitled to see it undone -
+         * but nothing may count it as money received.
+         */
+        is_reversed: payment.status === 'REVERSED',
+        reversed_at: payment.reversedAt?.toISOString() ?? null,
+        reversal_reason: payment.reversalReason ?? null,
+        reversed_by_name: payment.reverser
+          ? `${payment.reverser.firstName} ${payment.reverser.lastName}`
+          : null,
         created_at: payment.paymentDate.toISOString(),
         payment_date: payment.paymentDate.toISOString(),
         received_by: payment.receivedBy,
@@ -735,11 +767,12 @@ class PaymentService {
     // restoring loan balances without cancelling the payment (or vice versa)
     // corrupts the ledger.
     const reversedPayment = await prisma.$transaction(async tx => {
+      // Text columns, not uuid - see processPayment above.
       const locked = await tx.$queryRaw<Array<{ id: string }>>`
         SELECT p.id FROM payments p
         JOIN loans l ON l.id = p."loanId"
-        WHERE p.id = ${paymentId}::uuid
-          AND l."organizationId" = ${organizationId}::uuid
+        WHERE p.id = ${paymentId}
+          AND l."organizationId" = ${organizationId}
           AND p.status = 'COMPLETED'
         FOR UPDATE OF p, l
       `;
@@ -753,11 +786,23 @@ class PaymentService {
         include: { loan: true },
       });
 
-      // Update payment status
+      /**
+       * The reversal, as a record rather than a sentence.
+       *
+       * REVERSED rather than CANCELLED: a cancelled payment never took effect,
+       * a reversed one did, and has had its balances restored and its income
+       * voided. Who did it and why are columns now, so a reversal can be listed
+       * and reported on instead of read out of a free-text notes field.
+       */
       const updated = await tx.payment.update({
         where: { id: paymentId },
         data: {
-          status: 'CANCELLED',
+          status: 'REVERSED',
+          reversedAt: new Date(),
+          reversedById: reversedBy,
+          reversalReason: reversalData.notes
+            ? `${reversalData.reason} - ${reversalData.notes}`
+            : reversalData.reason,
           notes: `${payment.notes || ''}\n\nREVERSED: ${reversalData.reason}${reversalData.notes ? ' - ' + reversalData.notes : ''}`,
         },
       });
@@ -815,7 +860,7 @@ class PaymentService {
       );
 
       return updated;
-    });
+    }, PAYMENT_TRANSACTION_OPTIONS);
 
     return this.mapPaymentToRecord(reversedPayment as any);
   }
@@ -903,7 +948,9 @@ class PaymentService {
     ] = await Promise.all([
       prisma.payment.count({ where }),
       prisma.payment.count({ where: { ...where, status: 'COMPLETED' } }),
-      prisma.payment.count({ where: { ...where, status: 'CANCELLED' } }),
+      prisma.payment.count({
+        where: { ...where, status: { in: ['CANCELLED', 'REVERSED'] } },
+      }),
       prisma.payment.aggregate({
         where,
         _sum: { amount: true },

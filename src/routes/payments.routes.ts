@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
+import { loadPermissions, requirePermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import { UserRole } from '../types';
 import {
   paymentService,
@@ -283,10 +285,19 @@ router.get(
  *     security:
  *       - bearerAuth: []
  */
+/**
+ * Who may take a payment is a permission, not a list of job titles.
+ *
+ * This named MANAGER and STAFF - two of the ten roles - so an org admin, an
+ * accountant and, absurdly, a teller could not record a repayment. Asking for
+ * the permission lets an organization decide that for itself, which is what the
+ * permission system is for.
+ */
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.STAFF),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PAYMENTS_CREATE),
   validateRequest(createPaymentSchema),
   async (req, res) => {
     try {
@@ -338,7 +349,8 @@ router.post(
 router.post(
   '/bulk',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PAYMENTS_BULK),
   validateRequest(bulkPaymentSchema),
   async (req, res) => {
     try {
@@ -390,7 +402,8 @@ router.post(
 router.post(
   '/:paymentId/reverse',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PAYMENTS_REVERSE),
   validateRequest(reversePaymentSchema),
   async (req, res) => {
     try {

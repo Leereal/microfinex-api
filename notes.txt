@@ -231,3 +231,11 @@ TODO: Check loan categories how it's being used
 - I don't see the option to say disburse if it's approved like that. Maybe an icon or something will be better
 - I explained that sometimes clients won't have money to pay for admin fee so they we take it from their applied amount (don't change that it's fine) but sometimes if they have let's say their R10 admin fee (10%) sometimes they would like to pay so that we won't take from applied we want to have that option to know if admin is being paid or taken from applied amount. so that the person responsible with disburse loan on the next disburse loan modal will know thatamount to client is not changing will remain that principal. Please if it's not clear ask me
 - On product colum please show in very small smallest possible font so it fits 
+
+- On the  payment modal I want the user to see an option to pay all after clicking that line or link then it populates the Payment Amount with the Outstanding Balance 
+- I am failing to make payment but I have branch manager role with all permissions why?
+
+- I tried filtering by status by cancelled but it's not working
+- On the menus we have items that we can group as configurations eg Charges, Currencies, Categories, Etc those are just settings to make other functionalities work fine and we don't use them on a day to day work. I want them to have their main menu item as Configurations and all to be added to that section to cleans. Then other items must be groups nicely in a meaningful way that is easy to manage and understand. 
+- You see we have that disburse button on status column please remove and put the icon there instead. Then on Loans that are active under actions let's have the icon for make payment as well 
+- payments page is failing please fix 
