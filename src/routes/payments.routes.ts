@@ -20,7 +20,16 @@ const paymentQuerySchema = z.object({
   loanId: z.string().uuid().optional(),
   clientId: z.string().uuid().optional(),
   status: z
-    .enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED'])
+    .enum([
+      'PENDING',
+      'COMPLETED',
+      'FAILED',
+      'CANCELLED',
+      // Filtering by this returned nothing - the value the reversal writes was
+      // not in the list the query would accept.
+      'REVERSED',
+      'REFUNDED',
+    ])
     .optional(),
   method: z.string().optional(), // Dynamic payment methods from database
   dateFrom: z.string().optional(),

@@ -36,6 +36,7 @@ import {
   reviewReversal,
   listReversalRequests,
   canFinaliseReversal,
+  requestPaymentReversal,
 } from '../services/loan-reversal.service';
 import { cancelLoan } from '../services/loan-cancellation.service';
 
@@ -1503,6 +1504,60 @@ router.post(
         success: false,
         message:
           error instanceof Error ? error.message : 'Could not request the reversal',
+        error: 'REVERSAL_REQUEST_FAILED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loans/payments/{paymentId}/reversal-requests:
+ *   post:
+ *     summary: Ask for a repayment to be reversed
+ *     tags: [Loans]
+ */
+router.post(
+  '/payments/:paymentId/reversal-requests',
+  authenticate,
+  validateRequest(reversalRequestSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      const userId = req.userContext?.id || req.user?.id || req.user?.userId;
+
+      if (!organizationId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization and user required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const request = await requestPaymentReversal({
+        paymentId: req.params.paymentId!,
+        organizationId,
+        requestedById: userId,
+        reason: req.body.reason,
+      });
+
+      res.status(201).json({
+        success: true,
+        message:
+          'Reversal requested. Whoever may reverse payments has been notified.',
+        data: { request },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Request payment reversal error:', error);
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Could not request the reversal',
         error: 'REVERSAL_REQUEST_FAILED',
         timestamp: new Date().toISOString(),
       });

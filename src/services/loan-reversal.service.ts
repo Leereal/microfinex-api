@@ -168,6 +168,115 @@ export async function requestReversal(input: RequestReversalInput) {
   return request;
 }
 
+/** Who may ask for a repayment to be undone. */
+export const PAYMENT_REVERSAL_PERMISSION = 'payments:reverse';
+
+export interface RequestPaymentReversalInput {
+  paymentId: string;
+  organizationId: string;
+  requestedById: string;
+  reason: string;
+}
+
+/**
+ * Ask for a repayment to be undone.
+ *
+ * The same shape as asking for a disbursement to be reversed, and for the same
+ * reason: money has already moved, so one person asks and another agrees. The
+ * person who took the payment may always ask - they are usually the one who
+ * spots the mistake - as may anyone who holds the permission to finalise it.
+ */
+export async function requestPaymentReversal(
+  input: RequestPaymentReversalInput
+) {
+  const payment = await prisma.payment.findFirst({
+    where: { id: input.paymentId, loan: { organizationId: input.organizationId } },
+    include: {
+      loan: { select: { id: true, loanNumber: true, client: true } },
+    },
+  });
+
+  if (!payment) throw new Error('Payment not found');
+
+  if (payment.type === 'LOAN_DISBURSEMENT' || payment.type === 'LOAN_TOPUP') {
+    throw new Error(
+      'This is money paid out, not a repayment. Reverse the disbursement instead.'
+    );
+  }
+
+  if (payment.status !== 'COMPLETED') {
+    throw new Error(
+      `${payment.paymentNumber} is ${payment.status.toLowerCase()} and cannot be reversed.`
+    );
+  }
+
+  const permissions = await loadUserPermissions(input.requestedById);
+  const mayFinalise = permissions.has(PAYMENT_REVERSAL_PERMISSION);
+
+  if (payment.receivedBy !== input.requestedById && !mayFinalise) {
+    throw new Error(
+      'Only the person who took this payment, or someone who may reverse payments, can request a reversal.'
+    );
+  }
+
+  const existing = await prisma.loanReversalRequest.findFirst({
+    where: { paymentId: input.paymentId, status: 'PENDING' },
+  });
+
+  if (existing) {
+    throw new Error(
+      'A reversal request for this payment is already waiting to be reviewed.'
+    );
+  }
+
+  const request = await prisma.loanReversalRequest.create({
+    data: {
+      organizationId: input.organizationId,
+      kind: 'REPAYMENT',
+      loanId: payment.loanId,
+      paymentId: input.paymentId,
+      requestedById: input.requestedById,
+      reason: input.reason,
+      status: 'PENDING',
+    },
+    include: {
+      loan: { select: { loanNumber: true } },
+      requestedBy: { select: { firstName: true, lastName: true } },
+    },
+  });
+
+  // Only people who can actually finalise it are told - see requestReversal.
+  try {
+    const clientName =
+      [payment.loan.client?.firstName, payment.loan.client?.lastName]
+        .filter(Boolean)
+        .join(' ') || 'a client';
+
+    await inAppNotificationService.notifyPermissionHolders({
+      organizationId: input.organizationId,
+      type: NOTIFICATION_TYPES.LOAN_REVERSAL_REQUESTED,
+      title: 'Payment reversal requested',
+      body: `${payment.paymentNumber} of ${payment.amount} on ${payment.loan.loanNumber} for ${clientName} - ${input.reason}`,
+      link: `/loans/reversal-requests`,
+      resource: 'LOAN_REVERSAL_REQUEST',
+      resourceId: request.id,
+      permission: PAYMENT_REVERSAL_PERMISSION,
+    });
+  } catch (error) {
+    console.error('Could not notify about the reversal request:', error);
+  }
+
+  return request;
+}
+
+/** Whether this person may finalise a repayment reversal. */
+export async function canFinalisePaymentReversal(
+  userId: string
+): Promise<boolean> {
+  const permissions = await loadUserPermissions(userId);
+  return permissions.has(PAYMENT_REVERSAL_PERMISSION);
+}
+
 /**
  * Undo the disbursement.
  *
@@ -387,10 +496,17 @@ export async function reviewReversal(input: ReviewReversalInput) {
     );
   }
 
-  const allowed = await canFinaliseReversal(input.reviewedById);
+  const isPaymentReversal = request.kind === 'REPAYMENT';
+
+  const allowed = isPaymentReversal
+    ? await canFinalisePaymentReversal(input.reviewedById)
+    : await canFinaliseReversal(input.reviewedById);
+
   if (!allowed) {
     throw new Error(
-      'Only someone who may reverse disbursements can finalise this request.'
+      isPaymentReversal
+        ? 'Only someone who may reverse payments can finalise this request.'
+        : 'Only someone who may reverse disbursements can finalise this request.'
     );
   }
 
@@ -422,19 +538,50 @@ export async function reviewReversal(input: ReviewReversalInput) {
     });
   }
 
-  if (!REVERSIBLE.includes(request.loan.status)) {
-    throw new Error(
-      `${request.loan.loanNumber} is ${request.loan.status
-        .replace(/_/g, ' ')
-        .toLowerCase()} and can no longer be reversed.`
+  /**
+   * What actually gets unwound depends on what was asked for. A repayment
+   * reversal hands off to the payment service, which restores the loan's
+   * balances from the amounts that payment was allocated to, unwinds the
+   * schedule and voids the income it booked.
+   */
+  let record: any;
+
+  if (isPaymentReversal) {
+    if (!request.paymentId) {
+      throw new Error('This reversal request does not name a payment.');
+    }
+
+    const { paymentService } = await import('./payment.service');
+    const reversed = await paymentService.reversePayment(
+      request.paymentId,
+      { reason: request.reason, notes: input.reviewNotes },
+      input.organizationId,
+      input.reviewedById
+    );
+
+    record = {
+      loanNumber: request.loan.loanNumber,
+      paymentNumber: reversed.paymentNumber,
+      amount: Number(reversed.amount),
+      notes: [
+        `${reversed.paymentNumber} of ${reversed.amount} reversed; the loan balance and schedule have been restored and the income voided.`,
+      ],
+    };
+  } else {
+    if (!REVERSIBLE.includes(request.loan.status)) {
+      throw new Error(
+        `${request.loan.loanNumber} is ${request.loan.status
+          .replace(/_/g, ' ')
+          .toLowerCase()} and can no longer be reversed.`
+      );
+    }
+
+    record = await executeReversal(
+      request.loan,
+      input.reviewedById,
+      request.reason
     );
   }
-
-  const record = await executeReversal(
-    request.loan,
-    input.reviewedById,
-    request.reason
-  );
 
   const updated = await prisma.loanReversalRequest.update({
     where: { id: request.id },
@@ -454,7 +601,7 @@ export async function reviewReversal(input: ReviewReversalInput) {
       organizationId: input.organizationId,
       recipientId: request.requestedById,
       type: NOTIFICATION_TYPES.LOAN_REVERSAL_COMPLETED,
-      title: 'Disbursement reversed',
+      title: isPaymentReversal ? 'Payment reversed' : 'Disbursement reversed',
       body: `${record.loanNumber} has been reversed. ${record.notes[0] ?? ''}`,
       link: `/loans/${request.loanId}`,
       resource: 'LOAN_REVERSAL_REQUEST',
@@ -482,6 +629,17 @@ export async function listReversalRequests(
           currency: true,
           status: true,
           client: { select: { firstName: true, lastName: true } },
+        },
+      },
+      // A repayment reversal names the payment it is undoing; a disbursement
+      // one does not, which is how the list tells them apart.
+      payment: {
+        select: {
+          id: true,
+          paymentNumber: true,
+          amount: true,
+          paymentDate: true,
+          status: true,
         },
       },
       requestedBy: { select: { id: true, firstName: true, lastName: true } },

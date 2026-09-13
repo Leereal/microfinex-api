@@ -659,6 +659,7 @@ model Payment {
   processedBranch   Branch?         @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
   receiver          User            @relation("PaymentReceivedBy", fields: [receivedBy], references: [id])
   reverser          User?           @relation("PaymentReversedBy", fields: [reversedById], references: [id])
+  reversalRequests  LoanReversalRequest[] @relation("PaymentReversalRequest")
 
   @@index([loanId, paymentDate])
   @@index([status])
@@ -1936,6 +1937,13 @@ model LoanReversalRequest {
   id             String    @id @default(uuid())
   organizationId String
   loanId         String
+  /// What is being undone: DISBURSEMENT unwinds the payout and everything it
+  /// caused; REPAYMENT unwinds one repayment. Both are reversals of money that
+  /// has already moved, so both go through the same request and review - only
+  /// what gets unwound at the end differs.
+  kind           String    @default("DISBURSEMENT")
+  /// Set for a REPAYMENT reversal: which payment is being undone.
+  paymentId      String?
   requestedById  String
   reason         String
   /// PENDING | APPROVED | REJECTED | CANCELLED
@@ -1954,11 +1962,13 @@ model LoanReversalRequest {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   loan         Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  payment      Payment?     @relation("PaymentReversalRequest", fields: [paymentId], references: [id], onDelete: Cascade)
   requestedBy  User         @relation("ReversalRequestedBy", fields: [requestedById], references: [id])
   reviewedBy   User?        @relation("ReversalReviewedBy", fields: [reviewedById], references: [id])
 
   @@index([organizationId, status])
   @@index([loanId, status])
+  @@index([paymentId, status])
   @@index([requestedById])
   @@map("loan_reversal_requests")
 }

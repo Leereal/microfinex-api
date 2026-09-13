@@ -239,3 +239,4 @@ TODO: Check loan categories how it's being used
 - On the menus we have items that we can group as configurations eg Charges, Currencies, Categories, Etc those are just settings to make other functionalities work fine and we don't use them on a day to day work. I want them to have their main menu item as Configurations and all to be added to that section to cleans. Then other items must be groups nicely in a meaningful way that is easy to manage and understand. 
 - You see we have that disburse button on status column please remove and put the icon there instead. Then on Loans that are active under actions let's have the icon for make payment as well 
 - payments page is failing please fix 
+- Reversal for payment just like for loans, and disbursements must also go to request reversal and then completed by the final purson with the right permission to do so. Must also go to notifications like any other
