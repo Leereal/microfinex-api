@@ -1,5 +1,7 @@
 import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
+import { storageService } from './storage.service';
+import { seedDefaultDocumentTypes } from './document-type-defaults';
 
 export interface OrganizationFilters {
   search?: string;
@@ -53,6 +55,35 @@ function normaliseUniqueFields<T extends Record<string, any>>(data: T): T {
 
   return cleaned as T;
 }
+
+/**
+ * Attach a usable logo URL to an organization.
+ *
+ * The database stores only the object path inside the bucket; `logoUrl` was
+ * declared on the client type but nothing ever filled it, so an organization
+ * with a logo still rendered the placeholder icon everywhere. Signing is a
+ * local HMAC in the MinIO client - no round trip - so doing it per row is
+ * cheap, and a failure just leaves the logo absent rather than failing the
+ * whole listing.
+ */
+async function withLogoUrl<T extends { logo?: string | null }>(
+  organization: T
+): Promise<T & { logoUrl: string | null }> {
+  if (!organization.logo) {
+    return { ...organization, logoUrl: null };
+  }
+
+  try {
+    const logoUrl = await storageService.getSignedUrl(organization.logo);
+    return { ...organization, logoUrl };
+  } catch (error) {
+    console.error('Could not sign organization logo URL:', error);
+    return { ...organization, logoUrl: null };
+  }
+}
+
+const withLogoUrls = <T extends { logo?: string | null }>(items: T[]) =>
+  Promise.all(items.map(withLogoUrl));
 
 class OrganizationService {
   /**
@@ -118,7 +149,7 @@ class OrganizationService {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      organizations,
+      organizations: await withLogoUrls(organizations),
       pagination: {
         page,
         limit,
@@ -134,7 +165,7 @@ class OrganizationService {
    * Get organization by ID
    */
   async findById(id: string) {
-    return prisma.organization.findUnique({
+    const organization = await prisma.organization.findUnique({
       where: { id },
       include: {
         branches: {
@@ -157,6 +188,8 @@ class OrganizationService {
         },
       },
     });
+
+    return organization ? withLogoUrl(organization) : null;
   }
 
   /**
@@ -229,7 +262,7 @@ class OrganizationService {
   async create(data: CreateOrganizationInput) {
     const clean = normaliseUniqueFields(data);
 
-    return prisma.organization.create({
+    const organization = await prisma.organization.create({
       data: {
         ...clean,
         isActive: clean.isActive ?? true,
@@ -244,6 +277,17 @@ class OrganizationService {
         },
       },
     });
+
+    // A document cannot be filed without a type, and a new organization had
+    // none - so the first upload on a brand new organization failed with
+    // "unknown type". Seeding is additive and never fails the creation.
+    try {
+      await seedDefaultDocumentTypes(organization.id);
+    } catch (error) {
+      console.error('Could not seed default document types:', error);
+    }
+
+    return organization;
   }
 
   /**

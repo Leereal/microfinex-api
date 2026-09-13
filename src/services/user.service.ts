@@ -436,22 +436,99 @@ class UserService {
       throw new Error('User not found');
     }
 
-    // Deactivate in database
-    await prisma.user.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    // Remove the record.
+    //
+    // This used to set isActive:false and return - identical to Deactivate,
+    // under a menu item that said Delete. The database is already set up to
+    // make a real delete safe:
+    //
+    //   CASCADE   sessions, refresh tokens, branch/role/permission links,
+    //             notifications - all artifacts of the account itself
+    //   SET NULL  audit_logs.userId and other historical references, so the
+    //             audit trail survives the person being removed
+    //   RESTRICT  clients created, loans, payments, assessments, notes - real
+    //             business records, which correctly refuse to be orphaned
+    //
+    // So the delete is attempted, and the RESTRICT constraints decide whether
+    // it is allowed. A user with operational history cannot be erased, and
+    // that is the right answer for a lender - the caller is told to deactivate
+    // instead.
+    try {
+      await prisma.user.delete({ where: { id } });
+    } catch (error: any) {
+      if (error?.code === 'P2003' || error?.code === 'P2014') {
+        const blockers = await this.countUserRecords(id);
+        const summary = blockers.length
+          ? blockers.map(b => `${b.count} ${b.label}`).join(', ')
+          : 'records elsewhere in the system';
 
-    // Optionally disable in Supabase Auth
-    // Note: This requires admin API access
+        const restricted = new Error(
+          `This user cannot be deleted because they are attached to ${summary}. ` +
+            'Deactivate them instead - that removes their access while keeping ' +
+            'those records intact.'
+        );
+        (restricted as any).code = 'USER_HAS_RECORDS';
+        throw restricted;
+      }
+      throw error;
+    }
+
+    // Remove the sign-in credential too. The database row is already gone, so
+    // a failure here must not surface as a failed delete - it leaves an orphan
+    // auth record, which is worth logging but not worth failing for.
     try {
       await supabaseAdmin.auth.admin.deleteUser(id);
     } catch (error) {
       console.error('Failed to delete user from Supabase Auth:', error);
-      // Don't throw - user is already deactivated in database
     }
 
     return { success: true };
+  }
+
+  /**
+   * How many people can actually administer this organization.
+   *
+   * ORG_ADMIN is the organization's own administrator; ADMIN is the older
+   * equivalent still held by existing accounts, so both count. SUPER_ADMIN is
+   * deliberately excluded - a platform operator is not the organization's
+   * administrator, and counting them would let an organization be set up with
+   * nobody inside it able to run it.
+   */
+  async countAdministrators(organizationId: string): Promise<number> {
+    return prisma.user.count({
+      where: {
+        organizationId,
+        role: { in: [UserRole.ORG_ADMIN, UserRole.ADMIN] },
+      },
+    });
+  }
+
+  /**
+   * What a user is attached to, so a refused deletion can say why.
+   */
+  private async countUserRecords(
+    id: string
+  ): Promise<Array<{ label: string; count: number }>> {
+    const [clients, loans, payments, transactions, assessments, visits, notes] =
+      await Promise.all([
+        prisma.client.count({ where: { createdBy: id } }),
+        prisma.loan.count({ where: { loanOfficerId: id } }),
+        prisma.payment.count({ where: { receivedBy: id } }),
+        prisma.financialTransaction.count({ where: { processedBy: id } }),
+        prisma.loanAssessment.count({ where: { assessorId: id } }),
+        prisma.loanVisit.count({ where: { visitedBy: id } }),
+        prisma.note.count({ where: { createdBy: id } }),
+      ]);
+
+    return [
+      { label: 'clients', count: clients },
+      { label: 'loans', count: loans },
+      { label: 'payments', count: payments },
+      { label: 'transactions', count: transactions },
+      { label: 'assessments', count: assessments },
+      { label: 'visits', count: visits },
+      { label: 'notes', count: notes },
+    ].filter(entry => entry.count > 0);
   }
 
   /**

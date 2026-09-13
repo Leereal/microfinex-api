@@ -186,6 +186,13 @@ export const LOAN_PERMISSIONS: PermissionDefinition[] = [
     module: PERMISSION_MODULES.LOANS,
   },
   {
+    code: 'loans:reverse_disbursement',
+    name: 'Reverse Disbursement',
+    description:
+      'Review and finalise a request to undo a disbursement, restoring balances, charges and limits',
+    module: PERMISSION_MODULES.LOANS,
+  },
+  {
     code: 'loans:topup',
     name: 'Top-up Loan',
     description: 'Process loan top-ups',
@@ -1363,6 +1370,7 @@ export const PERMISSIONS = {
   LOANS_APPROVE: 'loans:approve',
   LOANS_REJECT: 'loans:reject',
   LOANS_DISBURSE: 'loans:disburse',
+  LOANS_REVERSE_DISBURSEMENT: 'loans:reverse_disbursement',
   LOANS_TOPUP: 'loans:topup',
   LOANS_RESTRUCTURE: 'loans:restructure',
   LOANS_RESCHEDULE: 'loans:reschedule',

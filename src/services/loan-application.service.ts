@@ -7,12 +7,26 @@ import {
   LoanCalculationInput,
 } from './loan-calculations';
 import { financialTransactionService } from './financial-transaction.service';
+import { getWorkflowSettings } from './loan-workflow-settings.service';
+import {
+  inAppNotificationService,
+  NOTIFICATION_TYPES,
+} from './in-app-notification.service';
 
 export interface LoanApplication {
+  /** The loan's own currency. Unmapped, every caller fell back to USD. */
+  currency?: string;
+  disbursedBy?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+  } | null;
+  disbursementDate?: Date | null;
   id: string;
   loanNumber: string;
   clientId: string;
   clientName?: string;
+  clientNumber?: string;
   productId: string;
   productName?: string;
   organizationId: string;
@@ -55,6 +69,9 @@ export interface LoanApplication {
     amount: number;
     isDeductedFromPrincipal: boolean;
     status: string;
+    /** When the charge was raised, and the amount it was worked out on. */
+    appliedAt?: Date | string | null;
+    baseAmount?: number;
     appliesAt: string;
   }>;
 }
@@ -89,6 +106,44 @@ export const createLoanApplicationSchema = z.object({
   notes: z.string().optional(),
   branchId: z.string().uuid('Invalid branch ID').optional(),
   firstDueDate: z.string().datetime().optional(),
+  /**
+   * Charges chosen on the application itself.
+   *
+   * Charges could only ever reach a loan by being linked to its product, so an
+   * organization that had defined an admin fee had no way to put it on a loan
+   * without first attaching it to every product. These are applied alongside
+   * any the product carries; a charge named here and on the product is applied
+   * once.
+   */
+  /**
+   * Optionally, the one person who should assess this loan.
+   *
+   * Left out, everyone who may assess is notified - which is the right default
+   * for a branch that has not decided. Named, only that person is told, so the
+   * work does not sit in everybody's queue and nobody's responsibility.
+   */
+  assignedAssessorId: z.string().uuid('Invalid assessor').optional().nullable(),
+  /** The same, for whoever will disburse it. */
+  assignedDisburserId: z
+    .string()
+    .uuid('Invalid disburser')
+    .optional()
+    .nullable(),
+  charges: z
+    .array(
+      z.object({
+        chargeId: z.string().uuid('Invalid charge ID'),
+        /** Overrides the charge's own amount, for a fixed charge. */
+        amount: z.coerce.number().min(0).optional(),
+        /**
+         * How the client settles this fee: true takes it out of the amount
+         * advanced, false means they pay it separately and take the full
+         * amount. Omitted, the charge's own setting stands.
+         */
+        isDeductedFromPrincipal: z.boolean().optional(),
+      })
+    )
+    .optional(),
 });
 
 export const approveLoanSchema = z.object({
@@ -205,6 +260,12 @@ class LoanApplicationService {
       termInMonths: applicationData.termInMonths,
       repaymentFrequency: product.repaymentFrequency as any,
       calculationMethod: product.calculationMethod as any,
+      // The date the borrower agreed to pay, when one was given. Without this
+      // the schedule was built from today, so the loan's stated next due date
+      // and its own first instalment disagreed.
+      firstDueDate: applicationData.firstDueDate
+        ? new Date(applicationData.firstDueDate)
+        : undefined,
     };
 
     const loanCalculation =
@@ -227,6 +288,16 @@ class LoanApplicationService {
         loanOfficerId,
         createdById: loanOfficerId, // Track who created the loan
         amount: applicationData.amount,
+        /**
+         * The product's currency, carried onto the loan.
+         *
+         * `Loan.currency` is an enum defaulting to USD and nothing ever set it,
+         * so a loan against a ZAR product was stored as USD. That is not a
+         * display problem - every figure on the loan was labelled in the wrong
+         * currency at the source, and reporting that groups by currency counted
+         * it as dollars.
+         */
+        currency: product.currency,
         interestRate: product.interestRate,
         calculationMethod: product.calculationMethod,
         term: applicationData.termInMonths,
@@ -241,6 +312,8 @@ class LoanApplicationService {
         nextDueDate: applicationData.firstDueDate
           ? new Date(applicationData.firstDueDate)
           : null,
+        assignedAssessorId: applicationData.assignedAssessorId ?? null,
+        assignedDisburserId: applicationData.assignedDisburserId ?? null,
         purpose: applicationData.purpose,
         collateralValue: applicationData.collateralValue,
         collateralDescription: applicationData.collateralDescription,
@@ -348,6 +421,182 @@ class LoanApplicationService {
           },
         });
       }
+    }
+
+    /**
+     * Charges picked on the application form.
+     *
+     * Scoped to the organization so a charge id from elsewhere cannot be
+     * attached, and skipped when the product already applied the same charge
+     * above - otherwise selecting a charge that happens to be on the product
+     * would bill the client twice.
+     */
+    const selectedCharges = applicationData.charges ?? [];
+
+    if (selectedCharges.length > 0) {
+      const alreadyApplied = new Set(
+        loanCreationCharges.map((pc: any) => pc.charge?.id).filter(Boolean)
+      );
+
+      const chargeRecords = await prisma.charge.findMany({
+        where: {
+          organizationId,
+          isActive: true,
+          id: { in: selectedCharges.map(entry => entry.chargeId) },
+        },
+      });
+
+      const byId = new Map(chargeRecords.map(charge => [charge.id, charge]));
+
+      for (const selection of selectedCharges) {
+        const charge = byId.get(selection.chargeId);
+        if (!charge || alreadyApplied.has(charge.id)) continue;
+
+        const baseAmount = new Decimal(applicationData.amount);
+
+        let chargeAmount;
+        if (selection.amount !== undefined) {
+          // An explicit amount from the form wins - the operator is looking at
+          // the figure they intend to charge.
+          chargeAmount = new Decimal(selection.amount);
+        } else if (charge.calculationType === 'PERCENTAGE') {
+          chargeAmount = baseAmount
+            .mul(charge.defaultPercentage || new Decimal(0))
+            .div(100);
+        } else {
+          chargeAmount = charge.defaultAmount || new Decimal(0);
+        }
+
+        if (chargeAmount.lte(0)) continue;
+
+        /**
+         * How this fee gets settled, for this loan.
+         *
+         * A client who has the 10 for their fee can hand it over and take the
+         * full 100; one who has not settles it out of the 100 and takes 90.
+         * Either way they borrowed 100 and owe 100 - only what they walk away
+         * with differs, which is the disburser's business to know. The charge's
+         * own setting is the default when the form does not say.
+         */
+        const isDeducted =
+          selection.isDeductedFromPrincipal ??
+          charge.isDeductedFromPrincipal ??
+          false;
+
+        await prisma.loanCharge.create({
+          data: {
+            loanId: loan.id,
+            chargeId: charge.id,
+            amount: chargeAmount,
+            baseAmount,
+            calculatedAmount: chargeAmount,
+            isDeductedFromPrincipal: isDeducted,
+            status: isDeducted ? 'COMPLETED' : 'PENDING',
+            paidAmount: isDeducted ? chargeAmount : new Decimal(0),
+            paidAt: isDeducted ? new Date() : null,
+            chargeName: charge.name,
+            chargeType: charge.type,
+            calculationType: charge.calculationType,
+            currency: product.currency || 'USD',
+          },
+        });
+      }
+    }
+
+    /**
+     * Skip the stages this organization has chosen to skip.
+     *
+     * Off unless an administrator has turned it on. With approval skipped the
+     * loan lands APPROVED and goes straight to the disbursement queue, so the
+     * notification below is about disbursing rather than assessing.
+     */
+    const workflow = await getWorkflowSettings(organizationId);
+    let currentStatus: string = loan.status;
+
+    if (workflow.straightToDisbursement) {
+      await prisma.loan.update({
+        where: { id: loan.id },
+        data: { status: 'APPROVED', approvedDate: new Date() },
+      });
+      currentStatus = 'APPROVED';
+
+      const skipped = [
+        workflow.skipAssessment && 'assessment',
+        workflow.skipVisit && 'visit',
+        workflow.skipApproval && 'approval',
+      ].filter(Boolean);
+
+      await prisma.loanWorkflowHistory
+        .create({
+          data: {
+            loanId: loan.id,
+            fromStatus: 'PENDING',
+            toStatus: 'APPROVED',
+            changedBy: loanOfficerId,
+            notes: `Auto-approved: this organization skips ${skipped.join(', ')}.`,
+          },
+        })
+        .catch(error =>
+          console.error('Could not record the auto-approval:', error)
+        );
+    }
+
+    /**
+     * Tell whoever has to act on this.
+     *
+     * A loan was created and then sat there: nothing told the people who assess
+     * loans that one was waiting, so work was found by someone remembering to
+     * look at a queue. Assigned to a person, only they hear about it; otherwise
+     * everyone who may assess does.
+     */
+    try {
+      const clientName =
+        [loan.client?.firstName, loan.client?.lastName]
+          .filter(Boolean)
+          .join(' ') || 'a client';
+
+      const readyToDisburse = currentStatus === 'APPROVED';
+
+      const notification = {
+        organizationId,
+        type: readyToDisburse
+          ? NOTIFICATION_TYPES.LOAN_AWAITING_DISBURSEMENT
+          : NOTIFICATION_TYPES.LOAN_AWAITING_ASSESSMENT,
+        title: readyToDisburse
+          ? 'Loan approved - awaiting disbursement'
+          : 'Loan awaiting assessment',
+        body: readyToDisburse
+          ? `${loan.loanNumber} for ${clientName} is ready to disburse.`
+          : `${loan.loanNumber} for ${clientName} has been created and needs assessing.`,
+        link: `/loans/${loan.id}`,
+        resource: 'LOAN',
+        resourceId: loan.id,
+      };
+
+      // With the stages skipped it is the disburser who needs to hear, not the
+      // assessor - telling the assessor about work that no longer exists is
+      // worse than telling nobody.
+      const assignee = readyToDisburse
+        ? applicationData.assignedDisburserId
+        : applicationData.assignedAssessorId;
+      const permission = readyToDisburse ? 'loans:disburse' : 'loans:assess';
+
+      if (assignee) {
+        await inAppNotificationService.notify({
+          ...notification,
+          recipientId: assignee,
+        });
+      } else {
+        await inAppNotificationService.notifyPermissionHolders({
+          ...notification,
+          permission,
+          branchId,
+        });
+      }
+    } catch (error) {
+      // A loan that exists but was not announced is recoverable; failing the
+      // creation over a notification is not.
+      console.error('Could not notify about the new loan:', error);
     }
 
     // Refetch loan with charges included
@@ -609,6 +858,44 @@ class LoanApplicationService {
         },
       },
     });
+
+    /**
+     * An approved loan is waiting on somebody to pay it out.
+     *
+     * Same rule as assessment: the assigned person alone if one was named,
+     * otherwise everyone who may disburse.
+     */
+    try {
+      const clientName =
+        [updatedLoan.client?.firstName, updatedLoan.client?.lastName]
+          .filter(Boolean)
+          .join(' ') || 'a client';
+
+      const notification = {
+        organizationId: updatedLoan.organizationId,
+        type: NOTIFICATION_TYPES.LOAN_AWAITING_DISBURSEMENT,
+        title: 'Loan approved - awaiting disbursement',
+        body: `${updatedLoan.loanNumber} for ${clientName} has been approved and is ready to disburse.`,
+        link: `/loans/${updatedLoan.id}`,
+        resource: 'LOAN',
+        resourceId: updatedLoan.id,
+      };
+
+      if (updatedLoan.assignedDisburserId) {
+        await inAppNotificationService.notify({
+          ...notification,
+          recipientId: updatedLoan.assignedDisburserId,
+        });
+      } else {
+        await inAppNotificationService.notifyPermissionHolders({
+          ...notification,
+          permission: 'loans:disburse',
+          branchId: updatedLoan.branchId,
+        });
+      }
+    } catch (error) {
+      console.error('Could not notify about the approved loan:', error);
+    }
 
     return this.mapLoanToApplication(updatedLoan);
   }
@@ -874,6 +1161,10 @@ class LoanApplicationService {
         isDeductedFromPrincipal: lc.isDeductedFromPrincipal || false,
         status: lc.status || 'PENDING',
         paidAt: lc.paidAt,
+        // When it was raised, and on what. Needed to tell three identical
+        // Admin Fee lines apart on a loan that has been topped up twice.
+        appliedAt: lc.appliedAt,
+        baseAmount: parseFloat(lc.baseAmount?.toString() || '0'),
         appliesAt: lc.appliesAt || lc.charge?.appliesAt || 'LOAN_CREATION',
       })) || [];
 
@@ -888,6 +1179,9 @@ class LoanApplicationService {
       loanNumber: loan.loanNumber,
       clientId: loan.clientId,
       clientName,
+      // The client's own reference. A receipt showing a uuid tells nobody
+      // anything; this is the number the client and the branch both know.
+      clientNumber: loan.client?.clientNumber,
       productId: loan.productId,
       productName: loan.product?.name,
       organizationId: loan.organizationId,
@@ -930,6 +1224,23 @@ class LoanApplicationService {
       interestBalance: loan.interestBalance
         ? parseFloat(loan.interestBalance.toString())
         : undefined,
+      /**
+       * The loan's own currency, and who paid it out.
+       *
+       * Neither was mapped, so every screen reading this endpoint fell back to
+       * USD and showed "Disbursed By -" on a loan that had been disbursed. The
+       * server-rendered statement reads the loan row directly, which is why the
+       * PDF showed ZAR while the page beside it showed dollars.
+       */
+      currency: loan.currency || loan.product?.currency || 'USD',
+      disbursedBy: loan.disbursedBy
+        ? {
+            id: loan.disbursedBy.id,
+            firstName: loan.disbursedBy.firstName,
+            lastName: loan.disbursedBy.lastName,
+          }
+        : null,
+      disbursementDate: loan.disbursedDate,
       loanCharges,
     };
   }

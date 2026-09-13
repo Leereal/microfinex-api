@@ -34,6 +34,7 @@ export class SimpleInterestStrategy implements ILoanCalculationStrategy {
       insuranceFeeAmount = new Decimal(0),
       insuranceFeePercentage = new Decimal(0),
       disbursementDate = new Date(),
+      firstDueDate: agreedFirstDueDate,
     } = input;
 
     // Calculate fees
@@ -82,7 +83,8 @@ export class SimpleInterestStrategy implements ILoanCalculationStrategy {
     const firstDueDate = LoanCalculationUtils.getFirstDueDate(
       disbursementDate,
       gracePeriodDays,
-      repaymentFrequency
+      repaymentFrequency,
+      agreedFirstDueDate
     );
     const currentDate = firstDueDate;
 
@@ -92,7 +94,8 @@ export class SimpleInterestStrategy implements ILoanCalculationStrategy {
         disbursementDate,
         gracePeriodDays,
         repaymentFrequency,
-        i
+        i,
+        agreedFirstDueDate
       );
 
       let principalPayment = principalPerInstallment;

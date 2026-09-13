@@ -116,7 +116,10 @@ router.get('/:key', authenticate, async (req, res) => {
 router.put(
   '/:key',
   authenticate,
-  authorize(UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  // ORG_ADMIN belongs here: these are the organization's own settings, and its
+  // administrator was the one role unable to change them - the newer of the two
+  // administrator roles was simply never added to this list.
+  authorize(UserRole.ORG_ADMIN, UserRole.ADMIN, UserRole.SUPER_ADMIN),
   validateRequest(updateSettingSchema),
   async (req, res) => {
     try {

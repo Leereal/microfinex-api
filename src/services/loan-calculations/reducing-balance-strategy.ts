@@ -35,6 +35,7 @@ export class ReducingBalanceStrategy implements ILoanCalculationStrategy {
       insuranceFeeAmount = new Decimal(0),
       insuranceFeePercentage = new Decimal(0),
       disbursementDate = new Date(),
+      firstDueDate: agreedFirstDueDate,
     } = input;
 
     // Calculate periodic interest rate
@@ -90,7 +91,8 @@ export class ReducingBalanceStrategy implements ILoanCalculationStrategy {
     const firstDueDate = LoanCalculationUtils.getFirstDueDate(
       disbursementDate,
       gracePeriodDays,
-      repaymentFrequency
+      repaymentFrequency,
+      agreedFirstDueDate
     );
     const currentDate = firstDueDate;
 
@@ -100,7 +102,8 @@ export class ReducingBalanceStrategy implements ILoanCalculationStrategy {
         disbursementDate,
         gracePeriodDays,
         repaymentFrequency,
-        i
+        i,
+        agreedFirstDueDate
       );
 
       // Calculate interest for this period

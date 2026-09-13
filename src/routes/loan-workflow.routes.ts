@@ -108,7 +108,18 @@ router.get('/assessments/pending', authenticate, async (req, res) => {
     const userId = req.user?.id || req.user?.userId;
     const { mine } = req.query;
 
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const assessments = await loanAssessmentService.getPendingAssessments(
+      organizationId,
       mine === 'true' ? userId : undefined
     );
 
@@ -336,7 +347,18 @@ router.get('/visits/pending', authenticate, async (req, res) => {
     const userId = req.user?.id || req.user?.userId;
     const { mine } = req.query;
 
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     const visits = await loanVisitService.getPendingVisits(
+      organizationId,
       mine === 'true' ? userId : undefined
     );
 

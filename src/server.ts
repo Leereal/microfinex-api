@@ -4,6 +4,7 @@ import { prisma } from './config/database';
 import { cacheService } from './services/cache.service';
 import { startScheduler, stopScheduler } from './jobs/scheduler';
 import { aiExtractionService } from './services/ai-extraction.service';
+import { closePdfBrowser } from './services/pdf.service';
 
 const PORT = config.port;
 
@@ -69,6 +70,10 @@ const startServer = async () => {
       server.close(async () => {
         console.log('HTTP server closed.');
 
+        // The PDF renderer keeps a headless Chromium alive between requests;
+        // it has to be told to stop or the process will not exit.
+        await closePdfBrowser().catch(() => {});
+
         try {
           await stopScheduler();
           console.log('Scheduler stopped.');
@@ -89,6 +94,10 @@ const startServer = async () => {
 
       server.close(async () => {
         console.log('HTTP server closed.');
+
+        // The PDF renderer keeps a headless Chromium alive between requests;
+        // it has to be told to stop or the process will not exit.
+        await closePdfBrowser().catch(() => {});
 
         try {
           await stopScheduler();

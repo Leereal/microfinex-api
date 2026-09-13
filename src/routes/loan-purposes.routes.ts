@@ -377,6 +377,7 @@ router.delete(
 const DEFAULT_LOAN_PURPOSES = [
   {
     code: 'BUSINESS',
+    loanClass: 'COMMERCIAL' as const,
     name: 'Business/Working Capital',
     description: 'Loans for business operations, inventory, or working capital',
     sortOrder: 1,
@@ -395,6 +396,7 @@ const DEFAULT_LOAN_PURPOSES = [
   },
   {
     code: 'AGRICULTURE',
+    loanClass: 'COMMERCIAL' as const,
     name: 'Agriculture/Farming',
     description:
       'Farm inputs, equipment, livestock, and agricultural activities',
@@ -426,6 +428,7 @@ const DEFAULT_LOAN_PURPOSES = [
   },
   {
     code: 'ASSET_PURCHASE',
+    loanClass: 'COMMERCIAL' as const,
     name: 'Asset Purchase',
     description: 'Purchasing equipment, vehicles, or other assets',
     sortOrder: 9,
@@ -497,38 +500,57 @@ router.post(
         });
       }
 
-      // Upsert all default loan purposes
-      const results = await Promise.all(
-        DEFAULT_LOAN_PURPOSES.map(purpose =>
-          prisma.loanPurpose.upsert({
-            where: {
-              organizationId_code: {
-                organizationId,
-                code: purpose.code,
-              },
-            },
-            update: {
-              name: purpose.name,
-              description: purpose.description,
-              sortOrder: purpose.sortOrder,
-              isActive: true,
-            },
-            create: {
-              organizationId,
-              code: purpose.code,
-              name: purpose.name,
-              description: purpose.description,
-              sortOrder: purpose.sortOrder,
-              isActive: true,
-            },
-          })
-        )
+      /**
+       * Add what is missing; never touch what is there.
+       *
+       * This used to upsert, which rewrote the name, description and sort order
+       * of every default on every run - so an operator who renamed "Personal/
+       * Consumption" and pressed the button again silently lost the rename.
+       * Seeding is for filling an empty list, not for reasserting ours over
+       * theirs.
+       */
+      const existing = await prisma.loanPurpose.findMany({
+        where: { organizationId },
+        select: { code: true },
+      });
+
+      const have = new Set(existing.map(purpose => purpose.code));
+      const missing = DEFAULT_LOAN_PURPOSES.filter(
+        purpose => !have.has(purpose.code)
       );
+
+      if (missing.length > 0) {
+        await prisma.loanPurpose.createMany({
+          data: missing.map(purpose => ({
+            organizationId,
+            code: purpose.code,
+            name: purpose.name,
+            description: purpose.description,
+            sortOrder: purpose.sortOrder,
+            loanClass: (purpose as { loanClass?: 'CONSUMER' | 'COMMERCIAL' })
+              .loanClass ?? 'CONSUMER',
+            isActive: true,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      const purposes = await prisma.loanPurpose.findMany({
+        where: { organizationId },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      });
 
       res.json({
         success: true,
-        message: `Successfully seeded ${results.length} loan purposes`,
-        data: { purposes: results, count: results.length },
+        message: missing.length
+          ? `Added ${missing.length} default loan purpose${missing.length === 1 ? '' : 's'}`
+          : 'Loan purposes were already set up - nothing to add',
+        data: {
+          purposes,
+          count: purposes.length,
+          created: missing.length,
+          skipped: have.size,
+        },
         timestamp: new Date().toISOString(),
       });
     } catch (error) {

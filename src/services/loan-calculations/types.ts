@@ -58,6 +58,16 @@ export interface LoanCalculationInput {
   balloonAmount?: Decimal; // For balloon payment loans
   customFormula?: string; // For custom calculation methods
   disbursementDate?: Date;
+  /**
+   * When the borrower has agreed to make the first payment.
+   *
+   * The schedule otherwise falls one full period after disbursement, which is
+   * a sensible default but not what was arranged: an operator who set the first
+   * payment for the 30th got a schedule dated a month after the application,
+   * and a loan whose stated next due date disagreed with its own first
+   * instalment. When supplied, every instalment is spaced from this date.
+   */
+  firstDueDate?: Date;
 }
 
 // Individual installment details
@@ -296,8 +306,11 @@ export class LoanCalculationUtils {
   static getFirstDueDate(
     disbursementDate: Date,
     gracePeriodDays: number,
-    frequency: RepaymentFrequency
+    frequency: RepaymentFrequency,
+    firstDueDate?: Date
   ): Date {
+    if (firstDueDate) return new Date(firstDueDate);
+
     const start = new Date(disbursementDate);
     if (gracePeriodDays > 0) {
       start.setDate(start.getDate() + gracePeriodDays);
@@ -312,8 +325,19 @@ export class LoanCalculationUtils {
     disbursementDate: Date,
     gracePeriodDays: number,
     frequency: RepaymentFrequency,
-    installmentNumber: number
+    installmentNumber: number,
+    firstDueDate?: Date
   ): Date {
+    // An agreed first payment date anchors the whole schedule: instalment 1
+    // falls on it, and the rest follow at one period each.
+    if (firstDueDate) {
+      return LoanCalculationUtils.addPeriod(
+        new Date(firstDueDate),
+        installmentNumber - 1,
+        frequency
+      );
+    }
+
     const start = new Date(disbursementDate);
     if (gracePeriodDays > 0) {
       start.setDate(start.getDate() + gracePeriodDays);

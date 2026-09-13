@@ -49,6 +49,7 @@ model Organization {
   monthlyTargets        MonthlyTarget[]
   notifications         Notification[]
   clientDeletionRequests ClientDeletionRequest[]
+  loanReversalRequests   LoanReversalRequest[]
 
   @@map("organizations")
 }
@@ -294,6 +295,8 @@ model User {
   createdLoans          Loan[]                 @relation("LoanOfficer")
   loansCreatedByUser    Loan[]                 @relation("LoanCreatedBy")
   loansDisbursedByUser  Loan[]                 @relation("LoanDisbursedBy")
+  loansToAssess         Loan[]                 @relation("LoanAssignedAssessor")
+  loansToDisburse       Loan[]                 @relation("LoanAssignedDisburser")
   createdLoanProducts   LoanProduct[]
   notes                 Note[]
   payments              Payment[]
@@ -307,6 +310,8 @@ model User {
   notifications         Notification[]
   deletionRequestsRaised   ClientDeletionRequest[] @relation("DeletionRequestedBy")
   deletionRequestsReviewed ClientDeletionRequest[] @relation("DeletionReviewedBy")
+  reversalRequestsRaised   LoanReversalRequest[]   @relation("ReversalRequestedBy")
+  reversalRequestsReviewed LoanReversalRequest[]   @relation("ReversalReviewedBy")
 
   @@index([organizationId, isActive])
   @@index([branchId])
@@ -346,17 +351,17 @@ model UserSession {
 
 model Client {
   id               String             @id @default(uuid())
-  clientNumber     String             @unique
+  clientNumber     String
   type             ClientType         @default(INDIVIDUAL)
   firstName        String?
   lastName         String?
   businessName     String?
   email            String?
-  phone            String             @unique
+  phone            String
   dateOfBirth      DateTime?
   gender           String?
   maritalStatus    String?
-  idNumber         String?            @unique
+  idNumber         String?
   address          String?
   city             String?
   state            String?
@@ -406,6 +411,17 @@ model Client {
   loans            Loan[]
   nextOfKins       NextOfKin[]
 
+  // Scoped to the organization rather than the whole database.
+  //
+  // These were globally unique, which is wrong for a multi-tenant lender in
+  // three ways: client numbers are a per-organization sequence, so one tenant's
+  // numbering consumed another's; two lenders can legitimately both serve the
+  // same person, so a shared phone or national ID blocked the second one from
+  // registering them at all; and a collision told the caller something about a
+  // record in an organization they cannot see.
+  @@unique([organizationId, clientNumber])
+  @@unique([organizationId, phone])
+  @@unique([organizationId, idNumber])
   @@index([organizationId, isActive])
   @@index([organizationId, branchId])
   @@index([email])
@@ -510,6 +526,11 @@ model Loan {
   loanOfficerId         String
   createdById           String?
   disbursedById         String?
+  /// Optionally, the one person who should assess this loan. When set, only
+  /// they are notified; when null, everyone who may assess is.
+  assignedAssessorId    String?
+  /// The same, for disbursement.
+  assignedDisburserId   String?
   amount                Decimal                @db.Decimal(15, 2)
   currency              Currency               @default(USD)
   interestRate          Decimal                @db.Decimal(5, 2)
@@ -550,6 +571,7 @@ model Loan {
   collaterals           ClientCollateral[]
   financialTransactions FinancialTransaction[]
   assessments           LoanAssessment[]
+  reversalRequests      LoanReversalRequest[]
   loanCharges           LoanCharge[]
   loanItems             LoanItem[]
   visits                LoanVisit[]
@@ -558,6 +580,8 @@ model Loan {
   client                Client                 @relation(fields: [clientId], references: [id])
   createdBy             User?                  @relation("LoanCreatedBy", fields: [createdById], references: [id])
   disbursedBy           User?                  @relation("LoanDisbursedBy", fields: [disbursedById], references: [id])
+  assignedAssessor      User?                  @relation("LoanAssignedAssessor", fields: [assignedAssessorId], references: [id])
+  assignedDisburser     User?                  @relation("LoanAssignedDisburser", fields: [assignedDisburserId], references: [id])
   disbursementBranch    Branch?                @relation("LoanDisbursementBranch", fields: [disbursementBranchId], references: [id])
   group                 Group?                 @relation(fields: [groupId], references: [id])
   loanOfficer           User                   @relation("LoanOfficer", fields: [loanOfficerId], references: [id])
@@ -1615,6 +1639,10 @@ enum FinancialTransactionStatus {
 
 enum TransactionType {
   LOAN_DISBURSEMENT
+  /// Money advanced onto a loan that is already running. Kept apart from
+  /// LOAN_DISBURSEMENT so a top-up can be seen, counted and reversed as the
+  /// distinct event it is rather than looking like a second disbursement.
+  LOAN_TOPUP
   LOAN_REPAYMENT
   CHARGE
   PENALTY
@@ -1885,6 +1913,44 @@ model Notification {
 /// to ask and the permission to carry it out are deliberately separate: anyone
 /// who can maintain a client can raise a request, and only a holder of
 /// clients:delete can approve it.
+/// A request to undo a disbursement that has already happened.
+///
+/// A disbursement moves money, applies charges, consumes part of the client's
+/// credit limit and starts a repayment schedule. Undoing it is therefore not a
+/// status change but a set of compensating entries, and it is reviewed by
+/// somebody other than whoever asks for it wherever the organization has more
+/// than one such person.
+model LoanReversalRequest {
+  id             String    @id @default(uuid())
+  organizationId String
+  loanId         String
+  requestedById  String
+  reason         String
+  /// PENDING | APPROVED | REJECTED | CANCELLED
+  status         String    @default("PENDING")
+  reviewedById   String?
+  reviewedAt     DateTime?
+  reviewNotes    String?
+  /// What was undone, recorded at the moment it was undone: the transactions
+  /// voided, the balances restored, the charges removed. The loan itself goes
+  /// back to looking un-disbursed, so without this there would be no record
+  /// that any of it ever happened.
+  reversalRecord Json?
+  reversedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  loan         Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("ReversalRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy   User?        @relation("ReversalReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([loanId, status])
+  @@index([requestedById])
+  @@map("loan_reversal_requests")
+}
+
 model ClientDeletionRequest {
   id             String    @id @default(uuid())
   organizationId String

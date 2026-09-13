@@ -24,6 +24,19 @@ import {
 import { productCreditService } from '../services/product-credit.service';
 import { loadPermissions, requirePermission } from '../middleware/permissions';
 import { PERMISSIONS } from '../constants/permissions';
+import {
+  getStatementData,
+  renderStatementHtml,
+} from '../services/loan-statement.service';
+import { renderHtmlToPdf } from '../services/pdf.service';
+import { getLoanEligibility } from '../services/loan-eligibility.service';
+import { topUpLoan } from '../services/loan-topup.service';
+import {
+  requestReversal,
+  reviewReversal,
+  listReversalRequests,
+  canFinaliseReversal,
+} from '../services/loan-reversal.service';
 
 const router = Router();
 
@@ -1250,5 +1263,353 @@ router.get(
     }
   }
 );
+
+/**
+ * @swagger
+ * /api/v1/loans/{id}/top-up:
+ *   post:
+ *     summary: Add to a loan that is already running
+ *     tags: [Loans]
+ */
+const topUpSchema = z.object({
+  amount: z.coerce.number().positive('The top-up amount must be more than zero'),
+  paymentMethodId: z.string().uuid('Choose where the money is paid from'),
+  chargeIds: z.array(z.string().uuid()).optional(),
+  reference: z.string().optional(),
+  notes: z.string().optional(),
+});
+
+router.post(
+  '/:id/top-up',
+  authenticate,
+  loadPermissions,
+  requirePermission(PERMISSIONS.LOANS_TOPUP),
+  validateRequest(topUpSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      // auth-supabase sets `id`; the older token middleware sets `userId`.
+      const userId = req.userContext?.id || req.user?.id || req.user?.userId;
+
+      if (!organizationId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization and user required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await topUpLoan({
+        loanId: req.params.id!,
+        organizationId,
+        amount: req.body.amount,
+        paymentMethodId: req.body.paymentMethodId,
+        chargeIds: req.body.chargeIds,
+        reference: req.body.reference,
+        notes: req.body.notes,
+        processedBy: userId,
+      });
+
+      res.json({
+        success: true,
+        message: `${result.loanNumber} topped up. ${result.cashToClient} paid out.`,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Top up loan error:', error);
+      // These are conditions the operator can act on, not server faults.
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'The top-up could not be completed',
+        error: 'TOPUP_FAILED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loans/reversal-requests:
+ *   get:
+ *     summary: Reversal requests for this organization
+ *     tags: [Loans]
+ */
+router.get('/reversal-requests', authenticate, async (req, res) => {
+  try {
+    const organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const requests = await listReversalRequests(
+      organizationId,
+      req.query.status ? String(req.query.status) : undefined
+    );
+
+    // So the UI knows whether to offer the approve and reject buttons.
+    const reviewerId = req.userContext?.id || req.user?.id || req.user?.userId;
+    const canFinalise = reviewerId
+      ? await canFinaliseReversal(reviewerId)
+      : false;
+
+    res.json({
+      success: true,
+      message: 'Reversal requests retrieved successfully',
+      data: { requests, canFinalise },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('List reversal requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/loans/{id}/reversal-requests:
+ *   post:
+ *     summary: Ask for a disbursement to be reversed
+ *     tags: [Loans]
+ */
+const reversalRequestSchema = z.object({
+  reason: z
+    .string()
+    .min(10, 'Give a reason of at least 10 characters - it is what the reviewer decides on'),
+});
+
+router.post(
+  '/:id/reversal-requests',
+  authenticate,
+  validateRequest(reversalRequestSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      // auth-supabase sets `id`; the older token middleware sets `userId`.
+      const userId = req.userContext?.id || req.user?.id || req.user?.userId;
+
+      if (!organizationId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization and user required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const request = await requestReversal({
+        loanId: req.params.id!,
+        organizationId,
+        requestedById: userId,
+        reason: req.body.reason,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Reversal requested. Whoever may reverse disbursements has been notified.',
+        data: { request },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Request reversal error:', error);
+      // These are decisions the operator can act on, not server faults.
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Could not request the reversal',
+        error: 'REVERSAL_REQUEST_FAILED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loans/reversal-requests/{requestId}/review:
+ *   post:
+ *     summary: Approve or reject a reversal request
+ *     tags: [Loans]
+ */
+const reviewReversalSchema = z.object({
+  approve: z.boolean(),
+  reviewNotes: z.string().optional(),
+});
+
+router.post(
+  '/reversal-requests/:requestId/review',
+  authenticate,
+  validateRequest(reviewReversalSchema),
+  async (req, res) => {
+    try {
+      const organizationId = req.user?.organizationId;
+      // auth-supabase sets `id`; the older token middleware sets `userId`.
+      const userId = req.userContext?.id || req.user?.id || req.user?.userId;
+
+      if (!organizationId || !userId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization and user required',
+          error: 'BAD_REQUEST',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await reviewReversal({
+        requestId: req.params.requestId!,
+        organizationId,
+        reviewedById: userId,
+        approve: req.body.approve,
+        reviewNotes: req.body.reviewNotes,
+      });
+
+      res.json({
+        success: true,
+        message: req.body.approve
+          ? 'Disbursement reversed.'
+          : 'Reversal request rejected.',
+        data: { request: result },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Review reversal error:', error);
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Could not review the request',
+        error: 'REVERSAL_REVIEW_FAILED',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/v1/loans/clients/{clientId}/eligibility:
+ *   get:
+ *     summary: Whether this client should be given another loan
+ *     tags: [Loans]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/clients/:clientId/eligibility', authenticate, async (req, res) => {
+  try {
+    const clientId = req.params.clientId!;
+    const organizationId = req.user?.organizationId;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const eligibility = await getLoanEligibility(clientId, organizationId);
+
+    res.json({
+      success: true,
+      message: 'Loan eligibility retrieved successfully',
+      data: eligibility,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Loan eligibility error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/loans/applications/{id}/statement:
+ *   get:
+ *     summary: Loan statement as HTML, or as PDF with ?format=pdf
+ *     tags: [Loans]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/applications/:id/statement', authenticate, async (req, res) => {
+  try {
+    const id = req.params.id!;
+    const organizationId = req.user?.organizationId;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const loan = await getStatementData(id, organizationId);
+
+    if (!loan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Loan not found',
+        error: 'NOT_FOUND',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const html = renderStatementHtml(loan);
+
+    // The same document either way: the browser prints this HTML, and the PDF
+    // is this HTML rendered by headless Chromium. They cannot drift apart.
+    if (req.query.format === 'pdf') {
+      try {
+        const pdf = await renderHtmlToPdf(html);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="statement-${loan.loanNumber}.pdf"`
+        );
+        res.setHeader('Content-Length', String(pdf.length));
+        return res.end(pdf);
+      } catch (pdfError) {
+        console.error('Statement PDF render failed:', pdfError);
+        return res.status(503).json({
+          success: false,
+          message:
+            'The PDF could not be generated. Use Print and choose "Save as PDF" in the meantime.',
+          error: 'PDF_RENDER_FAILED',
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  } catch (error) {
+    console.error('Loan statement error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 export default router;

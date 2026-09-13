@@ -125,6 +125,30 @@ class UserController {
         });
       }
 
+      // An organization's first user must be its administrator.
+      //
+      // Without this an organization could be filled with loan officers and
+      // tellers and have nobody able to configure it, approve anything, or
+      // manage the people in it - a dead org that looks populated. The first
+      // account created for an organization is therefore required to be an
+      // ORG_ADMIN, and every other role is refused until one exists.
+      if (organizationId) {
+        const administrators = await userService.countAdministrators(
+          organizationId
+        );
+
+        if (administrators === 0 && role !== UserRole.ORG_ADMIN) {
+          return res.status(422).json({
+            success: false,
+            message:
+              'This organization has no administrator yet. The first user must be an Organization Admin.',
+            error: 'ORG_ADMIN_REQUIRED',
+            field: 'role',
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
       const user = await userService.create({
         email,
         password,
@@ -144,6 +168,18 @@ class UserController {
       });
     } catch (error) {
       console.error('Create user error:', error);
+
+      const message = (error as Error)?.message;
+      if (message && /already (exists|registered)/i.test(message)) {
+        return res.status(409).json({
+          success: false,
+          message,
+          error: 'USER_EXISTS',
+          field: 'email',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -163,6 +199,60 @@ class UserController {
       const updateData = req.body;
       const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
       const organizationId = req.user?.organizationId;
+
+      const existing = await userService.findById(id, organizationId, isSuperAdmin);
+
+      if (!existing) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // Captured for the audit entry, which records what changed.
+      req.previousEntityState = {
+        id: existing.id,
+        email: existing.email,
+        firstName: existing.firstName,
+        lastName: existing.lastName,
+        role: existing.role,
+        isActive: existing.isActive,
+        branchId: (existing as any).branchId ?? null,
+      };
+
+      // The same rule as creation, from the other direction: an organization
+      // must never be left without an administrator. Blocking the first user
+      // from being anything else is pointless if the only administrator can
+      // then be demoted out of the role.
+      const wasAdministrator =
+        existing.role === UserRole.ORG_ADMIN || existing.role === UserRole.ADMIN;
+      const becomesAdministrator =
+        updateData.role === UserRole.ORG_ADMIN ||
+        updateData.role === UserRole.ADMIN;
+
+      if (
+        updateData.role &&
+        wasAdministrator &&
+        !becomesAdministrator &&
+        existing.organizationId
+      ) {
+        const administrators = await userService.countAdministrators(
+          existing.organizationId
+        );
+
+        if (administrators <= 1) {
+          return res.status(422).json({
+            success: false,
+            message:
+              'This is the only administrator for the organization. Give someone else that role first.',
+            error: 'LAST_ORG_ADMIN',
+            field: 'role',
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
 
       const user = await userService.update(
         id,
@@ -268,6 +358,25 @@ class UserController {
         });
       }
 
+      // Captured before the row disappears.
+      //
+      // Deleting a user sets audit_logs.userId to NULL, so their past entries
+      // survive but lose attribution. Recording who was removed - and by whom -
+      // on the deletion entry itself is the only place that identity is kept,
+      // and `previousEntityState` is what the audit middleware writes into
+      // previousValue.
+      const deleted = await userService.findById(id, organizationId, isSuperAdmin);
+      if (deleted) {
+        req.previousEntityState = {
+          id: deleted.id,
+          email: deleted.email,
+          firstName: deleted.firstName,
+          lastName: deleted.lastName,
+          role: deleted.role,
+          organizationId: deleted.organizationId,
+        };
+      }
+
       await userService.delete(id, organizationId, isSuperAdmin);
 
       res.json({
@@ -277,6 +386,7 @@ class UserController {
       });
     } catch (error) {
       console.error('Delete user error:', error);
+
       if ((error as Error).message === 'User not found') {
         return res.status(404).json({
           success: false,
@@ -285,6 +395,18 @@ class UserController {
           timestamp: new Date().toISOString(),
         });
       }
+
+      // The user is attached to records that must not be orphaned. That is a
+      // decision the operator can act on, not a server fault.
+      if ((error as any)?.code === 'USER_HAS_RECORDS') {
+        return res.status(409).json({
+          success: false,
+          message: (error as Error).message,
+          error: 'USER_HAS_RECORDS',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',

@@ -84,11 +84,22 @@ router.get(
 
       const skip = (Number(page) - 1) * Number(limit);
 
-      // Build where clause
+      /**
+       * Repayments only.
+       *
+       * A disbursement is recorded as a Payment row too - it is money moving
+       * against the loan - but it is money going *out*. Listing it here put the
+       * disbursement in Loan Repayments, counted it in "Total Collected", and
+       * showed a loan as having been partly repaid on the day it was paid out.
+       * Pass ?type=ALL to see every movement including disbursements.
+       */
       const where: any = {
         loan: {
           organizationId,
         },
+        ...(req.query.type === 'ALL'
+          ? {}
+          : { type: { notIn: ['LOAN_DISBURSEMENT', 'LOAN_TOPUP'] } }),
       };
 
       if (loanId) {
@@ -190,19 +201,24 @@ router.get(
         prisma.payment.count({ where }),
       ]);
 
-      // Get summary statistics
-      const summaryWhere = {
-        loan: { organizationId },
-        ...(status && { status }),
-        ...(dateFrom || dateTo
-          ? {
-              paymentDate: {
-                ...(dateFrom && { gte: new Date(dateFrom) }),
-                ...(dateTo && { lte: new Date(dateTo) }),
-              },
-            }
-          : {}),
-      };
+      /**
+       * Summary figures over exactly what the list is showing.
+       *
+       * These built their own filter and got it wrong twice. It omitted the
+       * disbursement exclusion, so the disbursement was counted as a completed
+       * repayment - "Completed 1" above an empty table. And the status
+       * breakdown filtered on nothing but the organization, so it ignored the
+       * status, method, date and search filters the operator had applied and
+       * described a different set of rows from the one underneath it.
+       *
+       * Reusing the list's own `where` means the cards and the table can only
+       * ever agree.
+       */
+      const summaryWhere = { ...where };
+      // The status card breaks down by status, so it must not be pre-filtered
+      // by one.
+      const breakdownWhere = { ...where };
+      delete (breakdownWhere as any).status;
 
       const [totalAmount, statusCounts] = await Promise.all([
         prisma.payment.aggregate({
@@ -211,7 +227,7 @@ router.get(
         }),
         prisma.payment.groupBy({
           by: ['status'],
-          where: { loan: { organizationId } },
+          where: breakdownWhere,
           _count: true,
         }),
       ]);

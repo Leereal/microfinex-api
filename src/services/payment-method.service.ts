@@ -153,14 +153,32 @@ class PaymentMethodService {
       orderBy: { name: 'asc' },
     });
 
-    const totalBalance = paymentMethods.reduce(
-      (sum, pm) => sum + Number(pm.currentBalance),
-      0
-    );
+    /**
+     * Held cash, per currency.
+     *
+     * `totalBalance` added ZAR to USD to ZiG and returned one scalar, which is
+     * not an amount of anything. It is kept only so existing callers do not
+     * break, and is now explicitly the figure for the default currency's
+     * methods rather than a cross-currency sum. Read `byCurrency`.
+     */
+    const balances = new Map<string, number>();
+    for (const method of paymentMethods) {
+      const currency = method.currency || 'USD';
+      balances.set(
+        currency,
+        (balances.get(currency) ?? 0) + Number(method.currentBalance)
+      );
+    }
+
+    const byCurrency = Array.from(balances.entries())
+      .map(([currency, balance]) => ({ currency, balance }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return {
       paymentMethods,
-      totalBalance,
+      byCurrency,
+      // Deprecated: a single number across currencies has no meaning.
+      totalBalance: byCurrency.length === 1 ? byCurrency[0]!.balance : 0,
     };
   }
 

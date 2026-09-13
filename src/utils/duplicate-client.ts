@@ -57,14 +57,24 @@ function resolveField(error: any): string | null {
   const target = error?.meta?.target;
 
   if (Array.isArray(target)) {
+    // Composite now: ['organizationId', 'phone']. organizationId is never the
+    // interesting half, so the first column that names a real field wins.
     const known = target.find((column: string) => column in UNIQUE_FIELDS);
     if (known) return known;
+    const meaningful = target.find(
+      (column: string) => column && column !== 'organizationId'
+    );
+    if (typeof meaningful === 'string') return meaningful;
     if (typeof target[0] === 'string' && target[0]) return target[0];
   }
 
   if (typeof target === 'string' && target) {
-    // A constraint name: "clients_phone_key" -> "phone".
-    const stripped = target.replace(/^clients_/, '').replace(/_key$/, '');
+    // A constraint name: "clients_organizationId_phone_key" -> "phone", or the
+    // older "clients_phone_key" from before uniqueness was scoped.
+    const stripped = target
+      .replace(/^clients_/, '')
+      .replace(/^organizationId_/, '')
+      .replace(/_key$/, '');
     if (stripped in UNIQUE_FIELDS) return stripped;
 
     const matched = Object.keys(UNIQUE_FIELDS).find(field =>
@@ -96,13 +106,13 @@ const clientLabel = (client: {
 };
 
 /**
- * Describe a duplicate-client failure, naming the existing record when the
- * caller is entitled to see it.
+ * Describe a duplicate-client failure, naming the record that clashed.
  *
- * `phone` and `idNumber` are unique across the whole database, not per
- * organization, so the clashing client may belong to a different tenant. In
- * that case the conflict is reported without naming them - the operator still
- * learns which field to change, and nothing leaks across organizations.
+ * Uniqueness is scoped to the organization, so a clash is always with a record
+ * the caller can already see and can safely be named. The cross-organization
+ * branch this used to carry is gone with the constraint that caused it - but
+ * the lookup is still scoped defensively, so a stale global index could not
+ * leak another tenant's client into the message.
  */
 export async function describeDuplicateClient(
   error: any,
@@ -125,7 +135,12 @@ export async function describeDuplicateClient(
   if (typeof value === 'string' && value) {
     try {
       const existing = await prisma.client.findFirst({
-        where: { [field]: value } as any,
+        where: {
+          [field]: value,
+          ...(context.organizationId
+            ? { organizationId: context.organizationId }
+            : {}),
+        } as any,
         select: {
           firstName: true,
           lastName: true,

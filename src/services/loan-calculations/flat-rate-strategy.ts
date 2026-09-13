@@ -38,6 +38,7 @@ export class FlatRateStrategy implements ILoanCalculationStrategy {
       insuranceFeeAmount = new Decimal(0),
       insuranceFeePercentage = new Decimal(0),
       disbursementDate = new Date(),
+      firstDueDate: agreedFirstDueDate,
     } = input;
 
     // Calculate number of payments
@@ -85,7 +86,8 @@ export class FlatRateStrategy implements ILoanCalculationStrategy {
     const firstDueDate = LoanCalculationUtils.getFirstDueDate(
       disbursementDate,
       gracePeriodDays,
-      repaymentFrequency
+      repaymentFrequency,
+      agreedFirstDueDate
     );
     const currentDate = firstDueDate;
 
@@ -95,7 +97,8 @@ export class FlatRateStrategy implements ILoanCalculationStrategy {
         disbursementDate,
         gracePeriodDays,
         repaymentFrequency,
-        i
+        i,
+        agreedFirstDueDate
       );
 
       // For flat rate, principal and interest are constant per installment

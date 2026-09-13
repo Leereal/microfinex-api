@@ -503,18 +503,53 @@ class PaymentService {
     ]);
 
     return {
-      payments: payments.map(payment => ({
+      payments: payments.map(payment => {
+        /**
+         * Which way the money went.
+         *
+         * Every row used to be labelled a repayment with the amount in the
+         * credit column, disbursements and top-ups included - so a loan that
+         * had been paid out twice looked like a loan that had been paid off
+         * twice, and the statement's "total payments received" counted money
+         * the lender had handed over. Money leaving is a debit against the
+         * loan; only money coming in is a credit.
+         */
+        const isAdvance =
+          payment.type === 'LOAN_DISBURSEMENT' || payment.type === 'LOAN_TOPUP';
+        const amount = parseFloat(payment.amount.toString());
+
+        const transactionType =
+          payment.type === 'LOAN_DISBURSEMENT'
+            ? 'disbursement'
+            : payment.type === 'LOAN_TOPUP'
+              ? 'topup'
+              : payment.type === 'LOAN_REPAYMENT'
+                ? 'repayment'
+                : payment.type.toLowerCase();
+
+        const description =
+          payment.notes ||
+          (payment.type === 'LOAN_TOPUP'
+            ? `Top-up on ${payment.loan?.loanNumber}`
+            : payment.type === 'LOAN_DISBURSEMENT'
+              ? `Disbursement of ${payment.loan?.loanNumber}`
+              : `Payment for ${payment.loan?.loanNumber}`);
+
+        return {
         id: payment.id,
         loan_id: payment.loanId,
         loan_number: payment.loan?.loanNumber,
         client_name: payment.loan?.client
           ? `${payment.loan.client.firstName} ${payment.loan.client.lastName}`
           : '',
-        transaction_type: 'repayment',
-        description: `Payment for ${payment.loan?.loanNumber}`,
-        debit: 0,
-        credit: parseFloat(payment.amount.toString()),
-        amount: parseFloat(payment.amount.toString()),
+        type: payment.type,
+        transaction_type: transactionType,
+        is_advance: isAdvance,
+        payment_number: payment.paymentNumber,
+        description,
+        debit: isAdvance ? amount : 0,
+        credit: isAdvance ? 0 : amount,
+        amount,
         principal_amount: parseFloat(payment.principalAmount.toString()),
         interest_amount: parseFloat(payment.interestAmount.toString()),
         penalty_amount: parseFloat(payment.penaltyAmount.toString()),
@@ -531,7 +566,8 @@ class PaymentService {
           ? `${payment.receiver.firstName} ${payment.receiver.lastName}`
           : '',
         notes: payment.notes,
-      })),
+        };
+      }),
       total,
       page,
       limit,

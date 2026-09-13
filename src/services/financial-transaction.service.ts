@@ -825,7 +825,13 @@ class FinancialTransactionService {
         take: limit,
       }),
       prisma.financialTransaction.count({ where }),
-      prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } }),
+      // Scoped to the organization: findUnique on the id alone would return a
+      // payment method belonging to somebody else. The transaction query is
+      // already scoped, so only this object was exposed, but it carries the
+      // name, account number and balance.
+      prisma.paymentMethod.findFirst({
+        where: { id: paymentMethodId, organizationId },
+      }),
     ]);
 
     return {

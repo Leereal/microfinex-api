@@ -1,0 +1,13 @@
+-- A top-up is not a disbursement.
+--
+-- Money advanced onto a loan that is already running was being recorded with
+-- type LOAN_DISBURSEMENT, which made it indistinguishable from the original
+-- payout: it could not be listed, totalled or reversed on its own, and every
+-- place that asked "is this money going out?" answered by string-matching the
+-- payment number. Giving it its own transaction type makes the question
+-- answerable in SQL.
+--
+-- Adding an enum value must be its own migration: PostgreSQL will not let a new
+-- label be used by statements in the transaction that created it, so the
+-- backfill follows separately.
+ALTER TYPE "TransactionType" ADD VALUE IF NOT EXISTS 'LOAN_TOPUP' AFTER 'LOAN_DISBURSEMENT';

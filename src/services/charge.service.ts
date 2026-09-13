@@ -623,42 +623,99 @@ class ChargeService {
     let deductedFromPrincipal = 0;
     let addedToLoan = 0;
 
+    /**
+     * Charges the loan already carries.
+     *
+     * The application form puts the chosen charges on the loan when it is
+     * created, and this then applied the very same charges again at
+     * disbursement - a 10% admin fee on a 500 loan came to 100. They are also
+     * where the officer's decision lives about whether the client settles a fee
+     * out of the money advanced or pays it separately, so an existing row is
+     * counted as it stands rather than replaced by the charge's default.
+     */
+    const existingCharges = await prisma.loanCharge.findMany({
+      where: { loanId: input.loanId },
+    });
+
+    const alreadyOnLoan = new Map(
+      existingCharges.map(existing => [existing.chargeId, existing])
+    );
+
     await prisma.$transaction(async tx => {
       for (const charge of charges) {
-        const calculatedAmount = this.calculateChargeAmount(
-          charge,
-          loanAmount,
-          currency
-        );
+        const existing = alreadyOnLoan.get(charge.id);
+
+        const calculatedAmount = existing
+          ? Number(existing.calculatedAmount)
+          : this.calculateChargeAmount(charge, loanAmount, currency);
 
         if (calculatedAmount <= 0) continue;
 
-        // Create loan charge record
-        const loanCharge = await tx.loanCharge.create({
-          data: {
-            loanId: input.loanId,
-            chargeId: charge.id,
-            chargeName: charge.name,
-            chargeType: charge.type,
-            calculationType: charge.calculationType,
-            currency,
-            baseAmount: loanAmount,
-            calculatedAmount,
-            amount: calculatedAmount,
-            isDeductedFromPrincipal: charge.isDeductedFromPrincipal,
-            status: 'COMPLETED', // Charges are applied immediately at disbursement
-            appliedBy: input.appliedBy,
-            paidAmount: calculatedAmount, // Considered paid at disbursement
-            paidAt: new Date(),
-          },
-        });
+        const isDeducted = existing
+          ? existing.isDeductedFromPrincipal
+          : charge.isDeductedFromPrincipal;
 
-        // Create financial transaction for the charge (income for the org)
-        if (input.paymentMethodId) {
+        const loanCharge = existing
+          ? await tx.loanCharge.update({
+              where: { id: existing.id },
+              data: {
+                status: 'COMPLETED',
+                appliedBy: existing.appliedBy ?? input.appliedBy,
+                paidAmount: calculatedAmount,
+                paidAt: existing.paidAt ?? new Date(),
+              },
+            })
+          : await tx.loanCharge.create({
+              data: {
+                loanId: input.loanId,
+                chargeId: charge.id,
+                chargeName: charge.name,
+                chargeType: charge.type,
+                calculationType: charge.calculationType,
+                currency,
+                baseAmount: loanAmount,
+                calculatedAmount,
+                amount: calculatedAmount,
+                isDeductedFromPrincipal: charge.isDeductedFromPrincipal,
+                status: 'COMPLETED', // Charges are applied immediately at disbursement
+                appliedBy: input.appliedBy,
+                paidAmount: calculatedAmount, // Considered paid at disbursement
+                paidAt: new Date(),
+              },
+            });
+
+        // Create financial transaction for the charge (income for the org). A
+        // charge raised at application has not been booked as income yet, so
+        // this runs for it too - but never twice for the same charge.
+        if (input.paymentMethodId && !loanCharge.financialTransactionId) {
+          /**
+           * An income transaction must name an income category.
+           *
+           * This never passed one, so every attempt threw "Income category is
+           * required for income transactions" - meaning a charge could never be
+           * recorded as income no matter how the organization was set up. The
+           * disbursement path resolves its category the same way; this one
+           * simply did not.
+           */
+          const feeCategory = await tx.incomeCategory.findFirst({
+            where: {
+              organizationId: loan.organizationId,
+              code: { in: ['PROCESSING_FEE', 'OTHER_INCOME'] },
+            },
+            orderBy: { code: 'asc' },
+          });
+
+          if (!feeCategory) {
+            throw new Error(
+              'No income category exists for loan charges. Add a "Processing Fee" income category (or seed the defaults) under Finances, then disburse again.'
+            );
+          }
+
           const transaction = await financialTransactionService.create({
             organizationId: loan.organizationId,
             branchId: loan.branchId,
             type: 'INCOME',
+            incomeCategoryId: feeCategory.id,
             amount: calculatedAmount,
             currency,
             paymentMethodId: input.paymentMethodId,
@@ -678,7 +735,7 @@ class ChargeService {
         loanCharges.push(loanCharge);
         totalCharges += calculatedAmount;
 
-        if (charge.isDeductedFromPrincipal) {
+        if (isDeducted) {
           deductedFromPrincipal += calculatedAmount;
         } else {
           addedToLoan += calculatedAmount;

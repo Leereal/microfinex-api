@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { organizationService } from '../services/organization.service';
 import { UserRole } from '../types';
 import { describeDuplicateOrganization } from '../utils/duplicate-organization';
+import { getSetupStatus } from '../services/organization-setup.service';
 
 class OrganizationController {
   /**
@@ -259,6 +260,53 @@ class OrganizationController {
       });
     } catch (error) {
       console.error('Update organization status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * What this organization still needs before it can operate
+   * GET /api/v1/organizations/:id/setup-status
+   */
+  async getSetupStatus(req: Request, res: Response) {
+    try {
+      const id = req.params.id!;
+      const isSuperAdmin = req.user?.role === UserRole.SUPER_ADMIN;
+
+      // An operator may only ask about their own organization.
+      if (!isSuperAdmin && req.user?.organizationId !== id) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied',
+          error: 'FORBIDDEN',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const status = await getSetupStatus(id, { isSuperAdmin });
+
+      if (!status) {
+        return res.status(404).json({
+          success: false,
+          message: 'Organization not found',
+          error: 'NOT_FOUND',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Setup status retrieved successfully',
+        data: status,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get setup status error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

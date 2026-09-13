@@ -162,10 +162,19 @@ class LoanAssessmentService {
     });
   }
 
-  async getPendingAssessments(assessorId?: string) {
+  /**
+   * Assessments still to be done, for one organization.
+   *
+   * `organizationId` is required, not optional. Without it this returned every
+   * pending assessment on the platform - one organization's staff saw another
+   * organization's loans, client names and phone numbers on their own queue.
+   * Making it a required parameter means a caller cannot forget it again.
+   */
+  async getPendingAssessments(organizationId: string, assessorId?: string) {
     return prisma.loanAssessment.findMany({
       where: {
         status: 'PENDING',
+        loan: { organizationId },
         ...(assessorId && { assessorId }),
       },
       include: {
@@ -174,6 +183,11 @@ class LoanAssessmentService {
             id: true,
             loanNumber: true,
             amount: true,
+            // The currency the loan is in, and the product it is against -
+            // the list showed every amount with a dollar sign and "N/A" for
+            // the product because neither was ever selected.
+            currency: true,
+            product: { select: { id: true, name: true } },
             client: {
               select: { firstName: true, lastName: true, phone: true },
             },
@@ -298,10 +312,13 @@ class LoanVisitService {
     });
   }
 
-  async getPendingVisits(userId?: string) {
+  /** Visits still to be made, for one organization. Scoped for the same
+   *  reason as getPendingAssessments. */
+  async getPendingVisits(organizationId: string, userId?: string) {
     return prisma.loanVisit.findMany({
       where: {
         visitedAt: null,
+        loan: { organizationId },
         ...(userId && { visitedBy: userId }),
       },
       include: {
@@ -310,6 +327,8 @@ class LoanVisitService {
             id: true,
             loanNumber: true,
             amount: true,
+            currency: true,
+            product: { select: { id: true, name: true } },
             client: {
               select: {
                 firstName: true,
@@ -1113,7 +1132,41 @@ class CategoryAwareWorkflowEngine {
       };
     }
 
-    // Apply disbursement charges if requested
+    /**
+     * Everything that can refuse the disbursement is checked before anything is
+     * written.
+     *
+     * These steps used to run in the opposite order, and the charge failure was
+     * caught and ignored: the loan was set ACTIVE and a disbursement payment
+     * recorded, and only then did the financial transaction fail on a missing
+     * expense category. The result was a loan marked disbursed with no money
+     * recorded as having moved, no charges applied, and a status that made it
+     * impossible to disburse again - "Loan must be in APPROVED or
+     * PENDING_DISBURSEMENT status. Current status: ACTIVE".
+     *
+     * Checking first means a missing category leaves the loan exactly as it
+     * was, and the operator can seed the category and try again.
+     */
+    if (disbursementDetails?.paymentMethodId) {
+      const disbursementCategory = await prisma.expenseCategory.findFirst({
+        where: {
+          organizationId: loan.organizationId,
+          code: 'LOAN_DISBURSEMENT',
+        },
+        select: { id: true },
+      });
+
+      if (!disbursementCategory) {
+        return {
+          success: false,
+          error:
+            'No "Loan Disbursement" expense category exists for this organization. Add it (or seed the defaults) under Finances > Expense Categories, then disburse again. Nothing has been changed.',
+        };
+      }
+    }
+
+    // Apply disbursement charges. A failure here aborts the disbursement
+    // rather than quietly producing a loan whose charges were never taken.
     let chargesResult = null;
     let netDisbursement = loanAmount;
 
@@ -1131,26 +1184,58 @@ class CategoryAwareWorkflowEngine {
         netDisbursement = chargesResult.netDisbursement;
       } catch (error) {
         console.error('Error applying charges:', error);
-        // Continue with disbursement even if charges fail
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? `Charges could not be applied, so the loan was not disbursed. ${error.message}`
+              : 'Charges could not be applied, so the loan was not disbursed.',
+        };
       }
     }
 
-    // Update loan with disbursement details and change status
-    const updatedLoan = await prisma.loan.update({
-      where: { id: loanId },
-      data: {
-        status: LoanStatus.ACTIVE,
-        disbursedDate: disbursementDate,
-      },
-    });
+    /**
+     * The status change, the disbursement payment and the money leaving the
+     * account, together or not at all.
+     */
+    let updatedLoan;
+    try {
+      updatedLoan = await prisma.loan.update({
+        where: { id: loanId },
+        data: {
+          status: LoanStatus.ACTIVE,
+          disbursedDate: disbursementDate,
+          // Recorded so the statement can say who paid the loan out; without
+          // it "Disbursed By" was blank on every statement ever printed.
+          disbursedById: disbursedBy,
+        },
+      });
+    } catch (error) {
+      console.error('Disbursement status update failed:', error);
+      return {
+        success: false,
+        error:
+          'The loan could not be marked as disbursed. Nothing has been changed.',
+      };
+    }
 
-    // Create disbursement payment record (net amount after deductions)
+    /**
+     * The disbursement is the amount applied for, not what the client walks
+     * away with.
+     *
+     * A client who borrows 100 and owes a 10 fee is lent 100 and pays 10; that
+     * they usually settle the fee out of the money just handed to them is a
+     * convenience, not a smaller loan. Recording the 90 made the loan, the
+     * expense and the fee income disagree - the fee was booked as income and
+     * also netted off the expense, so the payment method finished every
+     * disbursement richer by the fee than it really was.
+     */
     const payment = await prisma.payment.create({
       data: {
         paymentNumber: `DISB-${loan.loanNumber}`,
         loanId,
-        amount: netDisbursement, // Net amount after charges deducted from principal
-        principalAmount: netDisbursement,
+        amount: loanAmount,
+        principalAmount: loanAmount,
         interestAmount: 0,
         penaltyAmount: 0,
         type: 'LOAN_DISBURSEMENT',
@@ -1162,24 +1247,62 @@ class CategoryAwareWorkflowEngine {
         notes:
           disbursementDetails?.notes ||
           `Loan disbursement via ${disbursementDetails?.disbursementMethod || 'default'}` +
-            (chargesResult
-              ? ` (Charges: ${chargesResult.totalCharges}, Net: ${netDisbursement})`
-              : ''),
+            (chargesResult ? ` (Charges: ${chargesResult.totalCharges})` : ''),
       },
     });
 
     // Create financial transaction for the disbursement (expense) if paymentMethodId is provided
     if (disbursementDetails?.paymentMethodId) {
-      await financialTransactionService.recordLoanDisbursement(
-        loan.organizationId,
-        loan.branchId,
-        loanId,
-        loan.loanNumber,
-        netDisbursement, // Record net disbursement amount
-        loan.product?.currency || 'USD',
-        disbursementDetails.paymentMethodId,
-        disbursedBy
-      );
+      try {
+        await financialTransactionService.recordLoanDisbursement(
+          loan.organizationId,
+          loan.branchId,
+          loanId,
+          loan.loanNumber,
+          // Gross: the charges are booked separately as income, and netting
+          // them off here as well would count them twice.
+          loanAmount,
+          loan.currency || loan.product?.currency || 'USD',
+          disbursementDetails.paymentMethodId,
+          disbursedBy
+        );
+      } catch (error) {
+        /**
+         * The money did not move, so the loan must not stay disbursed.
+         *
+         * The pre-flight check above should make this unreachable, but a loan
+         * left ACTIVE with no matching financial transaction is the worst
+         * outcome available here - it cannot be disbursed again and the books
+         * do not show the cash leaving. Undo the two writes and report it.
+         */
+        console.error('Disbursement transaction failed, rolling back:', error);
+
+        await prisma.payment
+          .delete({ where: { id: payment.id } })
+          .catch(rollbackError =>
+            console.error(
+              'Could not remove the disbursement payment:',
+              rollbackError
+            )
+          );
+
+        await prisma.loan
+          .update({
+            where: { id: loanId },
+            data: { status: loan.status, disbursedDate: null },
+          })
+          .catch(rollbackError =>
+            console.error('Could not restore the loan status:', rollbackError)
+          );
+
+        return {
+          success: false,
+          error:
+            error instanceof Error
+              ? `The disbursement was reversed because it could not be recorded against the payment method. ${error.message}`
+              : 'The disbursement was reversed because it could not be recorded against the payment method.',
+        };
+      }
     }
 
     // Calculate and set interest, due dates using loan engine
@@ -1222,9 +1345,7 @@ class CategoryAwareWorkflowEngine {
       notes:
         disbursementDetails?.notes ||
         `Disbursed via ${disbursementDetails?.disbursementMethod || 'default'}` +
-          (chargesResult
-            ? ` | Charges: ${chargesResult.totalCharges} | Net: ${netDisbursement}`
-            : '') +
+          (chargesResult ? ` | Charges: ${chargesResult.totalCharges}` : '') +
           (engineResult.calculations
             ? ` | Interest: ${engineResult.calculations.interestAmount} | Due: ${engineResult.calculations.expectedRepaymentDate.toISOString().split('T')[0]}`
             : ''),
@@ -1256,6 +1377,7 @@ class CategoryAwareWorkflowEngine {
         client: {
           select: {
             id: true,
+            clientNumber: true,
             firstName: true,
             lastName: true,
             phone: true,
@@ -1278,6 +1400,22 @@ class CategoryAwareWorkflowEngine {
             id: true,
             firstName: true,
             lastName: true,
+          },
+        },
+        /**
+         * The charges already on the loan, so the disburse screen can show what
+         * the client will actually be handed. A fee the client is paying
+         * separately leaves the amount to hand over untouched, and only the
+         * loan's own charge rows record which way round it is.
+         */
+        loanCharges: {
+          select: {
+            id: true,
+            chargeId: true,
+            chargeName: true,
+            calculatedAmount: true,
+            isDeductedFromPrincipal: true,
+            status: true,
           },
         },
       },

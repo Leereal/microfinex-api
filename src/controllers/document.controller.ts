@@ -692,8 +692,29 @@ class DocumentController {
     try {
       const organizationId = req.user?.organizationId;
       const userId = req.user?.userId;
-      const { name, description, isRequired, supportsAI, aiExtractionFields } =
-        req.body;
+      const { name, description, isRequired, isActive, sortOrder } = req.body;
+
+      /**
+       * The code, which is what an upload is matched against.
+       *
+       * `code` is required on the model and unique per organization, and this
+       * handler never set it - along with writing supportsAI,
+       * aiExtractionFields and createdBy, none of which exist on DocumentType.
+       * Every attempt to add a document type therefore died in Prisma and came
+       * back as "Failed to create document type". Derived from the name when
+       * the caller does not supply one.
+       */
+      const rawCode: unknown = req.body.code;
+      const code =
+        (typeof rawCode === 'string' && rawCode.trim()
+          ? rawCode
+          : String(name ?? '')
+        )
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 30) || 'DOCUMENT';
 
       if (!organizationId) {
         return res.status(400).json({
@@ -733,15 +754,32 @@ class DocumentController {
         });
       }
 
+      // The unique constraint is on (organizationId, code), so a clash there
+      // is what actually blocks the insert - it was never checked.
+      const codeClash = await prisma.documentType.findFirst({
+        where: { organizationId, code },
+        select: { name: true },
+      });
+
+      if (codeClash) {
+        return res.status(409).json({
+          success: false,
+          message: `The code "${code}" is already used by ${codeClash.name}`,
+          error: 'DUPLICATE_CODE',
+          field: 'code',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const documentType = await prisma.documentType.create({
         data: {
           name,
-          description,
+          code,
+          description: description ?? null,
           isRequired: isRequired ?? false,
-          supportsAI: supportsAI ?? false,
-          aiExtractionFields: aiExtractionFields ?? [],
+          isActive: isActive ?? true,
+          sortOrder: typeof sortOrder === 'number' ? sortOrder : 0,
           organizationId,
-          createdBy: userId,
         },
       });
 
@@ -770,14 +808,8 @@ class DocumentController {
     try {
       const { typeId } = req.params;
       const organizationId = req.user?.organizationId;
-      const {
-        name,
-        description,
-        isRequired,
-        supportsAI,
-        aiExtractionFields,
-        isActive,
-      } = req.body;
+      const { name, description, isRequired, isActive, sortOrder, code } =
+        req.body;
 
       if (!organizationId) {
         return res.status(400).json({
@@ -830,15 +862,44 @@ class DocumentController {
         }
       }
 
+      // Same as create: supportsAI and aiExtractionFields are not fields on
+      // DocumentType, so including them made every update throw.
+      const normalisedCode =
+        typeof code === 'string' && code.trim()
+          ? code
+              .trim()
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, '_')
+              .replace(/^_+|_+$/g, '')
+              .slice(0, 30)
+          : undefined;
+
+      if (normalisedCode && normalisedCode !== existingType.code) {
+        const codeClash = await prisma.documentType.findFirst({
+          where: { organizationId, code: normalisedCode, id: { not: typeId } },
+          select: { name: true },
+        });
+
+        if (codeClash) {
+          return res.status(409).json({
+            success: false,
+            message: `The code "${normalisedCode}" is already used by ${codeClash.name}`,
+            error: 'DUPLICATE_CODE',
+            field: 'code',
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
       const documentType = await prisma.documentType.update({
         where: { id: typeId },
         data: {
           ...(name && { name }),
+          ...(normalisedCode && { code: normalisedCode }),
           ...(description !== undefined && { description }),
           ...(isRequired !== undefined && { isRequired }),
-          ...(supportsAI !== undefined && { supportsAI }),
-          ...(aiExtractionFields !== undefined && { aiExtractionFields }),
           ...(isActive !== undefined && { isActive }),
+          ...(typeof sortOrder === 'number' && { sortOrder }),
         },
       });
 

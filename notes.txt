@@ -166,3 +166,68 @@ console.log(interaction.output_text); that's genai.
 - When we click edit client on the edit page the ID Type and Phone number code it deselects what was selected before. Check all other dropdowns if that is also working fine. It should work
 
 1. This view screen does not look close to the create / edit screen. It won't make sense if it's like this 
+
+############################################
+
+- We can't view organization details at the moment. We should be able to
+- I failed to update the organization logo and got an error  please fix that and also when I update the logo on the list where there is that building icon on organizations list put the logo and in that same size
+- When we do not have the branches like on that new org then please allow creating on the fly 
+- Fix the breadcrumbs there on the whole app allow users to be able to navigate using them
+- The audit logs are not properly done please investigate and fix properly the right way. Add whatever is necessary and handle them like a seniour engineer
+- Default currency on settings is not aligned with the one in currencies and they should be aligned and related from one source which is currencies
+- 
+
+- Payment Methods page failed please fix
+- The payment method page does not look like other pages the cards too big exactly
+
+- I initially added the initial balance to the payment method that I created (ZAR 7000) then later on clicked the Adjust Button to Adjust Amount by adding / crediting R1000 to make it 8000 but now dashboard shows only ZAR 1000 what happened to the other amount
+- Also aI don't have like a view history of what happened so I won't be able to track that as well
+
+
+- clicking go to ai configuration is taking me to the dashboard instead
+- On the country code default to ZA instead of zw
+- After adding client I got an error
+
+1. Everything is wrong on thsi screen. Why are we showing clients for other organizations and also everything is $ signed, no product displayed , 
+2. The loan statement after print click is not showing properly it's cutting off some things 
+3. The design for loan details is not looking great Please find other way to make it professional and nicer those top cards are too big 
+4. Also the currency is hard corded please go through the whole code and find places where we are hardcording currencies and fix that 
+5. I can't remember what I seleted. Is the Due date correct because I think I selected first payment date as the 30th of September which will be the date the client promised to pay or expected to pay. On overview it's clear but on schedule it's something else different 
+
+- Download as PDF in Loan Statement must download the pdf please use the best latest PDF creation tools to handle that at the backend or something. It mus come of exactly as it is when we say print preview
+- I think when loan is created and waiting for assessment a notification should reflect so that whoever have the permission to do so will see and also including disbursement as well. 
+- I think we should also be able to select a user who will be able to do that. A user with a role that have the permission to assess, disburse etc. Do not display in list if a user does not have the permission only allow assigning to user with the permission to do so. It should be optional otherwise the notification goes to everyone with permission. So that means the person assigned should be the only one to see the notification if assigned is selected.
+- The $ signs on loan statement are not correct for that loan please fix do not hard cord
+- On Disburse loan remember admin is 10%  and the amount to cashout is R180 all that is not showinh but I see disaster only there please fix that's completely wronganalyze and fix
+
+- In future I want to be able to seed Expense Categories during the setup wizard as well if they are not there.
+-  When a loan is active sometimes we want to reverse it but we just want the person who disbursed that loan to be the one or someone with permission to reverse disbursement to be the one able to submit the reversal request. Then only the one with reverse disbursement to see the notification and also be able to finalize the reversal. Reversal must handle all stages properly and all deduction and additions that were cause by that loan and keep track record of such 
+- You see we already have a loan for Godfrey that is running but we do not have a way to tell that. After selecting a client we should be able to view theirat the bottom in Financial details section below attachments. Then we must have a way to topup instead option. Clicking that will just allow topping up instead of creating a new loan. Also there are certain stages / statuses of a loan that we do not want to give someone a loan if one of the previous are in that state 
+- You are allowed to also create new loan as long as the client is eliggible for that so just having a loan does not stop them from creating a new one 
+- 
+
+TODO: Check loan categories how it's being used
+- Tell me how to fix printing error what is needed.
+- as org admin I don't see option to edit my org address and other details and some org settings needed. 
+- The organization logo must appearn on loan statement as well as the receipts 
+- The Disbursed by on statement is not showing why?
+- Loan statement is still in dollars instead of the actual currency used
+- I see under loan repayments it's that is a repayment of which the loan is still active what happened
+- Also it's using hard corded USD on it instead of the actual currencies on Loan repayments
+- Make payment is silently failing without letting me know the issue. I know maybe it's permission or something but it's not saying 
+
+- I want a way to go to create loan after searching and clicking an icon on Client in Client Management it must take me to create loan with the client details 
+- Top up is failing with error. Please make sure it works
+- Where it says pending if I have the permission to do the next stage like approve please let's have that on there 
+- After Approval if I have permission it shoud take me to the pending disbursement screen. Only if I have that permission as the user who approved
+
+-That error message to say loan not found even on dashboard is it the correct error message like is dashboard loan? I was expecting different erro message per page 
+- Loan in Pending Approvaland approved they are not yet disbursed yet which means the client is yet to receive the loan so how come we have the Make Payment option button visible when so. We should be having button for the next flow only like there we have Approve Loan 
+- There is something wrong with our calculations and needs to be corrected. You see when we create loan aon Applied amount that's the amount we should be talking about the client applies for R100 for example and we give them R100 and they pay Admin Fee of like 10% for example that's R10 and everything we say or calculate is based on that applied amount of R100 but in most cases a client wiil not have the R10 with the so they take it from the R100 we give then and pay us so they left with R90. That's why we just wanted the Cashed Amount field for us to just calculate for them how much they will left with it's not supposed to be recorded because it adds confusion. So please let's not record anywhere the cashed amount let's talk about applied amount and the admin fee if it's there that's it. That Paid out is not supposed to be there or even saved. It even affects the records in income and expenses
+- 
+
+- After create loan I want the user to be taken straight to disburse modal if the settings are saying skip 
+- The dropdowns in create new loan form must only have options to select if they have more than 1 item in them otherwise autoselect that one item and deactivate selection. 
+- I don't see the option to say disburse if it's approved like that. Maybe an icon or something will be better
+- I explained that sometimes clients won't have money to pay for admin fee so they we take it from their applied amount (don't change that it's fine) but sometimes if they have let's say their R10 admin fee (10%) sometimes they would like to pay so that we won't take from applied we want to have that option to know if admin is being paid or taken from applied amount. so that the person responsible with disburse loan on the next disburse loan modal will know thatamount to client is not changing will remain that principal. Please if it's not clear ask me
+- On product colum please show in very small smallest possible font so it fits 

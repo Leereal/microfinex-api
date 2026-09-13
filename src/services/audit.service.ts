@@ -12,7 +12,10 @@ export type AuditStatus = 'SUCCESS' | 'FAILURE' | 'PARTIAL';
 export interface AuditLogEntry {
   action: string;
   resource: string; // Entity type (CLIENT, LOAN, etc.)
-  resourceId: string; // Entity ID
+  // Null when the route carries no identifier - a list endpoint, say. It used
+  // to be given the literal string 'unknown', which filtered and grouped as if
+  // it were a real record.
+  resourceId: string | null;
   userId: string | null;
   organizationId?: string | null;
   branchId?: string | null;
@@ -73,12 +76,27 @@ export interface FieldChange {
   newValue: any;
 }
 
+/**
+ * What the audit dashboard needs.
+ *
+ * The `by*` arrays are the raw groupings; the `success`/`failure` counts and
+ * the `top*` arrays are what the UI actually renders. Both are returned because
+ * the two sides had drifted apart: the client read `successCount`,
+ * `failureCount` and `topActions`, none of which the server had ever sent, so
+ * the cards showed 0, 0 and "N/A" against five thousand logged events.
+ */
 export interface AuditStats {
   totalLogs: number;
+  successCount: number;
+  failureCount: number;
   byAction: { action: string; count: number }[];
   byResource: { resource: string; count: number }[];
   byStatus: { status: AuditStatus; count: number }[];
   byUser: { userId: string; count: number }[];
+  topActions: { action: string; count: number }[];
+  topResources: { resource: string; count: number }[];
+  topUsers: { userId: string; userName: string; count: number }[];
+  activityByHour: { hour: number; count: number }[];
   recentActivity: AuditLog[];
 }
 
@@ -386,12 +404,29 @@ export async function searchAuditLogs(
   // Get total count
   const total = await prisma.auditLog.count({ where });
 
-  // Get paginated results
+  // Get paginated results.
+  //
+  // The user relation is included because the trail is read by people: without
+  // it the UI had nothing but the raw userId and showed the first eight
+  // characters of a UUID in the "User" column, which identifies nobody.
   const logs = await prisma.auditLog.findMany({
     where,
     orderBy: { [sortBy]: sortOrder },
     skip: (page - 1) * limit,
     take: limit,
+    include: {
+      user: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      },
+      organization: {
+        select: { id: true, name: true },
+      },
+    },
   });
 
   return {
@@ -473,12 +508,17 @@ export async function getUserActivity(
  * Get audit statistics for an organization
  */
 export async function getAuditStats(
-  organizationId: string,
+  organizationId: string | null | undefined,
   options: { startDate?: Date; endDate?: Date } = {}
 ): Promise<AuditStats> {
   const { startDate, endDate } = options;
 
-  const where: Prisma.AuditLogWhereInput = { organizationId };
+  // A super admin belongs to no organization, so an absent id means
+  // platform-wide rather than "no data". The controller used to reject the
+  // request outright in that case.
+  const where: Prisma.AuditLogWhereInput = organizationId
+    ? { organizationId }
+    : {};
 
   if (startDate || endDate) {
     where.timestamp = {};
@@ -524,15 +564,88 @@ export async function getAuditStats(
     where,
     orderBy: { timestamp: 'desc' },
     take: 10,
+    include: {
+      user: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+    },
   });
+
+  // Names for the busiest users, so the panel reads as people not identifiers.
+  const topUserIds = byUser
+    .map(u => u.userId)
+    .filter((id): id is string => Boolean(id));
+
+  const topUserRecords = topUserIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: topUserIds } },
+        select: { id: true, firstName: true, lastName: true, email: true },
+      })
+    : [];
+
+  const userNames = new Map(
+    topUserRecords.map(u => [
+      u.id,
+      [u.firstName, u.lastName].filter(Boolean).join(' ').trim() ||
+        u.email ||
+        u.id,
+    ])
+  );
+
+  // Activity by hour of day.
+  //
+  // Grouping on `timestamp` itself would produce one group per row - the column
+  // is millisecond-precision, so it is effectively unique - and pull the entire
+  // table back to count it. The bucketing belongs in the database.
+  const hourRows = await prisma.$queryRaw<
+    Array<{ hour: number; count: bigint }>
+  >(
+    Prisma.sql`
+      SELECT EXTRACT(HOUR FROM "timestamp")::int AS hour, COUNT(*)::bigint AS count
+      FROM "audit_logs"
+      WHERE ${organizationId ? Prisma.sql`"organizationId" = ${organizationId}` : Prisma.sql`TRUE`}
+        AND ${startDate ? Prisma.sql`"timestamp" >= ${startDate}` : Prisma.sql`TRUE`}
+        AND ${endDate ? Prisma.sql`"timestamp" <= ${endDate}` : Prisma.sql`TRUE`}
+      GROUP BY 1
+    `
+  );
+
+  const hourCounts = new Array<number>(24).fill(0);
+  for (const row of hourRows) {
+    const hour = Number(row.hour);
+    if (hour >= 0 && hour < 24) hourCounts[hour] = Number(row.count);
+  }
+
+  const statusCount = (target: AuditStatus) =>
+    byStatus.find(entry => entry.status === target)?._count.status ?? 0;
+
+  const actionCounts = byAction.map(a => ({
+    action: a.action,
+    count: a._count.action,
+  }));
+  const resourceCounts = byResource.map(e => ({
+    resource: e.resource,
+    count: e._count.resource,
+  }));
 
   return {
     totalLogs,
-    byAction: byAction.map(a => ({ action: a.action, count: a._count.action })),
-    byResource: byResource.map(e => ({
-      resource: e.resource,
-      count: e._count.resource,
-    })),
+    successCount: statusCount('SUCCESS' as AuditStatus),
+    failureCount: statusCount('FAILURE' as AuditStatus),
+    topActions: [...actionCounts].sort((a, b) => b.count - a.count).slice(0, 10),
+    topResources: [...resourceCounts]
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10),
+    topUsers: byUser
+      .filter(u => u.userId)
+      .map(u => ({
+        userId: u.userId as string,
+        userName: userNames.get(u.userId as string) || 'Unknown user',
+        count: u._count.userId,
+      })),
+    activityByHour: hourCounts.map((count, hour) => ({ hour, count })),
+    byAction: actionCounts,
+    byResource: resourceCounts,
     byStatus: byStatus.map(s => ({
       status: s.status as AuditStatus,
       count: s._count.status,

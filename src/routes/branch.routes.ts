@@ -26,12 +26,45 @@ type RouteHandler = (req: Request, res: Response) => Promise<any>;
 router.use(authenticateToken);
 
 /**
+ * A branch code that is free across the whole database.
+ *
+ * `Branch.code` is `@unique` globally, not per organization, so uniqueness
+ * cannot be decided by looking at one organization's branches. Derived from the
+ * name so it means something to a person, then suffixed until it is free.
+ */
+async function generateBranchCode(name: string): Promise<string> {
+  const base =
+    name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .slice(0, 6) || 'BRANCH';
+
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const candidate = attempt === 0 ? base : `${base}${attempt + 1}`;
+    const taken = await prisma.branch.findFirst({
+      where: { code: candidate },
+      select: { id: true },
+    });
+    if (!taken) return candidate;
+  }
+
+  // Falling back to something collision-proof rather than failing the request.
+  return `BR${Date.now().toString(36).toUpperCase().slice(-8)}`;
+}
+
+/**
  * Create a new branch
  * POST /api/branches
  */
 const createBranchBodySchema = z.object({
   name: z.string().min(2, 'Branch name required'),
-  code: z.string().max(10).optional().default(''),
+  // Left blank, a code is generated below. It used to default to the empty
+  // string, and `code` is globally unique - so the first codeless branch
+  // claimed '' and every one after it died on a constraint violation.
+  code: z.string().max(10).optional(),
+  // A super admin is not attached to an organization, so the one being created
+  // for has to come from the request. Ignored for everyone else.
+  organizationId: z.string().uuid().optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional().or(z.literal('')),
@@ -44,54 +77,97 @@ router.post(
   requirePermission('branches:create'),
   validateRequest(createBranchBodySchema),
   handleAsync(async (req: Request, res: Response) => {
-    const organizationId = req.user!.organizationId;
-    const userId = req.user!.userId;
+    const isSuperAdmin = req.user!.role === 'SUPER_ADMIN';
 
-    // Check if user has an organization
+    // A super admin acts across organizations and has none of their own, so
+    // they name the target in the body. Everyone else is pinned to theirs,
+    // whatever the body says.
+    const organizationId = isSuperAdmin
+      ? req.body.organizationId || req.user!.organizationId
+      : req.user!.organizationId;
+
     if (!organizationId) {
       return res.status(400).json({
         success: false,
-        message:
-          'User is not associated with an organization. Please contact your administrator.',
+        message: isSuperAdmin
+          ? 'Choose the organization this branch belongs to.'
+          : 'User is not associated with an organization. Please contact your administrator.',
         error: 'NO_ORGANIZATION',
       });
     }
 
-    // Check for duplicate code (only if code is provided)
-    if (req.body.code) {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true },
+    });
+
+    if (!organization) {
+      return res.status(404).json({
+        success: false,
+        message: 'That organization no longer exists.',
+        error: 'NOT_FOUND',
+      });
+    }
+
+    const requestedCode =
+      typeof req.body.code === 'string' ? req.body.code.trim() : '';
+
+    // The uniqueness check has to match the constraint it is protecting: the
+    // constraint is global and ignores isActive, while this used to filter by
+    // organization and by isActive - so a code taken by another organization,
+    // or by a deactivated branch, passed the check and then failed at the
+    // database as an unexplained 500.
+    if (requestedCode) {
       const existing = await prisma.branch.findFirst({
-        where: {
-          organizationId,
-          code: req.body.code,
-          isActive: true,
-        },
+        where: { code: requestedCode },
+        select: { id: true, organizationId: true },
       });
 
       if (existing) {
-        return res.status(400).json({
+        return res.status(409).json({
           success: false,
-          message: 'Branch code already exists',
+          message:
+            existing.organizationId === organizationId
+              ? `Branch code "${requestedCode}" is already used by another branch.`
+              : `Branch code "${requestedCode}" is already used by a branch in another organization.`,
+          error: 'BRANCH_CODE_EXISTS',
+          field: 'code',
         });
       }
     }
 
-    const branch = await prisma.branch.create({
-      data: {
-        name: req.body.name,
-        code: req.body.code || '',
-        address: req.body.address || null,
-        phone: req.body.phone || null,
-        email: req.body.email || null,
-        managerId: req.body.managerId || null,
-        isActive: req.body.isActive ?? true,
-        organizationId,
-      },
-    });
+    const code = requestedCode || (await generateBranchCode(req.body.name));
 
-    res.status(201).json({
-      success: true,
-      data: branch,
-    });
+    try {
+      const branch = await prisma.branch.create({
+        data: {
+          name: req.body.name,
+          code,
+          address: req.body.address || null,
+          phone: req.body.phone || null,
+          email: req.body.email || null,
+          managerId: req.body.managerId || null,
+          isActive: req.body.isActive ?? true,
+          organizationId,
+        },
+      });
+
+      return res.status(201).json({
+        success: true,
+        data: branch,
+      });
+    } catch (error: any) {
+      // Two requests can pass the check above at the same time.
+      if (error?.code === 'P2002') {
+        return res.status(409).json({
+          success: false,
+          message: `Branch code "${code}" was taken while this branch was being saved. Please try again.`,
+          error: 'BRANCH_CODE_EXISTS',
+          field: 'code',
+        });
+      }
+      throw error;
+    }
   })
 );
 
