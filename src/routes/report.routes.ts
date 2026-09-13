@@ -1,609 +1,615 @@
 /**
  * Report Routes
- * API endpoints for generating various financial reports
+ *
+ * The five core lending reports, each refactored onto a shared foundation:
+ * per-currency totals that cannot be added together, Decimal arithmetic,
+ * reconciliation assertions, and exports generated here from the server's own
+ * filters rather than from rows posted back by the browser.
+ *
+ * Reading a report needs `reports:view`; downloading one needs
+ * `reports:export` as well - a file leaves the building and can be forwarded,
+ * so it is a separate grant.
  */
 
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-const XLSX = require('xlsx');
-import { prisma } from '../config/database';
-import { authenticateToken, requirePermission } from '../middleware/auth.middleware';
-import { validateRequest, handleAsync } from '../middleware/validation.middleware';
+import {
+  authenticateToken,
+  requirePermission,
+} from '../middleware/auth.middleware';
+import { handleAsync } from '../middleware/validation.middleware';
+
+import { buildPortfolioSummary } from '../services/reports/portfolio-summary.report';
+import { buildParReport } from '../services/reports/par.report';
+import { buildArrearsAging } from '../services/reports/arrears-aging.report';
+import { buildCollectionsReport } from '../services/reports/collections.report';
+import { buildDisbursementsReport } from '../services/reports/disbursements.report';
+import {
+  toCsv,
+  toXlsx,
+  toPdf,
+  exportFileName,
+  type ExportColumn,
+  type ReportExport,
+} from '../services/reports/report-export';
+import type { ReportFilters, ReportUser } from '../services/reports/report-context';
 
 const router = Router();
 
-// All report routes require authentication
 router.use(authenticateToken);
 
-/**
- * Portfolio at Risk (PAR) Report
- * GET /api/reports/par
- */
-const parSchema = z.object({
-  query: z.object({
-    asOfDate: z.string().optional(),
-    branchId: z.string().optional(),
-    parDays: z.string().optional().transform((v) => v ? parseInt(v) : 30),
-  }),
+// ---------------------------------------------------------------- filters
+const filterSchema = z.object({
+  asOfDate: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  branchId: z.string().optional(),
+  currency: z.string().optional(),
+  productId: z.string().optional(),
+  loanOfficerId: z.string().optional(),
+  status: z.string().optional(),
+  clientType: z.string().optional(),
+  paymentMethodId: z.string().optional(),
+  groupBy: z.string().optional(),
+  bucket: z.string().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(500).optional(),
+  sortBy: z.string().optional(),
+  sortDirection: z.enum(['asc', 'desc']).optional(),
+  format: z.enum(['json', 'csv', 'xlsx', 'pdf']).optional(),
 });
 
-router.get(
-  '/par',
-  requirePermission('reports:view'),
-  validateRequest(parSchema),
-  handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId!;
-    const asOfDate = req.query.asOfDate ? new Date(req.query.asOfDate as string) : new Date();
-    const branchId = req.query.branchId as string | undefined;
-    const parDays = (req.query.parDays as unknown as number) || 30;
+const parseDate = (value?: string): Date | undefined => {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+};
 
-    // Get all active/overdue loans
-    const loans = await prisma.loan.findMany({
-      where: {
-        organizationId,
-        status: { in: ['ACTIVE', 'OVERDUE'] },
-        ...(branchId && { branchId }),
-      },
-      include: {
-        client: {
-          select: { firstName: true, lastName: true, clientNumber: true },
-        },
-        repaymentSchedule: {
-          where: {
-            status: 'PENDING',
-            dueDate: { lt: asOfDate },
-          },
-          orderBy: { dueDate: 'asc' },
-        },
-        branch: {
-          select: { name: true, code: true },
-        },
-        loanOfficer: {
-          select: { firstName: true, lastName: true },
-        },
-      },
-    });
-
-    // Calculate PAR for each loan
-    const parLoans = loans.map((loan) => {
-      const overdueSchedules = loan.repaymentSchedule;
-      let daysOverdue = 0;
-      let overdueAmount = 0;
-
-      if (overdueSchedules.length > 0) {
-        const oldestDue = overdueSchedules[0]!.dueDate;
-        daysOverdue = Math.floor((asOfDate.getTime() - oldestDue.getTime()) / (1000 * 60 * 60 * 24));
-        overdueAmount = overdueSchedules.reduce(
-          (sum, s) => sum + Number(s.totalAmount) - Number(s.paidAmount),
-          0
-        );
-      }
-
-      return {
-        loanNumber: loan.loanNumber,
-        clientName: `${loan.client.firstName} ${loan.client.lastName}`,
-        clientNumber: loan.client.clientNumber,
-        branchName: loan.branch?.name || 'N/A',
-        loanOfficer: loan.loanOfficer ? `${loan.loanOfficer.firstName} ${loan.loanOfficer.lastName}` : 'N/A',
-        disbursedAmount: Number(loan.amount),
-        outstandingBalance: Number(loan.outstandingBalance),
-        overdueAmount,
-        daysOverdue,
-        parBucket: getParBucket(daysOverdue),
-        status: loan.status,
-      };
-    }).filter((l) => l.daysOverdue > 0);
-
-    // Calculate PAR ratios
-    const totalOutstanding = loans.reduce((sum, l) => sum + Number(l.outstandingBalance), 0);
-    const parByBucket: Record<string, { count: number; amount: number; outstanding: number }> = {
-      '1-30': { count: 0, amount: 0, outstanding: 0 },
-      '31-60': { count: 0, amount: 0, outstanding: 0 },
-      '61-90': { count: 0, amount: 0, outstanding: 0 },
-      '91-180': { count: 0, amount: 0, outstanding: 0 },
-      '180+': { count: 0, amount: 0, outstanding: 0 },
-    };
-
-    for (const loan of parLoans) {
-      const bucket = parByBucket[loan.parBucket];
-      if (bucket) {
-        bucket.count++;
-        bucket.amount += loan.overdueAmount;
-        bucket.outstanding += loan.outstandingBalance;
-      }
-    }
-
-    // Calculate PAR ratios
-    const parRatios = Object.entries(parByBucket).map(([bucket, data]) => ({
-      bucket,
-      loanCount: data.count,
-      overdueAmount: data.amount,
-      outstandingBalance: data.outstanding,
-      parRatio: totalOutstanding > 0 ? (data.outstanding / totalOutstanding) * 100 : 0,
-    }));
-
-    // Overall PAR
-    const totalPar = parLoans.filter((l) => l.daysOverdue >= parDays);
-    const parAmount = totalPar.reduce((sum, l) => sum + l.outstandingBalance, 0);
-    const parRatio = totalOutstanding > 0 ? (parAmount / totalOutstanding) * 100 : 0;
-
-    res.json({
-      success: true,
-      data: {
-        asOfDate,
-        parDays,
-        summary: {
-          totalLoans: loans.length,
-          totalOutstanding,
-          parLoans: totalPar.length,
-          parAmount,
-          parRatio: Math.round(parRatio * 100) / 100,
-        },
-        byBucket: parRatios,
-        details: parLoans.slice(0, 100), // Limit details for response size
-      },
-    });
-  })
-);
-
-/**
- * Get PAR bucket for days overdue
- */
-function getParBucket(days: number): string {
-  if (days <= 30) return '1-30';
-  if (days <= 60) return '31-60';
-  if (days <= 90) return '61-90';
-  if (days <= 180) return '91-180';
-  return '180+';
+interface ParsedRequest {
+  filters: ReportFilters & Record<string, unknown>;
+  format: 'json' | 'csv' | 'xlsx' | 'pdf';
+  user: ReportUser | null;
 }
 
 /**
- * Aging Report
- * GET /api/reports/aging
+ * Every report is scoped to the caller's own organization, taken from the
+ * session and never from the query string - a report that accepted an
+ * organizationId would let any authenticated user read any other book.
  */
-const agingSchema = z.object({
-  query: z.object({
-    asOfDate: z.string().optional(),
-    branchId: z.string().optional(),
-    groupBy: z.enum(['client', 'branch', 'officer', 'product']).default('client'),
-  }),
-});
+function parseRequest(req: Request): ParsedRequest {
+  const query = filterSchema.parse(req.query);
+  const organizationId = req.user?.organizationId;
 
-router.get(
-  '/aging',
-  requirePermission('reports:view'),
-  validateRequest(agingSchema),
-  handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId!;
-    const asOfDate = req.query.asOfDate ? new Date(req.query.asOfDate as string) : new Date();
-    const branchId = req.query.branchId as string | undefined;
+  if (!organizationId) {
+    throw Object.assign(new Error('Organization ID required'), { status: 400 });
+  }
 
-    // Get all overdue schedules
-    const overdueSchedules = await prisma.repaymentSchedule.findMany({
-      where: {
-        status: 'PENDING',
-        dueDate: { lt: asOfDate },
-        loan: {
-          organizationId,
-          status: { in: ['ACTIVE', 'OVERDUE'] },
-          ...(branchId && { branchId }),
-        },
-      },
-      include: {
-        loan: {
-          include: {
-            client: { select: { firstName: true, lastName: true, clientNumber: true } },
-            branch: { select: { name: true } },
-            product: { select: { name: true } },
-            loanOfficer: { select: { firstName: true, lastName: true } },
-          },
-        },
-      },
-    });
+  const user = req.userContext ?? (req.user as unknown as ReportUser | undefined);
 
-    // Aggregate by aging bucket
-    const agingBuckets = {
-      current: { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 },
-      '1-30': { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 },
-      '31-60': { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 },
-      '61-90': { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 },
-      '91-180': { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 },
-      '180+': { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 },
-    };
-
-    const details: any[] = [];
-
-    for (const schedule of overdueSchedules) {
-      const daysOverdue = Math.floor(
-        (asOfDate.getTime() - schedule.dueDate.getTime()) / (1000 * 60 * 60 * 24)
-      );
-      const bucket = daysOverdue <= 0 ? 'current' : getParBucket(daysOverdue);
-
-      const totalPaid = Number(schedule.paidAmount || 0);
-      const principalDue = Number(schedule.principalAmount);
-      const interestDue = Number(schedule.interestAmount);
-      const penaltyDue = 0; // No penalty field in RepaymentSchedule
-      const totalDue = Number(schedule.outstandingAmount);
-
-      const bucketData = agingBuckets[bucket as keyof typeof agingBuckets];
-      bucketData.count++;
-      bucketData.principal += principalDue;
-      bucketData.interest += interestDue;
-      bucketData.penalty += penaltyDue;
-      bucketData.total += totalDue;
-
-      details.push({
-        loanNumber: schedule.loan.loanNumber,
-        clientName: `${schedule.loan.client.firstName} ${schedule.loan.client.lastName}`,
-        branchName: schedule.loan.branch?.name || 'N/A',
-        productName: schedule.loan.product?.name || 'N/A',
-        dueDate: schedule.dueDate,
-        daysOverdue,
-        bucket,
-        principalDue,
-        interestDue,
-        penaltyDue,
-        totalDue,
-      });
-    }
-
-    // Sort details by days overdue descending
-    details.sort((a, b) => b.daysOverdue - a.daysOverdue);
-
-    // Calculate totals
-    const totals = Object.values(agingBuckets).reduce(
-      (acc, bucket) => ({
-        count: acc.count + bucket.count,
-        principal: acc.principal + bucket.principal,
-        interest: acc.interest + bucket.interest,
-        penalty: acc.penalty + bucket.penalty,
-        total: acc.total + bucket.total,
-      }),
-      { count: 0, principal: 0, interest: 0, penalty: 0, total: 0 }
-    );
-
-    res.json({
-      success: true,
-      data: {
-        asOfDate,
-        summary: agingBuckets,
-        totals,
-        details: details.slice(0, 500), // Limit for response size
-      },
-    });
-  })
-);
-
-/**
- * Collection Report
- * GET /api/reports/collections
- */
-const collectionsSchema = z.object({
-  query: z.object({
-    startDate: z.string(),
-    endDate: z.string(),
-    branchId: z.string().optional(),
-    groupBy: z.enum(['day', 'week', 'month', 'officer', 'method']).default('day'),
-  }),
-});
-
-router.get(
-  '/collections',
-  requirePermission('reports:view'),
-  validateRequest(collectionsSchema),
-  handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId!;
-    const startDate = new Date(req.query.startDate as string);
-    const endDate = new Date(req.query.endDate as string);
-    const branchId = req.query.branchId as string | undefined;
-    const groupBy = req.query.groupBy as string;
-
-    // Get all payments in date range
-    const payments = await prisma.payment.findMany({
-      where: {
-        loan: { organizationId },
-        status: 'COMPLETED',
-        paymentDate: { gte: startDate, lte: endDate },
-        ...(branchId && { loan: { branchId } }),
-      },
-      include: {
-        loan: {
-          include: {
-            client: { select: { firstName: true, lastName: true } },
-            branch: { select: { name: true } },
-          },
-        },
-        receiver: { select: { firstName: true, lastName: true } },
-      },
-      orderBy: { paymentDate: 'asc' },
-    });
-
-    // Group data
-    let grouped: Record<string, { count: number; amount: number; details: any[] }> = {};
-
-    for (const payment of payments) {
-      let key: string;
-
-      switch (groupBy) {
-        case 'day':
-          key = payment.paymentDate.toISOString().slice(0, 10);
-          break;
-        case 'week':
-          const weekStart = new Date(payment.paymentDate);
-          weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-          key = weekStart.toISOString().slice(0, 10);
-          break;
-        case 'month':
-          key = payment.paymentDate.toISOString().slice(0, 7);
-          break;
-        case 'officer':
-          key = payment.receiver
-            ? `${payment.receiver.firstName} ${payment.receiver.lastName}`
-            : 'Unknown';
-          break;
-        case 'method':
-          key = payment.method || 'Unknown';
-          break;
-        default:
-          key = payment.paymentDate.toISOString().slice(0, 10);
-      }
-
-      if (!grouped[key]) {
-        grouped[key] = { count: 0, amount: 0, details: [] };
-      }
-
-      grouped[key]!.count++;
-      grouped[key]!.amount += Number(payment.amount);
-      grouped[key]!.details.push({
-        receiptNumber: payment.paymentNumber,
-        clientName: `${payment.loan.client.firstName} ${payment.loan.client.lastName}`,
-        loanNumber: payment.loan.loanNumber,
-        amount: Number(payment.amount),
-        paymentMethod: payment.method,
-        paymentDate: payment.paymentDate,
-      });
-    }
-
-    // Calculate totals
-    const totalAmount = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-    const totalCount = payments.length;
-
-    // Convert to array and sort
-    const groupedData = Object.entries(grouped)
-      .map(([key, data]) => ({
-        group: key,
-        count: data.count,
-        amount: data.amount,
-        details: data.details.slice(0, 20), // Limit details per group
-      }))
-      .sort((a, b) => {
-        if (groupBy === 'officer' || groupBy === 'method') {
-          return b.amount - a.amount;
+  return {
+    filters: {
+      organizationId,
+      branchId: query.branchId,
+      currency: query.currency,
+      productId: query.productId,
+      loanOfficerId: query.loanOfficerId,
+      status: query.status,
+      clientType: query.clientType,
+      paymentMethodId: query.paymentMethodId,
+      asOfDate: parseDate(query.asOfDate),
+      from: parseDate(query.from),
+      to: parseDate(query.to),
+      groupBy: query.groupBy,
+      bucket: query.bucket,
+      // An export renders every matching row, not just the page on screen.
+      page: query.format && query.format !== 'json' ? undefined : query.page,
+      pageSize:
+        query.format && query.format !== 'json' ? undefined : query.pageSize,
+      sortBy: query.sortBy,
+      sortDirection: query.sortDirection,
+    },
+    format: query.format ?? 'json',
+    user: user
+      ? {
+          id: (user as ReportUser).id,
+          firstName: (user as ReportUser).firstName,
+          lastName: (user as ReportUser).lastName,
         }
-        return a.group.localeCompare(b.group);
+      : null,
+  };
+}
+
+/** Send a report as JSON, or as whichever file was asked for. */
+async function respond<Row>(
+  res: Response,
+  format: 'json' | 'csv' | 'xlsx' | 'pdf',
+  payload: unknown,
+  buildExport: () => ReportExport<Row>
+): Promise<void> {
+  if (format === 'json') {
+    res.json({ success: true, data: payload, timestamp: new Date().toISOString() });
+    return;
+  }
+
+  const report = buildExport();
+
+  if (format === 'csv') {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${exportFileName(report.meta, 'csv')}"`
+    );
+    res.send(toCsv(report));
+    return;
+  }
+
+  if (format === 'xlsx') {
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${exportFileName(report.meta, 'xlsx')}"`
+    );
+    res.send(toXlsx(report));
+    return;
+  }
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${exportFileName(report.meta, 'pdf')}"`
+  );
+  res.send(await toPdf(report));
+}
+
+/**
+ * Downloading is a separate grant from reading.
+ *
+ * `reports:view` puts figures on a screen inside the application;
+ * `reports:export` produces a file that leaves it. Whoever may do the second
+ * must also be able to do the first, so both are required.
+ */
+function permissionsFor(req: Request): string[] {
+  return req.query.format && req.query.format !== 'json'
+    ? ['reports:view', 'reports:export']
+    : ['reports:view'];
+}
+
+const guard = (handler: (req: Request, res: Response) => Promise<void>) =>
+  handleAsync(async (req: Request, res: Response) => {
+    for (const permission of permissionsFor(req)) {
+      let denied = false;
+      await new Promise<void>(resolve => {
+        requirePermission(permission)(req, res, () => resolve());
+        // requirePermission responds itself when it refuses.
+        if (res.headersSent) {
+          denied = true;
+          resolve();
+        }
       });
-
-    res.json({
-      success: true,
-      data: {
-        period: { startDate, endDate },
-        groupBy,
-        summary: {
-          totalPayments: totalCount,
-          totalAmount,
-        },
-        grouped: groupedData,
-      },
-    });
-  })
-);
-
-/**
- * Disbursement Report
- * GET /api/reports/disbursements
- */
-const disbursementsSchema = z.object({
-  query: z.object({
-    startDate: z.string(),
-    endDate: z.string(),
-    branchId: z.string().optional(),
-    productId: z.string().optional(),
-  }),
-});
-
-router.get(
-  '/disbursements',
-  requirePermission('reports:view'),
-  validateRequest(disbursementsSchema),
-  handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId!;
-    const startDate = new Date(req.query.startDate as string);
-    const endDate = new Date(req.query.endDate as string);
-    const branchId = req.query.branchId as string | undefined;
-    const productId = req.query.productId as string | undefined;
-
-    const loans = await prisma.loan.findMany({
-      where: {
-        organizationId,
-        disbursedDate: { gte: startDate, lte: endDate },
-        ...(branchId && { branchId }),
-        ...(productId && { productId }),
-      },
-      include: {
-        client: { select: { firstName: true, lastName: true, clientNumber: true } },
-        branch: { select: { name: true, code: true } },
-        product: { select: { name: true } },
-        loanOfficer: { select: { firstName: true, lastName: true } },
-      },
-      orderBy: { disbursedDate: 'asc' },
-    });
-
-    // Group by product
-    const byProduct: Record<string, { count: number; amount: number }> = {};
-    // Group by branch
-    const byBranch: Record<string, { count: number; amount: number }> = {};
-
-    for (const loan of loans) {
-      const productName = loan.product?.name || 'Unknown';
-      const branchName = loan.branch?.name || 'Unknown';
-
-      if (!byProduct[productName]) {
-        byProduct[productName] = { count: 0, amount: 0 };
-      }
-      byProduct[productName].count++;
-      byProduct[productName].amount += Number(loan.amount);
-
-      if (!byBranch[branchName]) {
-        byBranch[branchName] = { count: 0, amount: 0 };
-      }
-      byBranch[branchName].count++;
-      byBranch[branchName].amount += Number(loan.amount);
+      if (denied || res.headersSent) return;
     }
+    await handler(req, res);
+  });
 
-    // Calculate totals
-    const totalAmount = loans.reduce((sum, l) => sum + Number(l.amount), 0);
-    const totalCount = loans.length;
-    const averageLoanSize = totalCount > 0 ? totalAmount / totalCount : 0;
-
-    res.json({
-      success: true,
-      data: {
-        period: { startDate, endDate },
-        summary: {
-          totalLoans: totalCount,
-          totalDisbursed: totalAmount,
-          averageLoanSize,
-        },
-        byProduct: Object.entries(byProduct).map(([product, data]) => ({
-          product,
-          ...data,
-        })),
-        byBranch: Object.entries(byBranch).map(([branch, data]) => ({
-          branch,
-          ...data,
-        })),
-        details: loans.slice(0, 500).map((loan) => ({
-          loanNumber: loan.loanNumber,
-          clientName: `${loan.client.firstName} ${loan.client.lastName}`,
-          branchName: loan.branch?.name || 'N/A',
-          productName: loan.product?.name || 'N/A',
-          loanOfficer: loan.loanOfficer
-            ? `${loan.loanOfficer.firstName} ${loan.loanOfficer.lastName}`
-            : 'N/A',
-          disbursementDate: loan.disbursedDate,
-          disbursedAmount: Number(loan.amount),
-          term: loan.term,
-          interestRate: Number(loan.interestRate),
-        })),
-      },
-    });
-  })
-);
+const money = <Row>(
+  header: string,
+  value: (row: Row) => number
+): ExportColumn<Row> => ({ header, value, money: true });
 
 /**
- * Export report to Excel
- * POST /api/reports/export
+ * Build an export description with the row type inferred from the rows.
+ *
+ * Taking `rows` first is what lets TypeScript check every column accessor
+ * against the shape it will actually receive - otherwise `Row` is inferred as
+ * `unknown` and a typo in a column accessor reaches production as a blank cell.
  */
-const exportSchema = z.object({
-  body: z.object({
-    reportType: z.enum(['par', 'aging', 'collections', 'disbursements']),
-    data: z.array(z.record(z.any())),
-    filename: z.string().optional(),
-  }),
-});
+const exportOf = <Row>(
+  rows: Row[],
+  rest: Omit<ReportExport<Row>, 'rows'>
+): ReportExport<Row> => ({ ...rest, rows });
 
-router.post(
-  '/export',
-  requirePermission('reports:export'),
-  validateRequest(exportSchema),
-  handleAsync(async (req, res) => {
-    const { reportType, data, filename } = req.body;
-
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, reportType.toUpperCase());
-
-    const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-
-    const exportFilename = filename || `${reportType}_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
-
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=${exportFilename}`);
-    res.send(buffer);
-  })
-);
-
-/**
- * Loan Portfolio Summary Report
- * GET /api/reports/portfolio-summary
- */
+// ====================================================== 1. Portfolio Summary
 router.get(
   '/portfolio-summary',
-  requirePermission('reports:view'),
-  handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId!;
-    const branchId = req.query.branchId as string | undefined;
+  guard(async (req, res) => {
+    const { filters, format, user } = parseRequest(req);
+    const report = await buildPortfolioSummary(filters as never, user);
 
-    const where = {
-      organizationId,
-      ...(branchId && { branchId }),
-    };
+    await respond(res, format, report, () =>
+      exportOf(report.rows, {
+        meta: report.meta,
+      sections: [
+        {
+          title: 'Portfolio by currency',
+          headers: [
+            'Currency',
+            'Loans',
+            'Original principal',
+            'Total interest',
+            'Principal outstanding',
+            'Interest outstanding',
+            'Penalty outstanding',
+            'Total outstanding',
+            'Average loan',
+            'Average outstanding',
+            'Active',
+            'Overdue',
+            'Completed',
+            'Written off',
+            'Pending',
+          ],
+          rows: report.byCurrency.map(row => [
+            row.currency,
+            row.loanCount,
+            row.originalPrincipal,
+            row.totalInterest,
+            row.principalOutstanding,
+            row.interestOutstanding,
+            row.penaltyOutstanding,
+            row.totalOutstanding,
+            row.averageLoanSize,
+            row.averageOutstanding,
+            row.activeLoans,
+            row.overdueLoans,
+            row.completedLoans,
+            row.writtenOffLoans,
+            row.pendingApplications,
+          ]),
+        },
+      ],
+      columns: [
+        { header: 'Loan number', value: r => r.loanNumber },
+        { header: 'Client', value: r => r.clientName },
+        { header: 'Client no', value: r => r.clientNumber },
+        { header: 'Product', value: r => r.productName },
+        { header: 'Branch', value: r => r.branchName },
+        { header: 'Officer', value: r => r.loanOfficerName },
+        { header: 'Currency', value: r => r.currency },
+        {
+          header: 'Disbursed',
+          value: r => r.disbursementDate?.slice(0, 10) ?? '',
+        },
+        { header: 'Maturity', value: r => r.maturityDate?.slice(0, 10) ?? '' },
+        { header: 'Status', value: r => r.status },
+        money('Original amount', r => r.originalAmount),
+        money('Principal balance', r => r.principalBalance),
+        money('Interest balance', r => r.interestBalance),
+        money('Penalty balance', r => r.penaltyBalance),
+        money('Total outstanding', r => r.totalOutstanding),
+      ],
+        reconciliation: report.reconciliation,
+      })
+    );
+  })
+);
 
-    // Get loan counts by status
-    const statusCounts = await prisma.loan.groupBy({
-      by: ['status'],
-      where,
-      _count: true,
-      _sum: { amount: true, outstandingBalance: true },
-    });
+// ============================================================= 2. PAR
+router.get(
+  '/par',
+  guard(async (req, res) => {
+    const { filters, format, user } = parseRequest(req);
+    const report = await buildParReport(filters as never, user);
 
-    // Get product breakdown
-    const productBreakdown = await prisma.loan.groupBy({
-      by: ['productId'],
-      where: { ...where, status: { in: ['ACTIVE', 'OVERDUE'] } },
-      _count: true,
-      _sum: { outstandingBalance: true },
-    });
+    await respond(res, format, report, () =>
+      exportOf(report.rows, {
+        meta: report.meta,
+      sections: [
+        {
+          title: 'PAR thresholds (cumulative - do not add these together)',
+          headers: [
+            'Currency',
+            'Measure',
+            'Loans',
+            'Overdue amount',
+            'Exposure at risk',
+            'Ratio %',
+          ],
+          rows: report.byCurrency.flatMap(currency =>
+            currency.thresholds.map(threshold => [
+              currency.currency,
+              threshold.label,
+              threshold.loanCount,
+              threshold.overdueAmount,
+              threshold.exposure,
+              threshold.ratio,
+            ])
+          ),
+        },
+        {
+          title: 'Aging buckets (mutually exclusive - these do sum)',
+          headers: [
+            'Currency',
+            'Bucket',
+            'Loans',
+            'Overdue amount',
+            'Exposure',
+            'Ratio %',
+          ],
+          rows: report.byCurrency.flatMap(currency =>
+            currency.buckets.map(bucket => [
+              currency.currency,
+              bucket.label,
+              bucket.loanCount,
+              bucket.overdueAmount,
+              bucket.exposure,
+              bucket.ratio,
+            ])
+          ),
+        },
+      ],
+      columns: [
+        { header: 'Loan number', value: r => r.loanNumber },
+        { header: 'Client', value: r => r.clientName },
+        { header: 'Client no', value: r => r.clientNumber },
+        { header: 'Phone', value: r => r.clientPhone },
+        { header: 'Branch', value: r => r.branchName },
+        { header: 'Officer', value: r => r.loanOfficerName },
+        { header: 'Product', value: r => r.productName },
+        { header: 'Currency', value: r => r.currency },
+        { header: 'Days overdue', value: r => r.daysOverdue },
+        {
+          header: 'Oldest unpaid due',
+          value: r => r.oldestUnpaidDueDate?.slice(0, 10) ?? '',
+        },
+        { header: 'Bucket', value: r => r.bucket },
+        money('Overdue amount', r => r.overdueAmount),
+        money('Overdue principal', r => r.overduePrincipal),
+        money('Overdue interest', r => r.overdueInterest),
+        money('Total outstanding', r => r.totalOutstanding),
+      ],
+        reconciliation: report.reconciliation,
+      })
+    );
+  })
+);
 
-    // Get product names
-    const productIds = productBreakdown.map((p) => p.productId).filter(Boolean);
-    const products = await prisma.loanProduct.findMany({
-      where: { id: { in: productIds as string[] } },
-      select: { id: true, name: true },
-    });
-    const productMap = new Map(products.map((p) => [p.id, p.name]));
+// ==================================================== 3. Arrears Aging
+router.get(
+  '/aging',
+  guard(async (req, res) => {
+    const { filters, format, user } = parseRequest(req);
+    const report = await buildArrearsAging(filters as never, user);
 
-    // Get currency breakdown
-    const currencyBreakdown = await prisma.loan.groupBy({
-      by: ['currency'],
-      where: { ...where, status: { in: ['ACTIVE', 'OVERDUE'] } },
-      _count: true,
-      _sum: { outstandingBalance: true },
-    });
+    await respond(res, format, report, () =>
+      exportOf(report.rows, {
+        meta: report.meta,
+      sections: [
+        {
+          title: 'Arrears by age (mutually exclusive buckets)',
+          headers: [
+            'Currency',
+            'Bucket',
+            'Loans',
+            'Clients',
+            'Overdue principal',
+            'Overdue interest',
+            'Penalties',
+            'Unpaid charges',
+            'Total arrears',
+            'Total exposure',
+          ],
+          rows: report.byCurrency.flatMap(currency =>
+            currency.buckets.map(bucket => [
+              currency.currency,
+              bucket.label,
+              bucket.loanCount,
+              bucket.clientCount,
+              bucket.overduePrincipal,
+              bucket.overdueInterest,
+              bucket.overduePenalties,
+              bucket.unpaidCharges,
+              bucket.totalArrears,
+              bucket.totalExposure,
+            ])
+          ),
+        },
+      ],
+      columns: [
+        { header: 'Loan number', value: r => r.loanNumber },
+        { header: 'Client', value: r => r.clientName },
+        { header: 'Client no', value: r => r.clientNumber },
+        { header: 'Phone', value: r => r.clientPhone },
+        { header: 'Email', value: r => r.clientEmail },
+        { header: 'Branch', value: r => r.branchName },
+        { header: 'Officer', value: r => r.loanOfficerName },
+        { header: 'Currency', value: r => r.currency },
+        { header: 'Bucket', value: r => r.bucketLabel },
+        {
+          header: 'Oldest unpaid',
+          value: r => r.oldestUnpaidDueDate?.slice(0, 10) ?? '',
+        },
+        { header: 'Days overdue', value: r => r.daysOverdue },
+        money('Overdue principal', r => r.overduePrincipal),
+        money('Overdue interest', r => r.overdueInterest),
+        money('Penalties', r => r.overduePenalties),
+        money('Unpaid charges', r => r.unpaidCharges),
+        money('Amount overdue', r => r.amountOverdue),
+        money('Total outstanding', r => r.totalOutstanding),
+        {
+          header: 'Last payment',
+          value: r => r.lastPaymentDate?.slice(0, 10) ?? '',
+        },
+        { header: 'Next action', value: r => r.nextCollectionAction },
+      ],
+        reconciliation: report.reconciliation,
+      })
+    );
+  })
+);
 
-    res.json({
-      success: true,
-      data: {
-        byStatus: statusCounts.map((s) => ({
-          status: s.status,
-          count: s._count,
-          disbursedAmount: Number(s._sum.amount || 0),
-          outstandingBalance: Number(s._sum.outstandingBalance || 0),
-        })),
-        byProduct: productBreakdown.map((p) => ({
-          productId: p.productId,
-          productName: productMap.get(p.productId || '') || 'Unknown',
-          count: p._count,
-          outstandingBalance: Number(p._sum.outstandingBalance || 0),
-        })),
-        byCurrency: currencyBreakdown.map((c) => ({
-          currency: c.currency || 'USD',
-          count: c._count,
-          outstandingBalance: Number(c._sum.outstandingBalance || 0),
-        })),
-        generatedAt: new Date(),
-      },
-    });
+// ======================================================= 4. Collections
+router.get(
+  '/collections',
+  guard(async (req, res) => {
+    const { filters, format, user } = parseRequest(req);
+    const report = await buildCollectionsReport(filters as never, user);
+
+    await respond(res, format, report, () =>
+      exportOf(report.rows, {
+        meta: report.meta,
+      sections: [
+        {
+          title: 'Collections by currency',
+          headers: [
+            'Currency',
+            'Total collected',
+            'Principal',
+            'Interest',
+            'Penalties',
+            'Charges',
+            'Payments',
+            'Clients',
+            'Average payment',
+            'Reversed amount',
+            'Reversed count',
+          ],
+          rows: report.byCurrency.map(row => [
+            row.currency,
+            row.totalCollected,
+            row.principalCollected,
+            row.interestCollected,
+            row.penaltiesCollected,
+            row.chargesCollected,
+            row.paymentCount,
+            row.uniqueClients,
+            row.averagePayment,
+            row.reversedAmount,
+            row.reversedCount,
+          ]),
+        },
+        {
+          title: `Collections by ${report.breakdown.grouping}`,
+          headers: ['Group', 'Currency', 'Payments', 'Total collected'],
+          rows: report.breakdown.rows.flatMap(group =>
+            group.byCurrency.map(currency => [
+              group.label,
+              currency.currency,
+              currency.count,
+              currency.totalCollected,
+            ])
+          ),
+        },
+      ],
+      columns: [
+        { header: 'Receipt', value: r => r.receiptNumber },
+        { header: 'Payment date', value: r => r.paymentDate.slice(0, 10) },
+        { header: 'Value date', value: r => r.valueDate.slice(0, 10) },
+        { header: 'Loan number', value: r => r.loanNumber },
+        { header: 'Client', value: r => r.clientName },
+        { header: 'Branch', value: r => r.branchName },
+        { header: 'Officer', value: r => r.loanOfficerName },
+        { header: 'Collector', value: r => r.collectorName },
+        { header: 'Method', value: r => r.method },
+        { header: 'Reference', value: r => r.reference },
+        { header: 'Currency', value: r => r.currency },
+        money('Amount', r => r.amount),
+        money('Principal', r => r.principalAmount),
+        money('Interest', r => r.interestAmount),
+        money('Penalty', r => r.penaltyAmount),
+        money('Charges', r => r.chargeAmount),
+        { header: 'Status', value: r => r.status },
+        { header: 'Reversed', value: r => (r.isReversed ? 'YES' : '') },
+        { header: 'Reversal reason', value: r => r.reversalReason },
+      ],
+        reconciliation: report.reconciliation,
+      })
+    );
+  })
+);
+
+// ===================================================== 5. Disbursements
+router.get(
+  '/disbursements',
+  guard(async (req, res) => {
+    const { filters, format, user } = parseRequest(req);
+    const report = await buildDisbursementsReport(filters as never, user);
+
+    await respond(res, format, report, () =>
+      exportOf(report.rows, {
+        meta: report.meta,
+      sections: [
+        {
+          title: 'Disbursements by currency',
+          headers: [
+            'Currency',
+            'Gross approved',
+            'Gross disbursed',
+            'Charges deducted',
+            'Charges paid separately',
+            'Net to clients',
+            'Count',
+            'Average',
+            'Top-up amount',
+            'Top-ups',
+            'Reversed amount',
+            'Reversed count',
+          ],
+          rows: report.byCurrency.map(row => [
+            row.currency,
+            row.grossApproved,
+            row.grossDisbursed,
+            row.chargesDeducted,
+            row.chargesPaidSeparately,
+            row.netProceeds,
+            row.disbursementCount,
+            row.averageDisbursement,
+            row.topUpAmount,
+            row.topUpCount,
+            row.reversedAmount,
+            row.reversedCount,
+          ]),
+        },
+        {
+          title: `Disbursements by ${report.breakdown.grouping}`,
+          headers: ['Group', 'Currency', 'Count', 'Gross disbursed', 'Net proceeds'],
+          rows: report.breakdown.rows.flatMap(group =>
+            group.byCurrency.map(currency => [
+              group.label,
+              currency.currency,
+              currency.count,
+              currency.grossDisbursed,
+              currency.netProceeds,
+            ])
+          ),
+        },
+      ],
+      columns: [
+        { header: 'Loan number', value: r => r.loanNumber },
+        { header: 'Client', value: r => r.clientName },
+        { header: 'Client no', value: r => r.clientNumber },
+        { header: 'Client type', value: r => r.clientType },
+        { header: 'Product', value: r => r.productName },
+        { header: 'Branch', value: r => r.branchName },
+        { header: 'Approved', value: r => r.approvalDate?.slice(0, 10) ?? '' },
+        { header: 'Disbursed', value: r => r.disbursementDate.slice(0, 10) },
+        { header: 'Term (months)', value: r => r.termMonths },
+        { header: 'Rate %', value: r => r.interestRate },
+        { header: 'Currency', value: r => r.currency },
+        money('Gross principal', r => r.grossPrincipal),
+        {
+          header: 'Charges',
+          value: r =>
+            r.charges
+              .map(
+                charge =>
+                  `${charge.name} ${charge.amount}${charge.deductedFromPrincipal ? ' (deducted)' : ' (client pays)'}`
+              )
+              .join('; '),
+        },
+        money('Charges deducted', r => r.chargesDeducted),
+        money('Net proceeds', r => r.netProceeds),
+        { header: 'Top-up', value: r => (r.isTopUp ? 'YES' : '') },
+        { header: 'Method', value: r => r.paymentMethod },
+        { header: 'Reference', value: r => r.transactionReference },
+        { header: 'Disbursed by', value: r => r.disbursedByName },
+        { header: 'Reversed', value: r => (r.isReversed ? 'YES' : '') },
+      ],
+        reconciliation: report.reconciliation,
+      })
+    );
   })
 );
 

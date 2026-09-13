@@ -295,5 +295,11 @@ Negative and zero balances therefore remain incorrect, and a zero target can sti
 
 It should calculate the real difference and percentage and reject targets at or below zero.
 
-- If someone clicks the help it must take them to a page with detailed information about how to use the system for all the features available on the system. Please design it nicely and someone must be able to download a PDF of it. Please explain everything that is not on the Super admin section. Do a full check and design for everything complete. 
+
 - When I said - I love to use the icons we are using on Client management on Loan Management I was refering to the export icons not the ones that you  changed. Please fix 
+- I created report check them
+- also fix this issue (node:41116) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+- Now I want to intergrate OBSE with an api key in backend env. I want you to call this endpoint ({{baseUrl}}/api/v2/affordability/analyze) and the data that you get I want you to use it in client view create a table called Bank Statement Analysis and that's where we display all the information and analysis response from OBSE there so that a user can visit and see it. That means we are going to save to the database as well that information so design and implement everything like a seniour software engineer. For testing you can call this baseUrl https://api.qa.obse.co.za
+
+- If someone clicks the help it must take them to a page with detailed information about how to use the system for all the features available on the system. Please design it nicely and someone must be able to download a PDF of it. Please explain everything that is not on the Super admin section. Do a full check and design for everything complete. 
