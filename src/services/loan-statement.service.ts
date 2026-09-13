@@ -30,6 +30,32 @@ const formatDate = (value: Date | string | null | undefined): string => {
   });
 };
 
+/**
+ * A person's name as it should read on a document.
+ *
+ * Names are stored however they were typed, so one clerk's "GODFREY TLOUBATLA"
+ * shouts at the client while another's "Dudu Zuma" does not. What was typed is
+ * still what is stored; this is only about how the statement reads.
+ */
+const personName = (value?: string | null): string => {
+  if (!value) return '';
+  return value
+    .trim()
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .map(word =>
+      word
+        .split(/([-'])/)
+        .map((part, index) =>
+          index % 2 === 1
+            ? part
+            : part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+        )
+        .join('')
+    )
+    .join(' ');
+};
+
 /** Money in the loan's own currency. Never a hardcoded dollar sign. */
 const money = (amount: unknown, currency: string): string => {
   const value = Number(amount ?? 0);
@@ -111,7 +137,9 @@ export function renderStatementHtml(loan: any): string {
   const org = loan.organization;
 
   const clientName =
-    [loan.client?.firstName, loan.client?.lastName].filter(Boolean).join(' ') ||
+    personName(
+      [loan.client?.firstName, loan.client?.lastName].filter(Boolean).join(' ')
+    ) ||
     loan.client?.businessName ||
     'N/A';
 

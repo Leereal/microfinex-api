@@ -473,6 +473,21 @@ class FinancialTransactionService {
       throw new Error('Payment method not found');
     }
 
+    /**
+     * The money must be in the currency the account holds.
+     *
+     * The caller's currency was written onto the row and the method's balance
+     * moved by the same number regardless, so a ZAR payment into a USD account
+     * added its face value to a USD balance - a silent conversion at a rate of
+     * one. A payment method is a single wallet in a single currency; anything
+     * else needs a rate, and there is none here.
+     */
+    if (currency && currency !== paymentMethod.currency) {
+      throw new Error(
+        `${paymentMethod.name} holds ${paymentMethod.currency}, so it cannot take a transaction in ${currency}. Use a ${currency} payment method.`
+      );
+    }
+
     // Calculate balance before/after using decimal arithmetic - float rounding
     // here would slowly drift every payment method's recorded balance.
     const balanceBefore = toMoney(paymentMethod.currentBalance);
@@ -789,11 +804,19 @@ class FinancialTransactionService {
 
     const paymentMethod = await db.paymentMethod.findFirst({
       where: { id: paymentMethodId, organizationId },
-      select: { id: true, currentBalance: true },
+      select: { id: true, name: true, currency: true, currentBalance: true },
     });
 
     if (!paymentMethod) {
       throw new Error('Payment method not found');
+    }
+
+    // The same rule createWithin enforces: a wallet only holds its own
+    // currency. This path writes its rows directly, so it has to check too.
+    if (currency && currency !== paymentMethod.currency) {
+      throw new Error(
+        `${paymentMethod.name} holds ${paymentMethod.currency}, so it cannot take a repayment in ${currency}. Use a ${currency} payment method.`
+      );
     }
 
     // One count for the batch; the rows that follow take consecutive numbers.
