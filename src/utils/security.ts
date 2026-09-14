@@ -61,6 +61,10 @@ export const securityHeaders = helmet({
 export const rateLimiter = rateLimit({
   windowMs: config.rateLimit.windowMs,
   max: config.rateLimit.maxRequests,
+  // WhatsApp delivery reports arrive from a handful of Meta addresses in
+  // bursts; throttling them would lose statuses and replies. Each call is
+  // authenticated by its signature instead.
+  skip: req => req.originalUrl.startsWith('/api/v1/public/communications/whatsapp/webhook'),
   message: {
     success: false,
     message: 'Too many requests, please try again later',

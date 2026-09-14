@@ -64,6 +64,9 @@ import loanEngineRoutes from './loan-engine.routes';
 import monthlyTargetRoutes from './monthly-target.routes';
 // OBSE bank statement analysis
 import obseRoutes from './obse.routes';
+// Client communications
+import communicationsRoutes from './communications.routes';
+import communicationsPublicRoutes from './communications-public.routes';
 
 const router = Router();
 
@@ -91,6 +94,8 @@ router.use(`${apiVersion}/loan-items`, loanItemRoutes);
 router.use(`${apiVersion}/online-applications`, onlineApplicationRoutes);
 router.use(`${apiVersion}/roles`, roleRoutes);
 router.use(`${apiVersion}/audit`, auditRoutes);
+// Unsubscribe links and the WhatsApp webhook - reached without signing in.
+router.use(`${apiVersion}/public/communications`, communicationsPublicRoutes);
 router.use(`${apiVersion}/public`, publicRoutes);
 router.use(`${apiVersion}/uploads`, uploadRoutes);
 router.use(`${apiVersion}/sync`, syncRoutes);
@@ -146,6 +151,9 @@ router.use(`${apiVersion}/monthly-targets`, monthlyTargetRoutes);
 
 // OBSE - bank statement affordability analysis
 router.use(`${apiVersion}/obse`, obseRoutes);
+
+// Client communications - email, SMS, WhatsApp and broadcasts
+router.use(`${apiVersion}/communications`, communicationsRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

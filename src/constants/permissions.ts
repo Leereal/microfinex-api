@@ -42,6 +42,8 @@ export const PERMISSION_MODULES = {
   NOTES: 'notes',
   // AI Module
   AI: 'ai',
+  // Client communications
+  COMMUNICATIONS: 'communications',
 } as const;
 
 // Permission interface
@@ -1304,6 +1306,34 @@ export const AI_PERMISSIONS: PermissionDefinition[] = [
 ];
 
 // ==================== ALL PERMISSIONS ====================
+// ==================== COMMUNICATION PERMISSIONS ====================
+export const COMMUNICATION_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'communications:view',
+    name: 'View Client Messages',
+    description: 'See the emails, SMS and WhatsApp messages exchanged with clients',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+  {
+    code: 'communications:send',
+    name: 'Message Clients',
+    description: 'Send an email, SMS or WhatsApp message to one client',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+  {
+    code: 'communications:broadcast',
+    name: 'Broadcast to Clients',
+    description: 'Send one message to many clients at once',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+  {
+    code: 'communications:templates',
+    name: 'Manage Message Templates',
+    description: 'Create, edit and delete reusable message templates',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+];
+
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
   ...LOAN_PERMISSIONS,
@@ -1342,6 +1372,8 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...NOTE_PERMISSIONS,
   // AI Module
   ...AI_PERMISSIONS,
+  // Client communications
+  ...COMMUNICATION_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -1593,6 +1625,12 @@ export const PERMISSIONS = {
   AI_MANAGE: 'ai:manage',
   AI_EXTRACT: 'ai:extract',
 
+  // Client communications
+  COMMUNICATIONS_VIEW: 'communications:view',
+  COMMUNICATIONS_SEND: 'communications:send',
+  COMMUNICATIONS_BROADCAST: 'communications:broadcast',
+  COMMUNICATIONS_TEMPLATES: 'communications:templates',
+
   // Charges
   CHARGES_VIEW: 'charges:view',
   CHARGES_CREATE: 'charges:create',
@@ -1647,6 +1685,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...NOTE_PERMISSIONS.map(p => p.code),
     // AI Module - ADMIN can manage AI settings
     ...AI_PERMISSIONS.map(p => p.code),
+    ...COMMUNICATION_PERMISSIONS.map(p => p.code),
   ],
 
   // Organization Admin - same as ADMIN but specifically for organization-level management
@@ -1685,6 +1724,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...NOTE_PERMISSIONS.map(p => p.code),
     // AI Module - ORG_ADMIN can manage AI settings
     ...AI_PERMISSIONS.map(p => p.code),
+    ...COMMUNICATION_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
@@ -1763,6 +1803,10 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // AI - Managers can view settings and use AI extraction
     PERMISSIONS.AI_VIEW,
     PERMISSIONS.AI_EXTRACT,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.COMMUNICATIONS_SEND,
+    PERMISSIONS.COMMUNICATIONS_BROADCAST,
+    PERMISSIONS.COMMUNICATIONS_TEMPLATES,
   ],
 
   LOAN_ASSESSOR: [
@@ -1787,6 +1831,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_DELETE,
     // AI - Loan Assessors can use AI extraction for documents
     PERMISSIONS.AI_EXTRACT,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
   ],
 
   LOAN_OFFICER: [
@@ -1817,6 +1862,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_DELETE,
     // AI - Loan Officers can use AI extraction for documents
     PERMISSIONS.AI_EXTRACT,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.COMMUNICATIONS_SEND,
   ],
 
   CASHIER: [
@@ -1836,6 +1883,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // Notes - Cashiers can view and create
     PERMISSIONS.NOTES_VIEW,
     PERMISSIONS.NOTES_CREATE,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.COMMUNICATIONS_SEND,
   ],
 
   VIEWER: [
@@ -1847,6 +1896,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.DASHBOARD_VIEW,
     // Notes - Viewers can only view
     PERMISSIONS.NOTES_VIEW,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
   ],
 };
 

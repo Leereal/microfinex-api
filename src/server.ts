@@ -3,6 +3,7 @@ import { config } from './config';
 import { prisma } from './config/database';
 import { cacheService } from './services/cache.service';
 import { startScheduler, stopScheduler } from './jobs/scheduler';
+import { commsDispatcher } from './services/communications/comms.dispatcher';
 import { aiExtractionService } from './services/ai-extraction.service';
 import { closePdfBrowser } from './services/pdf.service';
 
@@ -50,6 +51,15 @@ const startServer = async () => {
       );
     }
 
+    // Sends queued client messages (broadcasts) and fetches SMS delivery
+    // reports. Independent of the scheduler, so messages are never left
+    // unsent because ENABLE_SCHEDULER is off. COMMS_DISPATCHER=false turns it
+    // off on an instance that should not send.
+    if (process.env.COMMS_DISPATCHER !== 'false') {
+      commsDispatcher.start();
+      console.log('✅ Communications dispatcher started');
+    }
+
     // Start the server
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
@@ -76,6 +86,7 @@ const startServer = async () => {
 
         try {
           await stopScheduler();
+          commsDispatcher.stop();
           console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');
@@ -101,6 +112,7 @@ const startServer = async () => {
 
         try {
           await stopScheduler();
+          commsDispatcher.stop();
           console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');

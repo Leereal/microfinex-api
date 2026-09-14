@@ -27,6 +27,7 @@ export function isSecretSettingKey(key: string): boolean {
  */
 const RESERVED_PREFIXES: Array<{ prefix: string; endpoint: string }> = [
   { prefix: 'obse_', endpoint: '/api/v1/obse/settings' },
+  { prefix: 'comms_', endpoint: '/api/v1/communications/settings' },
 ];
 
 export function reservedSettingEndpoint(key: string): string | null {

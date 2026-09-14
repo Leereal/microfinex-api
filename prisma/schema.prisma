@@ -51,6 +51,10 @@ model Organization {
   clientDeletionRequests ClientDeletionRequest[]
   loanReversalRequests   LoanReversalRequest[]
   bankStatementAnalyses  BankStatementAnalysis[]
+  clientMessages         ClientMessage[]
+  messageBroadcasts      MessageBroadcast[]
+  messageTemplates       MessageTemplate[]
+  communicationPreferences ClientCommunicationPreference[]
 
   @@map("organizations")
 }
@@ -304,6 +308,9 @@ model User {
   reversedPayments      Payment[]              @relation("PaymentReversedBy")
   bankStatementAnalyses BankStatementAnalysis[] @relation("BankStatementAnalysisRequestedBy")
   adjustedBankStatementAnalyses BankStatementAnalysis[] @relation("BankStatementAnalysisAdjustedBy")
+  sentClientMessages    ClientMessage[] @relation("ClientMessageSentBy")
+  createdBroadcasts     MessageBroadcast[] @relation("MessageBroadcastCreatedBy")
+  createdMessageTemplates MessageTemplate[] @relation("MessageTemplateCreatedBy")
   refreshTokens         RefreshToken[]
   userBranches          UserBranch[]
   userPermissions       UserPermission[]
@@ -405,6 +412,8 @@ model Client {
   contacts         ClientContact[]
   documents        ClientDocument[]
   bankStatementAnalyses BankStatementAnalysis[]
+  messages              ClientMessage[]
+  communicationPreference ClientCommunicationPreference?
   employers        ClientEmployer[]
   clientLimits     ClientLimit[]
   branch           Branch             @relation(fields: [branchId], references: [id])
@@ -590,6 +599,7 @@ model Loan {
   disbursementBranch    Branch?                @relation("LoanDisbursementBranch", fields: [disbursementBranchId], references: [id])
   group                 Group?                 @relation(fields: [groupId], references: [id])
   loanOfficer           User                   @relation("LoanOfficer", fields: [loanOfficerId], references: [id])
+  clientMessages        ClientMessage[]
   onlineApplication     OnlineApplication?     @relation(fields: [onlineApplicationId], references: [id])
   organization          Organization           @relation(fields: [organizationId], references: [id])
   product               LoanProduct            @relation(fields: [productId], references: [id])
@@ -1520,6 +1530,140 @@ model NoteReadMarker {
   @@index([organizationId, entityType, entityId])
   @@map("note_read_markers")
 }
+
+/// A message to or from a client: email, SMS or WhatsApp.
+///
+/// Outbound messages are written before they are sent and move through
+/// QUEUED -> SENDING -> SENT -> DELIVERED (-> READ for WhatsApp), or end
+/// FAILED or SKIPPED. A click-to-chat WhatsApp message ends OPENED: it was
+/// handed to the staff member's WhatsApp, which the system cannot see beyond.
+/// Inbound WhatsApp messages arrive RECEIVED, and may come from a number that
+/// matches no client, hence the optional client.
+model ClientMessage {
+  id                String    @id @default(uuid())
+  organizationId    String
+  clientId          String?
+  loanId            String?
+  broadcastId       String?
+  /// EMAIL | SMS | WHATSAPP
+  channel           String
+  /// SMTP | BULKSMS | WHATSAPP_CLOUD | CLICK_TO_CHAT
+  provider          String
+  /// OUTBOUND | INBOUND
+  direction         String    @default("OUTBOUND")
+  /// The email address or E.164 phone number.
+  toAddress         String
+  fromAddress       String?
+  subject           String?
+  body              String
+  /// A WhatsApp template message: its name, language and parameters.
+  templateName      String?
+  templateLanguage  String?
+  templateParams    Json?
+  status            String    @default("QUEUED")
+  providerMessageId String?
+  errorCode         String?
+  errorMessage      String?
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @default(now())
+  lockedAt          DateTime?
+  sentById          String?
+  queuedAt          DateTime  @default(now())
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  failedAt          DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  loan         Loan?             @relation(fields: [loanId], references: [id], onDelete: SetNull)
+  broadcast    MessageBroadcast? @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
+  sentBy       User?             @relation("ClientMessageSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, clientId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([loanId, createdAt])
+  @@index([broadcastId, status])
+  @@index([status, nextAttemptAt])
+  @@index([provider, providerMessageId])
+  @@map("client_messages")
+}
+
+/// One message sent to many clients at once.
+model MessageBroadcast {
+  id               String    @id @default(uuid())
+  organizationId   String
+  name             String
+  channel          String
+  subject          String?
+  body             String
+  templateName     String?
+  templateLanguage String?
+  templateParams   Json?
+  /// How the recipients were chosen, kept so the broadcast can be explained.
+  audience         Json
+  /// QUEUED | SENDING | COMPLETED | CANCELLED
+  status           String    @default("QUEUED")
+  totalRecipients  Int       @default(0)
+  skippedCount     Int       @default(0)
+  createdById      String
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User            @relation("MessageBroadcastCreatedBy", fields: [createdById], references: [id])
+  messages     ClientMessage[]
+
+  @@index([organizationId, createdAt])
+  @@map("message_broadcasts")
+}
+
+/// Reusable wording for messages, with {{placeholders}} for client details.
+model MessageTemplate {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  /// EMAIL | SMS | WHATSAPP | ANY
+  channel        String   @default("ANY")
+  subject        String?
+  body           String
+  isActive       Boolean  @default(true)
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("MessageTemplateCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([organizationId, name])
+  @@map("message_templates")
+}
+
+/// Whether a client has opted out of broadcasts on each channel.
+model ClientCommunicationPreference {
+  id             String    @id @default(uuid())
+  organizationId String
+  clientId       String    @unique
+  emailOptOut    Boolean   @default(false)
+  smsOptOut      Boolean   @default(false)
+  whatsappOptOut Boolean   @default(false)
+  /// STAFF | UNSUBSCRIBE_LINK | WHATSAPP_STOP | SMS_BLOCKED
+  source         String?
+  note           String?
+  updatedById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("client_communication_preferences")
+}
+
 
 model NoteAttachment {
   id          String   @id @default(uuid())
