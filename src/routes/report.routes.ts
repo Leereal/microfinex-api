@@ -11,7 +11,7 @@
  * so it is a separate grant.
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type RequestHandler, type Response } from 'express';
 import { z } from 'zod';
 import {
   authenticateToken,
@@ -177,22 +177,38 @@ function permissionsFor(req: Request): string[] {
     : ['reports:view'];
 }
 
-const guard = (handler: (req: Request, res: Response) => Promise<void>) =>
-  handleAsync(async (req: Request, res: Response) => {
-    for (const permission of permissionsFor(req)) {
-      let denied = false;
-      await new Promise<void>(resolve => {
-        requirePermission(permission)(req, res, () => resolve());
-        // requirePermission responds itself when it refuses.
-        if (res.headersSent) {
-          denied = true;
-          resolve();
-        }
-      });
-      if (denied || res.headersSent) return;
+/**
+ * Run each required permission check in turn, as ordinary middleware.
+ *
+ * The permission middleware is async - it looks the grants up before it
+ * answers - and when it refuses it sends the 403 itself without calling
+ * `next`. An earlier version wrapped it in a promise and checked for a sent
+ * response straight away, before that lookup had finished; the refusal still
+ * reached the client, but the promise never settled, leaving one dangling
+ * forever on the server for every refused request. Chaining through `next`
+ * has no promise to leave behind: a refusal simply ends the chain.
+ */
+const requireReportPermissions: RequestHandler = (req, res, next) => {
+  const required = permissionsFor(req);
+
+  const check = (index: number): void => {
+    if (index >= required.length) {
+      next();
+      return;
     }
-    await handler(req, res);
-  });
+    void requirePermission(required[index]!)(req, res, (error?: unknown) => {
+      if (error) next(error);
+      else check(index + 1);
+    });
+  };
+
+  check(0);
+};
+
+const guard = (handler: (req: Request, res: Response) => Promise<void>) => [
+  requireReportPermissions,
+  handleAsync(handler),
+];
 
 const money = <Row>(
   header: string,

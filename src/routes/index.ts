@@ -62,6 +62,8 @@ import chargeRoutes from './charges.routes';
 import loanEngineRoutes from './loan-engine.routes';
 // Monthly Targets
 import monthlyTargetRoutes from './monthly-target.routes';
+// OBSE bank statement analysis
+import obseRoutes from './obse.routes';
 
 const router = Router();
 
@@ -141,6 +143,9 @@ router.use(`${apiVersion}/loan-engine`, loanEngineRoutes);
 
 // Monthly Targets - Disbursement and repayment targets
 router.use(`${apiVersion}/monthly-targets`, monthlyTargetRoutes);
+
+// OBSE - bank statement affordability analysis
+router.use(`${apiVersion}/obse`, obseRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {

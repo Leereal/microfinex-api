@@ -50,6 +50,7 @@ model Organization {
   notifications         Notification[]
   clientDeletionRequests ClientDeletionRequest[]
   loanReversalRequests   LoanReversalRequest[]
+  bankStatementAnalyses  BankStatementAnalysis[]
 
   @@map("organizations")
 }
@@ -301,6 +302,8 @@ model User {
   notes                 Note[]
   payments              Payment[]              @relation("PaymentReceivedBy")
   reversedPayments      Payment[]              @relation("PaymentReversedBy")
+  bankStatementAnalyses BankStatementAnalysis[] @relation("BankStatementAnalysisRequestedBy")
+  adjustedBankStatementAnalyses BankStatementAnalysis[] @relation("BankStatementAnalysisAdjustedBy")
   refreshTokens         RefreshToken[]
   userBranches          UserBranch[]
   userPermissions       UserPermission[]
@@ -401,6 +404,7 @@ model Client {
   collaterals      ClientCollateral[]
   contacts         ClientContact[]
   documents        ClientDocument[]
+  bankStatementAnalyses BankStatementAnalysis[]
   employers        ClientEmployer[]
   clientLimits     ClientLimit[]
   branch           Branch             @relation(fields: [branchId], references: [id])
@@ -1468,6 +1472,12 @@ model ClientDraft {
   @@map("client_drafts")
 }
 
+/// A message in the discussion thread on a client or a loan.
+///
+/// Deleting a message hides it rather than erasing it: the thread keeps its
+/// shape ("message deleted") and the words stay on record for audit. Its
+/// attachments are removed from storage, since a wrongly attached document is
+/// the usual reason to delete.
 model Note {
   id             String           @id @default(uuid())
   organizationId String
@@ -1480,14 +1490,35 @@ model Note {
   createdBy      String
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+  /// When the author last changed the words - pinning is not an edit.
+  editedAt       DateTime?
+  deletedAt      DateTime?
+  deletedBy      String?
   attachments    NoteAttachment[]
   creator        User             @relation(fields: [createdBy], references: [id])
 
   @@index([organizationId])
   @@index([entityType, entityId])
+  @@index([organizationId, entityType, entityId, createdAt])
   @@index([createdBy])
   @@index([createdAt])
   @@map("notes")
+}
+
+/// How far one person has read one thread, for unread counts.
+model NoteReadMarker {
+  id             String         @id @default(uuid())
+  organizationId String
+  userId         String
+  entityType     NoteEntityType
+  entityId       String
+  lastReadAt     DateTime
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([userId, entityType, entityId])
+  @@index([organizationId, entityType, entityId])
+  @@map("note_read_markers")
 }
 
 model NoteAttachment {
@@ -1972,6 +2003,81 @@ model LoanReversalRequest {
   @@index([requestedById])
   @@map("loan_reversal_requests")
 }
+
+/// A bank statement affordability analysis, run through OBSE.
+///
+/// OBSE's full response is kept in `rawResponse` exactly as it arrived - the
+/// transactions it counted, the ones it excluded and why, its fraud findings -
+/// so nothing it reported is lost if its schema grows. The headline figures
+/// beside it are copied out of the response's `summary` so analyses can be
+/// listed and compared without reparsing a large JSON document; they are a
+/// convenience over the raw response, never a replacement for it.
+///
+/// OBSE does not report a currency. Every amount is a monthly average over the
+/// statement period, in whatever currency the statement itself is in.
+///
+/// Analyses run in the background: OBSE reads the PDF, runs fraud checks and
+/// categorises every transaction, which takes from twenty seconds to several
+/// minutes. A record is created PENDING, moves to PROCESSING, and ends
+/// COMPLETED or FAILED.
+model BankStatementAnalysis {
+  id                   String    @id @default(uuid())
+  organizationId       String
+  clientId             String
+  /// PENDING | PROCESSING | COMPLETED | FAILED
+  status               String    @default("PENDING")
+  provider             String    @default("OBSE")
+  /// The documents sent, so a result can always be traced to its inputs.
+  statementDocumentIds String[]
+  payslipDocumentIds   String[]
+  /// salaried | non-salaried - decides which income and spending OBSE counts.
+  customerType         String
+  /// Sent to OBSE as its reference number: the client number.
+  referenceNumber      String?
+  /// The endpoint called, recorded because the base URL is configurable.
+  endpoint             String
+  httpStatus           Int?
+  durationMs           Int?
+  monthlyIncome        Decimal?  @db.Decimal(15, 2)
+  monthlyExpenses      Decimal?  @db.Decimal(15, 2)
+  disposableIncome     Decimal?  @db.Decimal(15, 2)
+  suggestedRepayment   Decimal?  @db.Decimal(15, 2)
+  primaryMonthlySalary Decimal?  @db.Decimal(15, 2)
+  /// low | moderate | high | unknown
+  incomeVolatility     String?
+  fraudFindingsCount   Int?
+  bankName             String?
+  /// As printed on the statement; banks do not agree on a date format.
+  statementFrom        String?
+  statementTo          String?
+  statementMonths      Int?
+  policyVersion        String?
+  /// A reviewer's decisions on which transactions count, where they differ
+  /// from OBSE's: { "txn-14": true }. When set, the headline figures above are
+  /// the adjusted ones; OBSE's originals stay in rawResponse.
+  reviewerOverrides    Json?
+  adjustedAt           DateTime?
+  adjustedById         String?
+  rawResponse          Json?
+  errorMessage         String?
+  errorCode            String?
+  requestedById        String
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("BankStatementAnalysisRequestedBy", fields: [requestedById], references: [id])
+  adjustedBy   User?        @relation("BankStatementAnalysisAdjustedBy", fields: [adjustedById], references: [id])
+
+  @@index([organizationId, clientId])
+  @@index([clientId, createdAt])
+  @@index([status, startedAt])
+  @@map("bank_statement_analyses")
+}
+
 
 model ClientDeletionRequest {
   id             String    @id @default(uuid())

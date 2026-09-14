@@ -62,6 +62,24 @@ export const FILE_TYPES = {
     maxSize: 5 * 1024 * 1024, // 5MB
     folder: 'pledges',
   },
+  // Files attached to a message in a client's or loan's discussion thread.
+  NOTE_ATTACHMENT: {
+    mimeTypes: [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'text/plain',
+    ],
+    maxSize: 10 * 1024 * 1024, // 10MB
+    folder: 'notes',
+  },
 } as const;
 
 export type FileType = keyof typeof FILE_TYPES;
@@ -226,11 +244,19 @@ class StorageService {
    */
   async getSignedUrl(
     storagePath: string,
-    expirySeconds?: number
+    expirySeconds?: number,
+    /** When set, the link downloads the file under this name instead of opening it. */
+    downloadName?: string
   ): Promise<string> {
     await this.initialize();
 
     const expiry = expirySeconds || PRESIGNED_URL_EXPIRY;
+    if (downloadName) {
+      const encoded = encodeURIComponent(downloadName);
+      return this.client.presignedGetObject(BUCKET_NAME, storagePath, expiry, {
+        'response-content-disposition': `attachment; filename*=UTF-8''${encoded}`,
+      });
+    }
     return this.client.presignedGetObject(BUCKET_NAME, storagePath, expiry);
   }
 

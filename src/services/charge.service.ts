@@ -641,6 +641,42 @@ class ChargeService {
       existingCharges.map(existing => [existing.chargeId, existing])
     );
 
+    /**
+     * The income category, found before anything is written.
+     *
+     * An income transaction must name one. Looking it up here, once, means a
+     * missing category refuses the disbursement with nothing changed - and
+     * keeps a lookup per charge out of the transaction below.
+     */
+    let feeCategoryId: string | null = null;
+    if (input.paymentMethodId && charges.length > 0) {
+      const feeCategory = await prisma.incomeCategory.findFirst({
+        where: {
+          organizationId: loan.organizationId,
+          code: { in: ['PROCESSING_FEE', 'OTHER_INCOME'] },
+        },
+        orderBy: { code: 'asc' },
+        select: { id: true },
+      });
+      if (!feeCategory) {
+        throw new Error(
+          'No income category exists for loan charges. Add a "Processing Fee" income category (or seed the defaults) under Finances, then disburse again.'
+        );
+      }
+      feeCategoryId = feeCategory.id;
+    }
+
+    /**
+     * The charges and the income they bring in, together or not at all.
+     *
+     * The income used to be booked through a second, separate transaction
+     * started from inside this one. Against a remote database that took longer
+     * than this transaction is allowed to stay open, so it expired and rolled
+     * back - but the income had already been committed on its own. Every failed
+     * attempt left a fee booked against the payment method for a loan that was
+     * never disbursed. Now the income is written in this transaction, and the
+     * time allowed reflects a database that is a network hop away.
+     */
     await prisma.$transaction(async tx => {
       for (const charge of charges) {
         const existing = alreadyOnLoan.get(charge.id);
@@ -687,48 +723,64 @@ class ChargeService {
         // Create financial transaction for the charge (income for the org). A
         // charge raised at application has not been booked as income yet, so
         // this runs for it too - but never twice for the same charge.
-        if (input.paymentMethodId && !loanCharge.financialTransactionId) {
+        if (input.paymentMethodId && feeCategoryId && !loanCharge.financialTransactionId) {
+          const reference = `CHG-${loanCharge.id.slice(-8).toUpperCase()}`;
+
           /**
-           * An income transaction must name an income category.
+           * The same fee, already booked by an attempt that failed afterwards.
            *
-           * This never passed one, so every attempt threw "Income category is
-           * required for income transactions" - meaning a charge could never be
-           * recorded as income no matter how the organization was set up. The
-           * disbursement path resolves its category the same way; this one
-           * simply did not.
+           * Before this was one transaction, a failed disbursement could leave
+           * the fee's income committed with nothing pointing at it. Booking it
+           * again on the retry would take the fee twice; the earlier entry is
+           * used instead, provided it is the same fee to the same account and
+           * nothing else claims it.
            */
-          const feeCategory = await tx.incomeCategory.findFirst({
+          const earlier = await tx.financialTransaction.findFirst({
             where: {
               organizationId: loan.organizationId,
-              code: { in: ['PROCESSING_FEE', 'OTHER_INCOME'] },
+              relatedLoanId: input.loanId,
+              type: 'INCOME',
+              reference,
+              paymentMethodId: input.paymentMethodId,
+              currency,
+              amount: calculatedAmount,
+              status: 'COMPLETED',
             },
-            orderBy: { code: 'asc' },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true },
           });
+          const claimed = earlier
+            ? await tx.loanCharge.findFirst({
+                where: { financialTransactionId: earlier.id },
+                select: { id: true },
+              })
+            : null;
 
-          if (!feeCategory) {
-            throw new Error(
-              'No income category exists for loan charges. Add a "Processing Fee" income category (or seed the defaults) under Finances, then disburse again.'
-            );
-          }
+          const transactionId =
+            earlier && !claimed
+              ? earlier.id
+              : (
+                  await financialTransactionService.create(
+                    {
+                      organizationId: loan.organizationId,
+                      branchId: loan.branchId,
+                      type: 'INCOME',
+                      incomeCategoryId: feeCategoryId,
+                      amount: calculatedAmount,
+                      currency,
+                      paymentMethodId: input.paymentMethodId,
+                      relatedLoanId: input.loanId,
+                      description: `${charge.name} for loan ${loan.loanNumber}`,
+                      reference,
+                      processedBy: input.appliedBy,
+                    },
+                    tx
+                  )
+                ).id;
 
-          const transaction = await financialTransactionService.create({
-            organizationId: loan.organizationId,
-            branchId: loan.branchId,
-            type: 'INCOME',
-            incomeCategoryId: feeCategory.id,
-            amount: calculatedAmount,
-            currency,
-            paymentMethodId: input.paymentMethodId,
-            relatedLoanId: input.loanId,
-            description: `${charge.name} for loan ${loan.loanNumber}`,
-            reference: `CHG-${loanCharge.id.slice(-8).toUpperCase()}`,
-            processedBy: input.appliedBy,
-          });
-
-          // Update loan charge with transaction ID
           await tx.loanCharge.update({
             where: { id: loanCharge.id },
-            data: { financialTransactionId: transaction.id },
+            data: { financialTransactionId: transactionId },
           });
         }
 
@@ -741,7 +793,7 @@ class ChargeService {
           addedToLoan += calculatedAmount;
         }
       }
-    });
+    }, { timeout: 30_000, maxWait: 10_000 });
 
     const netDisbursement = loanAmount - deductedFromPrincipal;
 

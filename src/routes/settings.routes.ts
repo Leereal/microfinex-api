@@ -1,4 +1,9 @@
 import { Router } from 'express';
+import {
+  isSecretSettingKey,
+  redactSecretSettings,
+  reservedSettingEndpoint,
+} from '../utils/secret-settings';
 import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest } from '../middleware/validation';
@@ -35,7 +40,11 @@ router.get('/', authenticate, async (req, res) => {
       });
     }
 
-    const settings = await settingsService.getAll(organizationId);
+    // Credentials are stripped: this list is readable by any signed-in user,
+    // and an integration's API key is not for a teller to see.
+    const settings = redactSecretSettings(
+      await settingsService.getAll(organizationId)
+    );
 
     res.json({
       success: true,
@@ -71,6 +80,16 @@ router.get('/:key', authenticate, async (req, res) => {
         success: false,
         message: 'Setting key is required',
         error: 'MISSING_KEY',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // A credential is never read back one at a time either.
+    if (isSecretSettingKey(key)) {
+      return res.status(403).json({
+        success: false,
+        message: 'This setting holds a credential and cannot be read back.',
+        error: 'SECRET_SETTING',
         timestamp: new Date().toISOString(),
       });
     }
@@ -132,6 +151,18 @@ router.put(
           timestamp: new Date().toISOString(),
         });
       }
+      // An integration's settings go through its own endpoint, which encrypts
+      // and validates on the way in - this one would store them as given.
+      const ownedBy = reservedSettingEndpoint(key);
+      if (ownedBy) {
+        return res.status(400).json({
+          success: false,
+          message: `This setting is managed by its integration. Update it through ${ownedBy}.`,
+          error: 'RESERVED_SETTING',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const { settingValue, description } = req.body;
       const organizationId = req.user?.organizationId;
 

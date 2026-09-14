@@ -51,6 +51,7 @@ router.get(
       outstandingLoanCount,
       totalClients,
       activeClients,
+      borrowingClients,
       pendingApproval,
       pendingDisbursement,
       onlineApplications,
@@ -67,19 +68,23 @@ router.get(
       prisma.loan.count({
         where: { ...loanWhere, status: { in: ['ACTIVE', 'OVERDUE'] } },
       }),
+      // Three different questions, kept apart. "Active clients" used to mean
+      // "has an active loan" here while Client Management used it for records
+      // switched on - the same words showed 1 on one screen and 3 on the other.
       prisma.client.count({
-        where: {
-          organizationId,
-          isActive: true,
-          ...(branchId && { branchId }),
-        },
+        where: { organizationId, ...(branchId && { branchId }) },
       }),
+      // Client records switched on - Client Management's "Active Clients".
+      prisma.client.count({
+        where: { organizationId, isActive: true, ...(branchId && { branchId }) },
+      }),
+      // Clients who currently owe: a running loan, overdue included. An
+      // overdue borrower is still a borrower.
       prisma.client.count({
         where: {
           organizationId,
-          isActive: true,
           ...(branchId && { branchId }),
-          loans: { some: { status: 'ACTIVE' } },
+          loans: { some: { status: { in: ['ACTIVE', 'OVERDUE'] } } },
         },
       }),
       // Loans pending approval
@@ -189,6 +194,7 @@ router.get(
         clients: {
           total: totalClients,
           active: activeClients,
+          withActiveLoans: borrowingClients,
         },
         payments: {
           countThisMonth: paymentsThisMonth,

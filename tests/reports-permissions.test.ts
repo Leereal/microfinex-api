@@ -23,15 +23,25 @@ jest.mock('../src/middleware/auth.middleware', () => ({
     req.userContext = req.user;
     next();
   },
-  requirePermission: (permission: string) => (_req: any, res: any, next: any) => {
-    if (granted.includes(permission)) return next();
-    res.status(403).json({
-      success: false,
-      message: 'Insufficient permissions',
-      error: 'FORBIDDEN',
-      requiredPermission: permission,
-    });
-  },
+  /**
+   * Async, like the real one.
+   *
+   * The real middleware awaits a permissions lookup before it answers. An
+   * earlier version of this mock answered synchronously, which let a route
+   * guard pass these tests while hanging forever in production on every
+   * refused request - it checked for a response before the await had finished.
+   */
+  requirePermission:
+    (permission: string) => async (_req: any, res: any, next: any) => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      if (granted.includes(permission)) return next();
+      res.status(403).json({
+        success: false,
+        message: 'Insufficient permissions',
+        error: 'FORBIDDEN',
+        requiredPermission: permission,
+      });
+    },
 }));
 
 const loanFindMany = jest.fn().mockResolvedValue([]);
@@ -85,6 +95,30 @@ describe('reading a report needs reports:view', () => {
     const response = await request(app).get(endpoint);
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
+  });
+});
+
+describe('a refused request leaves nothing running', () => {
+  it('never reaches the report once permission is refused', async () => {
+    granted = [];
+    loanFindMany.mockClear();
+    const response = await request(app).get('/reports/portfolio-summary');
+    // Give any stray continuation time to run, then prove none did.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(response.status).toBe(403);
+    expect(loanFindMany).not.toHaveBeenCalled();
+  });
+
+  it('stops at the first refused check rather than running the rest', async () => {
+    granted = ['reports:export']; // has export, lacks view
+    loanFindMany.mockClear();
+    const response = await request(app).get(
+      '/reports/portfolio-summary?format=csv'
+    );
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(response.status).toBe(403);
+    expect(response.body.requiredPermission).toBe('reports:view');
+    expect(loanFindMany).not.toHaveBeenCalled();
   });
 });
 
