@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { storageService } from './storage.service';
+import { brandName } from './branding/branding.cache';
 
 /**
  * The loan statement, as one self-contained HTML document.
@@ -557,7 +558,7 @@ export function renderStatementHtml(loan: any): string {
   </div>
 
   <div class="footer">
-    <p>This statement was generated on ${formatDate(new Date())} by ${escapeHtml(org?.name ?? 'Microfinex')}.</p>
+    <p>This statement was generated on ${formatDate(new Date())} by ${escapeHtml(org?.name ?? brandName())}.</p>
     <p>For any queries, please contact your loan officer or visit your nearest branch.</p>
   </div>
 </body>

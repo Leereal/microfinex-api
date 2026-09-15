@@ -696,7 +696,7 @@ class ImportService {
           'Address': '789 Business Avenue',
           'City': 'Harare',
           'Phone': '+263773456789',
-          'Email': 'main@microfinex.com',
+          'Email': 'main@example.com',
           'Manager ID': '',
           'Is Active': true,
         };

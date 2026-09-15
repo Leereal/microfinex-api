@@ -130,7 +130,7 @@ export const config: Config = {
   },
 
   api: {
-    title: process.env.API_TITLE || 'Microfinex API',
+    title: process.env.API_TITLE || 'MicroSteward API',
     version: process.env.API_VERSION || '1.0.0',
     description:
       process.env.API_DESCRIPTION ||

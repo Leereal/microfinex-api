@@ -312,6 +312,7 @@ It should calculate the real difference and percentage and reject targets at or 
 
 - I want a way to minimize the sidebar 
 
--  I want to allow white label the whole system just incase someone want's it with another name than Microfinex please assist there and it must be smooth and clean. 
-- Billing 
+-  I want to allow white label the whole system just incase someone want's it with another name than Microfinex please assist there and it must be smooth and clean. I also want another landing page than the one that is currently there.
+
+- Billing, i want you to come up with a suggestion on how I should do the billing and pricing for the system.  
 

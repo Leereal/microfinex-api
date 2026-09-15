@@ -67,6 +67,8 @@ import obseRoutes from './obse.routes';
 // Client communications
 import communicationsRoutes from './communications.routes';
 import communicationsPublicRoutes from './communications-public.routes';
+import brandingRoutes, { brandingPublicRoutes } from './branding.routes';
+import { brandName } from '../services/branding/branding.cache';
 
 const router = Router();
 
@@ -96,6 +98,7 @@ router.use(`${apiVersion}/roles`, roleRoutes);
 router.use(`${apiVersion}/audit`, auditRoutes);
 // Unsubscribe links and the WhatsApp webhook - reached without signing in.
 router.use(`${apiVersion}/public/communications`, communicationsPublicRoutes);
+router.use(`${apiVersion}/public/branding`, brandingPublicRoutes);
 router.use(`${apiVersion}/public`, publicRoutes);
 router.use(`${apiVersion}/uploads`, uploadRoutes);
 router.use(`${apiVersion}/sync`, syncRoutes);
@@ -155,6 +158,9 @@ router.use(`${apiVersion}/obse`, obseRoutes);
 // Client communications - email, SMS, WhatsApp and broadcasts
 router.use(`${apiVersion}/communications`, communicationsRoutes);
 
+// White-label branding and landing page (Super Admin)
+router.use(`${apiVersion}/branding`, brandingRoutes);
+
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {
   res.json({
@@ -183,7 +189,7 @@ router.get(`${apiVersion}/health`, (req, res) => {
 router.get(`${apiVersion}`, (req, res) => {
   const versionInfo = getVersionInfo();
   res.json({
-    name: 'Microfinex API',
+    name: `${brandName()} API`,
     version: CURRENT_VERSION,
     description: 'Modern Microfinance Management System API',
     ...versionInfo,
@@ -213,7 +219,7 @@ router.get('/docs', (req, res) => {
 router.get(`${apiVersion}/docs`, (req, res) => {
   const versionInfo = getVersionInfo();
   res.json({
-    name: 'Microfinex API Documentation',
+    name: `${brandName()} API Documentation`,
     version: CURRENT_VERSION,
     description: 'Modern Microfinance Management System API',
     ...versionInfo,

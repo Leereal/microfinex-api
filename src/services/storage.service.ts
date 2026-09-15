@@ -240,6 +240,20 @@ class StorageService {
   }
 
   /**
+   * Store a file at a path chosen by the caller, for platform files that
+   * belong to no organization (such as white-label logos). The caller
+   * validates the file.
+   */
+  async putObject(storagePath: string, file: Buffer, mimeType: string): Promise<{ path: string; etag: string }> {
+    await this.initialize();
+    const result = await this.client.putObject(BUCKET_NAME, storagePath, file, file.length, {
+      'Content-Type': mimeType,
+      'X-Upload-Time': new Date().toISOString(),
+    });
+    return { path: storagePath, etag: result.etag };
+  }
+
+  /**
    * Get a presigned URL for downloading a file
    */
   async getSignedUrl(

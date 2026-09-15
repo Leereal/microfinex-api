@@ -70,7 +70,7 @@ app.use('/api', routes);
 // Swagger Documentation
 const swaggerOptions = {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Microfinex API Documentation',
+  customSiteTitle: `${process.env.API_TITLE || 'MicroSteward API'} Documentation`,
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,

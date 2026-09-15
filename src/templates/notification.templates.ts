@@ -17,13 +17,17 @@ export interface NotificationTemplate {
   variables: string[];
 }
 
+import { brandName } from '../services/branding/branding.cache';
+
 /**
- * Replace template variables with actual values
+ * Replace template variables with actual values.
+ * {{ brandName }} is the platform's current (white-label) name unless given.
  */
 export function compileTemplate(template: string, data: TemplateData): string {
   let result = template;
-  
-  for (const [key, value] of Object.entries(data)) {
+
+  const values: TemplateData = { brandName: brandName(), ...data };
+  for (const [key, value] of Object.entries(values)) {
     const placeholder = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
     let displayValue = '';
     
@@ -56,7 +60,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     id: 'otp_verification',
     name: 'OTP Verification',
     type: 'SMS',
-    smsTemplate: 'Your Microfinex verification code is: {{ code }}. Valid for {{ minutes }} minutes. Do not share this code.',
+    smsTemplate: 'Your {{ brandName }} verification code is: {{ code }}. Valid for {{ minutes }} minutes. Do not share this code.',
     emailTemplate: `
       <h2>Verification Code</h2>
       <p>Your verification code is: <strong>{{ code }}</strong></p>
@@ -72,7 +76,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Loan Disbursement Notification',
     type: 'BOTH',
     subject: 'Your Loan Has Been Disbursed - {{ loanNumber }}',
-    smsTemplate: 'Dear {{ clientName }}, your loan of {{ currency }} {{ amount }} ({{ loanNumber }}) has been disbursed. First payment due: {{ firstDueDate }}. Thank you for choosing Microfinex.',
+    smsTemplate: 'Dear {{ clientName }}, your loan of {{ currency }} {{ amount }} ({{ loanNumber }}) has been disbursed. First payment due: {{ firstDueDate }}. Thank you for choosing {{ brandName }}.',
     emailTemplate: `
       <h2>Loan Disbursement Confirmation</h2>
       <p>Dear {{ clientName }},</p>
@@ -86,7 +90,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
         <tr><td>Disbursement Method:</td><td>{{ disbursementMethod }}</td></tr>
       </table>
       <p>Please ensure timely payments to maintain a good credit record.</p>
-      <p>Thank you for choosing Microfinex.</p>
+      <p>Thank you for choosing {{ brandName }}.</p>
     `,
     variables: ['clientName', 'loanNumber', 'currency', 'amount', 'term', 'monthlyPayment', 'firstDueDate', 'disbursementMethod'],
   },
@@ -97,7 +101,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Payment Reminder',
     type: 'BOTH',
     subject: 'Payment Reminder - {{ loanNumber }}',
-    smsTemplate: 'Reminder: Your loan payment of {{ currency }} {{ amount }} for {{ loanNumber }} is due on {{ dueDate }}. Pay early to avoid penalties. Microfinex.',
+    smsTemplate: 'Reminder: Your loan payment of {{ currency }} {{ amount }} for {{ loanNumber }} is due on {{ dueDate }}. Pay early to avoid penalties. {{ brandName }}.',
     emailTemplate: `
       <h2>Payment Reminder</h2>
       <p>Dear {{ clientName }},</p>
@@ -110,7 +114,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
       </table>
       <p>Please ensure payment is made on or before the due date to avoid late payment penalties.</p>
       <p>If you have already made this payment, please disregard this reminder.</p>
-      <p>Thank you,<br>Microfinex Team</p>
+      <p>Thank you,<br>{{ brandName }} Team</p>
     `,
     variables: ['clientName', 'loanNumber', 'currency', 'amount', 'dueDate', 'outstandingBalance'],
   },
@@ -121,7 +125,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Overdue Payment Notice',
     type: 'BOTH',
     subject: 'URGENT: Overdue Payment - {{ loanNumber }}',
-    smsTemplate: 'URGENT: Your loan {{ loanNumber }} is {{ daysOverdue }} days overdue. Amount due: {{ currency }} {{ overdueAmount }}. Please pay immediately to avoid further penalties. Microfinex.',
+    smsTemplate: 'URGENT: Your loan {{ loanNumber }} is {{ daysOverdue }} days overdue. Amount due: {{ currency }} {{ overdueAmount }}. Please pay immediately to avoid further penalties. {{ brandName }}.',
     emailTemplate: `
       <h2 style="color: #c00;">Overdue Payment Notice</h2>
       <p>Dear {{ clientName }},</p>
@@ -140,7 +144,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
         <li>Possible legal action</li>
       </ul>
       <p>If you are experiencing difficulties, please contact us immediately to discuss payment arrangements.</p>
-      <p>Microfinex Collections Team</p>
+      <p>{{ brandName }} Collections Team</p>
     `,
     variables: ['clientName', 'loanNumber', 'daysOverdue', 'currency', 'overdueAmount', 'penaltyAmount', 'totalDue'],
   },
@@ -151,7 +155,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Payment Received',
     type: 'BOTH',
     subject: 'Payment Received - {{ loanNumber }}',
-    smsTemplate: 'Payment of {{ currency }} {{ amount }} received for loan {{ loanNumber }}. New balance: {{ currency }} {{ newBalance }}. Receipt: {{ receiptNumber }}. Thank you! Microfinex.',
+    smsTemplate: 'Payment of {{ currency }} {{ amount }} received for loan {{ loanNumber }}. New balance: {{ currency }} {{ newBalance }}. Receipt: {{ receiptNumber }}. Thank you! {{ brandName }}.',
     emailTemplate: `
       <h2>Payment Confirmation</h2>
       <p>Dear {{ clientName }},</p>
@@ -165,7 +169,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
         <tr><td>New Outstanding Balance:</td><td>{{ currency }} {{ newBalance }}</td></tr>
       </table>
       <p>Thank you for your payment.</p>
-      <p>Microfinex Team</p>
+      <p>{{ brandName }} Team</p>
     `,
     variables: ['clientName', 'loanNumber', 'currency', 'amount', 'newBalance', 'receiptNumber', 'paymentDate', 'paymentMethod'],
   },
@@ -176,7 +180,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Application Status Update',
     type: 'BOTH',
     subject: 'Loan Application Update - {{ applicationId }}',
-    smsTemplate: 'Your loan application {{ applicationId }} status: {{ status }}. {{ message }} Microfinex.',
+    smsTemplate: 'Your loan application {{ applicationId }} status: {{ status }}. {{ message }} {{ brandName }}.',
     emailTemplate: `
       <h2>Loan Application Update</h2>
       <p>Dear {{ clientName }},</p>
@@ -188,7 +192,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
       </table>
       <p>{{ message }}</p>
       <p>If you have any questions, please contact us.</p>
-      <p>Microfinex Team</p>
+      <p>{{ brandName }} Team</p>
     `,
     variables: ['clientName', 'applicationId', 'status', 'currency', 'amount', 'message'],
   },
@@ -199,7 +203,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Loan Approved',
     type: 'BOTH',
     subject: 'Congratulations! Your Loan is Approved',
-    smsTemplate: 'Great news! Your loan application for {{ currency }} {{ amount }} has been APPROVED. Visit our office to complete disbursement. Microfinex.',
+    smsTemplate: 'Great news! Your loan application for {{ currency }} {{ amount }} has been APPROVED. Visit our office to complete disbursement. {{ brandName }}.',
     emailTemplate: `
       <h2 style="color: #0a0;">Loan Approved!</h2>
       <p>Dear {{ clientName }},</p>
@@ -216,7 +220,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
         <li>Sign the loan agreement</li>
         <li>Receive your funds</li>
       </ol>
-      <p>Thank you for choosing Microfinex!</p>
+      <p>Thank you for choosing {{ brandName }}!</p>
     `,
     variables: ['clientName', 'currency', 'amount', 'interestRate', 'term', 'monthlyPayment'],
   },
@@ -227,7 +231,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Loan Rejected',
     type: 'BOTH',
     subject: 'Loan Application Update',
-    smsTemplate: 'We regret to inform you that your loan application could not be approved at this time. Please contact us for more information. Microfinex.',
+    smsTemplate: 'We regret to inform you that your loan application could not be approved at this time. Please contact us for more information. {{ brandName }}.',
     emailTemplate: `
       <h2>Loan Application Decision</h2>
       <p>Dear {{ clientName }},</p>
@@ -240,7 +244,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
         <li>Contact us to discuss alternative options</li>
         <li>Provide additional documentation that may support your application</li>
       </ul>
-      <p>Thank you for considering Microfinex.</p>
+      <p>Thank you for considering {{ brandName }}.</p>
     `,
     variables: ['clientName', 'reason', 'waitPeriod'],
   },
@@ -250,17 +254,17 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     id: 'welcome_client',
     name: 'Welcome New Client',
     type: 'BOTH',
-    subject: 'Welcome to Microfinex!',
-    smsTemplate: 'Welcome to Microfinex, {{ clientName }}! Your client ID is {{ clientId }}. We look forward to serving you. Questions? Call us anytime.',
+    subject: 'Welcome to {{ brandName }}!',
+    smsTemplate: 'Welcome to {{ brandName }}, {{ clientName }}! Your client ID is {{ clientId }}. We look forward to serving you. Questions? Call us anytime.',
     emailTemplate: `
-      <h2>Welcome to Microfinex!</h2>
+      <h2>Welcome to {{ brandName }}!</h2>
       <p>Dear {{ clientName }},</p>
-      <p>Welcome to Microfinex! We are delighted to have you as a valued client.</p>
+      <p>Welcome to {{ brandName }}! We are delighted to have you as a valued client.</p>
       <table>
         <tr><td>Client ID:</td><td><strong>{{ clientId }}</strong></td></tr>
         <tr><td>Registration Date:</td><td>{{ registrationDate }}</td></tr>
       </table>
-      <p>With Microfinex, you can access:</p>
+      <p>With {{ brandName }}, you can access:</p>
       <ul>
         <li>Personal and business loans</li>
         <li>Flexible repayment options</li>
@@ -269,7 +273,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
       </ul>
       <p>If you have any questions, please don't hesitate to contact us.</p>
       <p>Welcome aboard!</p>
-      <p>The Microfinex Team</p>
+      <p>The {{ brandName }} Team</p>
     `,
     variables: ['clientName', 'clientId', 'registrationDate'],
   },
@@ -280,7 +284,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
     name: 'Loan Fully Paid',
     type: 'BOTH',
     subject: 'Congratulations! Loan Fully Paid - {{ loanNumber }}',
-    smsTemplate: 'Congratulations {{ clientName }}! Your loan {{ loanNumber }} is now fully paid. Thank you for your timely payments. Apply for a new loan anytime! Microfinex.',
+    smsTemplate: 'Congratulations {{ clientName }}! Your loan {{ loanNumber }} is now fully paid. Thank you for your timely payments. Apply for a new loan anytime! {{ brandName }}.',
     emailTemplate: `
       <h2 style="color: #0a0;">Loan Fully Paid!</h2>
       <p>Dear {{ clientName }},</p>
@@ -298,7 +302,7 @@ export const NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
         <li>Faster processing</li>
       </ul>
       <p>Ready for your next loan? Apply anytime!</p>
-      <p>Thank you for choosing Microfinex.</p>
+      <p>Thank you for choosing {{ brandName }}.</p>
     `,
     variables: ['clientName', 'loanNumber', 'currency', 'originalAmount', 'totalPaid', 'completionDate'],
   },

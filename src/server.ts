@@ -4,6 +4,7 @@ import { prisma } from './config/database';
 import { cacheService } from './services/cache.service';
 import { startScheduler, stopScheduler } from './jobs/scheduler';
 import { commsDispatcher } from './services/communications/comms.dispatcher';
+import { brandingService } from './services/branding/branding.service';
 import { aiExtractionService } from './services/ai-extraction.service';
 import { closePdfBrowser } from './services/pdf.service';
 
@@ -50,6 +51,9 @@ const startServer = async () => {
           'reminders will not run. Set ENABLE_SCHEDULER=true to enable.'
       );
     }
+
+    // The white-label name used by emails and statements; defaults until loaded.
+    void brandingService.warm();
 
     // Sends queued client messages (broadcasts) and fetches SMS delivery
     // reports. Independent of the scheduler, so messages are never left
