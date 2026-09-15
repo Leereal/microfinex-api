@@ -71,6 +71,7 @@ export interface StoredBranding {
   supportEmail: string | null;
   supportPhone: string | null;
   websiteUrl: string | null;
+  address: string | null;
   /** The one colour everything else is derived from; null keeps the default green. */
   brandColor: string | null;
   landingPage: LandingPage;
@@ -89,8 +90,28 @@ export const DEFAULT_BRANDING: StoredBranding = {
   supportEmail: null,
   supportPhone: null,
   websiteUrl: null,
+  address: null,
   brandColor: null,
   landingPage: 'steward',
+  assets: {},
+  updatedAt: null,
+  updatedBy: null,
+};
+
+/** The original Microfinex look, kept so it can be switched back to in one click. */
+export const CLASSIC_BRANDING: StoredBranding = {
+  productName: 'Microfinex',
+  shortName: null,
+  tagline: 'Modern microfinance management platform. Empower your institution with powerful tools for growth.',
+  description:
+    'A comprehensive, cloud-based platform for managing loans, clients, payments, and operations. Built for microfinance institutions, SACCOs, and lending organizations of all sizes.',
+  companyName: null,
+  supportEmail: 'info@microfinex.loan',
+  supportPhone: '+27 65 174 9011',
+  websiteUrl: null,
+  address: 'Pretoria, South Africa',
+  brandColor: null,
+  landingPage: 'classic',
   assets: {},
   updatedAt: null,
   updatedBy: null,
@@ -117,6 +138,8 @@ const optionalText = (max: number) =>
 
 export const brandingUpdateSchema = z
   .object({
+    /** What Super Admins call this profile; visitors never see it. */
+    label: optionalText(60),
     productName: z
       .string()
       .transform(value => value.trim())
@@ -128,6 +151,7 @@ export const brandingUpdateSchema = z
     supportEmail: optionalText(160).refine(value => !value || z.string().email().safeParse(value).success, 'The support email is not a valid address.'),
     supportPhone: optionalText(30).refine(value => !value || /^[+\d][\d\s()-]{5,}$/.test(value), 'The support phone may contain only digits, spaces, brackets, dashes and a leading +.'),
     websiteUrl: optionalText(200).refine(value => !value || /^https?:\/\/[^\s]+\.[^\s]+$/i.test(value), 'The website must start with http:// or https://.'),
+    address: optionalText(160),
     brandColor: z
       .string()
       .nullish()
@@ -139,31 +163,208 @@ export const brandingUpdateSchema = z
 
 export type BrandingUpdate = z.infer<typeof brandingUpdateSchema>;
 
-/** What is stored, made whole: anything missing or damaged falls back to the default. */
-export function normaliseStored(raw: unknown): StoredBranding {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_BRANDING, assets: {} };
+const text = (input: unknown) => (typeof input === 'string' && input.trim() ? input.trim() : null);
+
+/** What is stored, made whole: anything missing or damaged falls back to `defaults`. */
+export function normaliseStored(raw: unknown, defaults: StoredBranding = DEFAULT_BRANDING): StoredBranding {
+  if (!raw || typeof raw !== 'object') return { ...defaults, assets: {} };
   const value = raw as Partial<StoredBranding>;
-  const text = (input: unknown) => (typeof input === 'string' && input.trim() ? input.trim() : null);
   const assets: Partial<Record<AssetKind, StoredAsset>> = {};
   for (const kind of ASSET_KINDS) {
     const asset = value.assets?.[kind];
     if (asset && typeof asset.path === 'string' && typeof asset.hash === 'string') assets[kind] = asset;
   }
+  // A field never written takes the default; one deliberately cleared stays clear.
+  const optional = (key: 'tagline' | 'description' | 'supportEmail' | 'supportPhone' | 'address') =>
+    value[key] === undefined ? defaults[key] : text(value[key]);
   return {
-    productName: text(value.productName) ?? DEFAULT_BRANDING.productName,
+    productName: text(value.productName) ?? defaults.productName,
     shortName: text(value.shortName),
-    tagline: value.tagline === undefined ? DEFAULT_BRANDING.tagline : text(value.tagline),
-    description: value.description === undefined ? DEFAULT_BRANDING.description : text(value.description),
+    tagline: optional('tagline'),
+    description: optional('description'),
     companyName: text(value.companyName),
-    supportEmail: text(value.supportEmail),
-    supportPhone: text(value.supportPhone),
+    supportEmail: optional('supportEmail'),
+    supportPhone: optional('supportPhone'),
     websiteUrl: text(value.websiteUrl),
+    address: optional('address'),
     brandColor: typeof value.brandColor === 'string' && /^#[0-9a-f]{6}$/i.test(value.brandColor) ? value.brandColor.toLowerCase() : null,
-    landingPage: LANDING_PAGES.includes(value.landingPage as LandingPage) ? (value.landingPage as LandingPage) : DEFAULT_BRANDING.landingPage,
+    landingPage: LANDING_PAGES.includes(value.landingPage as LandingPage) ? (value.landingPage as LandingPage) : defaults.landingPage,
     assets,
     updatedAt: text(value.updatedAt),
     updatedBy: text(value.updatedBy),
   };
+}
+
+// --------------------------------------------------------------- profiles
+/**
+ * Saved brands. The platform keeps several complete brands - name, logos,
+ * colour, contacts and landing page - and one of them is live. Switching is a
+ * single change of `activeProfileId`, so nothing has to be set up again.
+ */
+export const BUILT_IN_PROFILES = ['steward', 'classic'] as const;
+export type BuiltInProfile = (typeof BUILT_IN_PROFILES)[number];
+export const MAX_PROFILES = 20;
+
+export interface StoredProfile extends StoredBranding {
+  id: string;
+  /** Shown to Super Admins only. */
+  label: string;
+  /** Built-in profiles cannot be deleted and can be restored to their original. */
+  builtIn: BuiltInProfile | null;
+  /** Which built-in artwork the web app shows while nothing is uploaded. */
+  artwork: BuiltInProfile | null;
+  createdAt: string | null;
+}
+
+export interface StoredPlatformBranding {
+  version: 2;
+  activeProfileId: string;
+  profiles: StoredProfile[];
+}
+
+export const BUILT_IN_DEFAULTS: Record<BuiltInProfile, { label: string; branding: StoredBranding }> = {
+  steward: { label: 'MicroSteward', branding: DEFAULT_BRANDING },
+  classic: { label: 'Microfinex Classic', branding: CLASSIC_BRANDING },
+};
+
+const PROFILE_ID = /^(steward|classic|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+export const isProfileId = (value: unknown): value is string => typeof value === 'string' && PROFILE_ID.test(value);
+
+export function builtInProfile(kind: BuiltInProfile): StoredProfile {
+  const { label, branding } = BUILT_IN_DEFAULTS[kind];
+  return { ...branding, assets: {}, id: kind, label, builtIn: kind, artwork: kind, createdAt: null };
+}
+
+function normaliseProfile(raw: unknown): StoredProfile | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Partial<StoredProfile>;
+  if (!isProfileId(value.id)) return null;
+  const builtIn = BUILT_IN_PROFILES.includes(value.id as BuiltInProfile) ? (value.id as BuiltInProfile) : null;
+  const defaults = builtIn ? BUILT_IN_DEFAULTS[builtIn].branding : DEFAULT_BRANDING;
+  const fields = normaliseStored(value, defaults);
+  return {
+    ...fields,
+    id: value.id,
+    label: text(value.label) ?? (builtIn ? BUILT_IN_DEFAULTS[builtIn].label : fields.productName),
+    builtIn,
+    artwork: BUILT_IN_PROFILES.includes(value.artwork as BuiltInProfile) ? (value.artwork as BuiltInProfile) : builtIn,
+    createdAt: text(value.createdAt),
+  };
+}
+
+/**
+ * The stored platform branding, made whole. Understands the first version
+ * (a single brand), always contains both built-in profiles, and always has a
+ * live profile that exists.
+ */
+export function normalisePlatform(raw: unknown): StoredPlatformBranding {
+  const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+  let profiles: StoredProfile[] = [];
+  let activeProfileId: unknown = 'steward';
+
+  if (value && Array.isArray(value.profiles)) {
+    const seen = new Set<string>();
+    for (const entry of value.profiles) {
+      const profile = normaliseProfile(entry);
+      if (profile && !seen.has(profile.id)) {
+        seen.add(profile.id);
+        profiles.push(profile);
+      }
+    }
+    activeProfileId = value.activeProfileId;
+  } else if (value && typeof value.productName === 'string') {
+    // Version 1: one brand, which becomes the MicroSteward profile.
+    profiles = [{ ...builtInProfile('steward'), ...normaliseStored(value, DEFAULT_BRANDING) }];
+  }
+
+  for (const kind of BUILT_IN_PROFILES) {
+    if (!profiles.some(profile => profile.id === kind)) profiles.push(builtInProfile(kind));
+  }
+  profiles.sort((a, b) => Number(Boolean(b.builtIn)) - Number(Boolean(a.builtIn)) || BUILT_IN_PROFILES.indexOf(a.builtIn as BuiltInProfile) - BUILT_IN_PROFILES.indexOf(b.builtIn as BuiltInProfile));
+
+  return {
+    version: 2,
+    activeProfileId: profiles.some(profile => profile.id === activeProfileId) ? (activeProfileId as string) : 'steward',
+    profiles,
+  };
+}
+
+export const findProfile = (platform: StoredPlatformBranding, id: string) => {
+  const profile = platform.profiles.find(entry => entry.id === id);
+  if (!profile) throw new BrandingError('That brand profile no longer exists.', 'PROFILE_NOT_FOUND', 404);
+  return profile;
+};
+
+/** normalisePlatform guarantees the live profile exists; the fallback is only for hand-built values. */
+export const activeProfile = (platform: StoredPlatformBranding): StoredProfile =>
+  platform.profiles.find(profile => profile.id === platform.activeProfileId) ?? platform.profiles[0] ?? builtInProfile('steward');
+
+const replaceProfile = (platform: StoredPlatformBranding, profile: StoredProfile): StoredPlatformBranding => ({
+  ...platform,
+  profiles: platform.profiles.map(entry => (entry.id === profile.id ? profile : entry)),
+});
+
+/** Storage paths no profile uses any more, safe to delete. */
+export function orphanedPaths(before: StoredPlatformBranding, after: StoredPlatformBranding): string[] {
+  const used = new Set(after.profiles.flatMap(profile => Object.values(profile.assets).map(asset => asset!.path)));
+  const previous = new Set(before.profiles.flatMap(profile => Object.values(profile.assets).map(asset => asset!.path)));
+  return [...previous].filter(path => !used.has(path));
+}
+
+export function applyProfileUpdate(platform: StoredPlatformBranding, id: string, update: BrandingUpdate, now: string, userId: string) {
+  const current = findProfile(platform, id);
+  const { label, ...fields } = update;
+  const next: StoredProfile = { ...current, ...fields, label: label ?? current.label, updatedAt: now, updatedBy: userId };
+  return { platform: replaceProfile(platform, next), before: current, after: next };
+}
+
+export function activate(platform: StoredPlatformBranding, id: string): StoredPlatformBranding {
+  findProfile(platform, id);
+  return { ...platform, activeProfileId: id };
+}
+
+/** A copy of a profile to shape into another brand. Logos are shared until replaced. */
+export function duplicate(platform: StoredPlatformBranding, id: string, newId: string, now: string, userId: string, label?: string | null) {
+  if (platform.profiles.length >= MAX_PROFILES) {
+    throw new BrandingError(`You can keep up to ${MAX_PROFILES} brand profiles. Delete one you no longer need first.`, 'TOO_MANY_PROFILES', 409);
+  }
+  const source = findProfile(platform, id);
+  const copy: StoredProfile = {
+    ...source,
+    assets: { ...source.assets },
+    id: newId,
+    label: (label ?? '').trim().slice(0, 60) || `${source.label} (copy)`,
+    builtIn: null,
+    createdAt: now,
+    updatedAt: now,
+    updatedBy: userId,
+  };
+  return { platform: { ...platform, profiles: [...platform.profiles, copy] }, profile: copy };
+}
+
+export function removeProfile(platform: StoredPlatformBranding, id: string): StoredPlatformBranding {
+  const profile = findProfile(platform, id);
+  if (profile.builtIn) throw new BrandingError('Built-in profiles cannot be deleted. Restore the original instead.', 'BUILT_IN_PROFILE', 409);
+  if (platform.activeProfileId === id) throw new BrandingError('This brand is live. Switch to another brand before deleting it.', 'PROFILE_ACTIVE', 409);
+  return { ...platform, profiles: platform.profiles.filter(entry => entry.id !== id) };
+}
+
+/** A built-in profile back to its original words, colour and landing page. Uploaded logos stay. */
+export function restoreBuiltIn(platform: StoredPlatformBranding, id: string, now: string, userId: string) {
+  const current = findProfile(platform, id);
+  if (!current.builtIn) throw new BrandingError('Only built-in profiles have an original to restore.', 'NOT_BUILT_IN', 409);
+  const original = builtInProfile(current.builtIn);
+  const next: StoredProfile = { ...original, assets: current.assets, createdAt: current.createdAt, updatedAt: now, updatedBy: userId };
+  return { platform: replaceProfile(platform, next), before: current, after: next };
+}
+
+export function setAsset(platform: StoredPlatformBranding, id: string, kind: AssetKind, asset: StoredAsset | null, now: string, userId: string) {
+  const current = findProfile(platform, id);
+  const assets = { ...current.assets };
+  if (asset) assets[kind] = asset;
+  else delete assets[kind];
+  const next: StoredProfile = { ...current, assets, updatedAt: now, updatedBy: userId };
+  return { platform: replaceProfile(platform, next), before: current, after: next };
 }
 
 // ---------------------------------------------------------------- colour
@@ -311,7 +512,7 @@ export function validateAsset(kind: AssetKind, buffer: Buffer): ImageType {
 export const ASSET_ROUTE = '/api/v1/public/branding/assets';
 
 /** What every visitor may know: no storage paths, no who-changed-what. */
-export function presentBranding(stored: StoredBranding) {
+export function presentBranding(stored: StoredBranding & { artwork?: BuiltInProfile | null }) {
   const { shades, secondary } = buildPalette(stored.brandColor);
   const channels = Object.fromEntries(SHADES.map(shade => [shade, hexToRgbChannels(shades[shade])])) as Record<Shade, string>;
   return {
@@ -323,7 +524,10 @@ export function presentBranding(stored: StoredBranding) {
     supportEmail: stored.supportEmail,
     supportPhone: stored.supportPhone,
     websiteUrl: stored.websiteUrl,
+    address: stored.address,
     brandColor: stored.brandColor,
+    /** Which built-in logos the web app shows where nothing is uploaded. */
+    artwork: stored.artwork === undefined ? 'steward' : stored.artwork,
     colors: {
       isDefault: !stored.brandColor,
       palette: shades,
@@ -345,7 +549,10 @@ export function presentBranding(stored: StoredBranding) {
 export type PublicBranding = ReturnType<typeof presentBranding>;
 
 /** Fields that changed, for the audit log. */
-export function changedFields(before: StoredBranding, after: StoredBranding): Array<keyof StoredBranding> {
-  const keys: Array<keyof StoredBranding> = ['productName', 'shortName', 'tagline', 'description', 'companyName', 'supportEmail', 'supportPhone', 'websiteUrl', 'brandColor', 'landingPage'];
-  return keys.filter(key => before[key] !== after[key]);
+export function changedFields<T extends StoredBranding>(before: T, after: T): Array<keyof StoredBranding | 'label'> {
+  const keys: Array<keyof StoredBranding> = ['productName', 'shortName', 'tagline', 'description', 'companyName', 'supportEmail', 'supportPhone', 'websiteUrl', 'address', 'brandColor', 'landingPage'];
+  const changed: Array<keyof StoredBranding | 'label'> = keys.filter(key => before[key] !== after[key]);
+  const label = (profile: T) => (profile as Partial<StoredProfile>).label;
+  if (label(before) !== label(after)) changed.unshift('label');
+  return changed;
 }

@@ -1,10 +1,21 @@
 import {
+  CLASSIC_BRANDING,
   DEFAULT_BRANDING,
+  MAX_PROFILES,
+  activate,
+  activeProfile,
+  applyProfileUpdate,
   brandingUpdateSchema,
   buildPalette,
   changedFields,
+  duplicate,
+  normalisePlatform,
   normaliseStored,
+  orphanedPaths,
   presentBranding,
+  removeProfile,
+  restoreBuiltIn,
+  setAsset,
   sniffImageType,
   unsafeSvgReason,
   validateAsset,
@@ -146,6 +157,88 @@ describe('what visitors see', () => {
     expect(view.assets.mark).toEqual({ custom: false, url: null });
     expect(view.companyName).toBe('Acme Lending');
     expect(view.colors.primary).toBe('6 78 59');
+  });
+});
+
+describe('saved brand profiles', () => {
+  const NOW = '2026-09-15T08:00:00.000Z';
+  const USER = '22222222-2222-4222-8222-222222222222';
+  const COPY = '33333333-3333-4333-8333-333333333333';
+  const asset = (path: string) => ({ path, mimeType: 'image/svg+xml', size: 10, hash: `${path.length}abcdef0123456789`, uploadedAt: NOW });
+
+  it('starts with MicroSteward live and Microfinex Classic saved', () => {
+    const platform = normalisePlatform(null);
+    expect(platform.profiles.map(p => p.id)).toEqual(['steward', 'classic']);
+    expect(activeProfile(platform).productName).toBe('MicroSteward');
+    const classic = platform.profiles[1];
+    expect(classic).toMatchObject({ productName: 'Microfinex', label: 'Microfinex Classic', landingPage: 'classic', artwork: 'classic' });
+    expect(classic?.supportEmail).toBe(CLASSIC_BRANDING.supportEmail);
+  });
+
+  it('carries a brand saved before profiles existed into the MicroSteward profile', () => {
+    const platform = normalisePlatform({ productName: 'Acme Lending', brandColor: '#6d28d9', landingPage: 'sign-in', assets: { logo: asset('a/logo.svg') } });
+    expect(activeProfile(platform)).toMatchObject({ id: 'steward', productName: 'Acme Lending', brandColor: '#6d28d9', landingPage: 'sign-in' });
+    expect(activeProfile(platform).assets.logo?.path).toBe('a/logo.svg');
+    expect(platform.profiles.some(p => p.id === 'classic')).toBe(true);
+  });
+
+  it('puts back a missing built-in profile and never leaves a live profile that does not exist', () => {
+    const platform = normalisePlatform({ version: 2, activeProfileId: 'gone', profiles: [{ id: 'classic', productName: 'Microfinex' }, { id: 'not-an-id' }] });
+    expect(platform.profiles.map(p => p.id)).toEqual(['steward', 'classic']);
+    expect(platform.activeProfileId).toBe('steward');
+  });
+
+  it('switches the live brand in one step', () => {
+    const platform = activate(normalisePlatform(null), 'classic');
+    expect(activeProfile(platform).productName).toBe('Microfinex');
+    expect(presentBranding(activeProfile(platform))).toMatchObject({ productName: 'Microfinex', landingPage: 'classic', artwork: 'classic', address: 'Pretoria, South Africa' });
+    expect(() => activate(platform, COPY)).toThrow(/no longer exists/);
+  });
+
+  it('edits one profile without touching the other', () => {
+    const platform = normalisePlatform(null);
+    const { platform: next, after } = applyProfileUpdate(platform, 'classic', brandingUpdateSchema.parse({ label: 'Old brand', productName: 'Microfinex', landingPage: 'classic', supportPhone: '+263 77 000 0000' }), NOW, USER);
+    expect(after).toMatchObject({ label: 'Old brand', supportPhone: '+263 77 000 0000', updatedBy: USER });
+    expect(next.profiles[0]).toEqual(platform.profiles[0]);
+  });
+
+  it('copies a profile into a deletable brand that shares logos until they are replaced', () => {
+    const start = setAsset(normalisePlatform(null), 'steward', 'logo', asset('shared/logo.svg'), NOW, USER).platform;
+    const { platform, profile } = duplicate(start, 'steward', COPY, NOW, USER, 'Acme');
+    expect(profile).toMatchObject({ id: COPY, label: 'Acme', builtIn: null, artwork: 'steward' });
+    expect(profile.assets.logo?.path).toBe('shared/logo.svg');
+
+    // Replacing the copy's logo must not delete the file the original still uses.
+    const replaced = setAsset(platform, COPY, 'logo', asset('acme/logo.svg'), NOW, USER).platform;
+    expect(orphanedPaths(platform, replaced)).toEqual([]);
+
+    // Deleting the copy frees only its own file.
+    const deleted = removeProfile(replaced, COPY);
+    expect(orphanedPaths(replaced, deleted)).toEqual(['acme/logo.svg']);
+  });
+
+  it('protects built-in and live profiles from deletion', () => {
+    const { platform } = duplicate(normalisePlatform(null), 'steward', COPY, NOW, USER);
+    expect(() => removeProfile(platform, 'classic')).toThrow(/Restore the original/);
+    expect(() => removeProfile(activate(platform, COPY), COPY)).toThrow(/Switch to another brand/);
+  });
+
+  it('limits how many profiles are kept', () => {
+    let platform = normalisePlatform(null);
+    for (let i = platform.profiles.length; i < MAX_PROFILES; i++) {
+      platform = duplicate(platform, 'steward', `${String(i).padStart(8, '0')}-0000-4000-8000-000000000000`, NOW, USER).platform;
+    }
+    expect(() => duplicate(platform, 'steward', COPY, NOW, USER)).toThrow(/up to 20/);
+  });
+
+  it('restores a built-in profile to its original words but keeps its uploads', () => {
+    let platform = setAsset(normalisePlatform(null), 'classic', 'mark', asset('classic/mark.png'), NOW, USER).platform;
+    platform = applyProfileUpdate(platform, 'classic', brandingUpdateSchema.parse({ productName: 'Renamed', landingPage: 'steward' }), NOW, USER).platform;
+    const { after } = restoreBuiltIn(platform, 'classic', NOW, USER);
+    expect(after).toMatchObject({ productName: 'Microfinex', landingPage: 'classic', label: 'Microfinex Classic' });
+    expect(after.assets.mark?.path).toBe('classic/mark.png');
+    const { platform: withCopy } = duplicate(platform, 'classic', COPY, NOW, USER);
+    expect(() => restoreBuiltIn(withCopy, COPY, NOW, USER)).toThrow(/Only built-in/);
   });
 });
 
