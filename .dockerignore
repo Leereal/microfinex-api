@@ -1,0 +1,57 @@
+# Anything not needed to install dependencies, run `prisma generate` or
+# compile TypeScript. Keeping this tight matters twice over: the build context
+# is uploaded to the daemon on every build, and `COPY . .` in the builder
+# stage would otherwise invalidate the layer cache whenever a local artefact
+# changed.
+
+# dependencies and build output - reinstalled/regenerated inside the image
+node_modules
+dist
+build
+coverage
+*.tsbuildinfo
+
+# secrets - the container gets its environment from the orchestrator, never
+# from a copy baked into a layer
+.env
+.env.*
+!.env.example
+
+# version control, tooling and editor state
+.git
+.gitignore
+.husky
+.vscode
+.idea
+.claude
+.eslintrc.js
+.prettierrc.js
+
+# docker's own files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# tests are not run inside the image; jest and ts-jest are dev dependencies
+tests
+jest.config.js
+**/*.test.ts
+
+# local scratch, logs and one-off debugging scripts
+logs
+uploads
+temp
+notes.txt
+debug_output.txt
+debug-user.ts
+fix-user.ts
+check-schema.ts
+test-versioning.js
+*.postman_collection.json
+8KrL1tb6*
+prisma/seed-runs
+
+# docs - not served from the image; swagger is generated from src/routes
+docs
+*.md
+!README.md

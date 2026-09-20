@@ -13,6 +13,26 @@ import { initAuditContext, auditLogger } from './middleware/audit';
 
 const app = express();
 
+/**
+ * How many reverse proxies sit in front of this process.
+ *
+ * Deployed behind Traefik (Coolify) or any other proxy, every request arrives
+ * from the proxy's address. Without this, `req.ip` is that one address for
+ * the entire internet, so the rate limiter buckets all callers together and
+ * starts answering 429 to everybody once any one of them is busy - and the
+ * audit log records the proxy rather than the client for every action.
+ *
+ * This is a hop count, not `true`, on purpose. Trusting every hop lets a
+ * caller put whatever it likes at the front of X-Forwarded-For and so choose
+ * its own rate-limit bucket. Set TRUST_PROXY to the number of proxies you
+ * actually run; 0 disables it for a process exposed directly.
+ */
+const trustProxy = Number.parseInt(process.env.TRUST_PROXY ?? '', 10);
+app.set(
+  'trust proxy',
+  Number.isNaN(trustProxy) ? (config.nodeEnv === 'production' ? 1 : 0) : trustProxy
+);
+
 // Security middleware
 app.use(helmet());
 app.use(securityHeaders);
