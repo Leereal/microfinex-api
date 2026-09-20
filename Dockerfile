@@ -30,6 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
+# `prepare` runs `husky install`, which belongs to a developer's checkout: the
+# binary is a devDependency and there is no .git directory in the image, so it
+# fails the install outright under --omit=dev. Dropping the script is narrower
+# than --ignore-scripts, which would also skip bcrypt's postinstall and leave
+# its native binding unbuilt.
+RUN npm pkg delete scripts.prepare
 RUN --mount=type=cache,target=/root/.npm npm ci --include=dev
 
 # ---------------------------------------------------------------------------
@@ -40,6 +46,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
+# `prepare` runs `husky install`, which belongs to a developer's checkout: the
+# binary is a devDependency and there is no .git directory in the image, so it
+# fails the install outright under --omit=dev. Dropping the script is narrower
+# than --ignore-scripts, which would also skip bcrypt's postinstall and leave
+# its native binding unbuilt.
+RUN npm pkg delete scripts.prepare
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 # ---------------------------------------------------------------------------
