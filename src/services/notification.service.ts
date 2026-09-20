@@ -15,6 +15,10 @@ import {
   compileSMSTemplate,
   compileEmailTemplate,
 } from '../templates/notification.templates';
+import { brandName } from './branding/branding.cache';
+
+const withDisplayName = (from: string, name: string) =>
+  from.includes('<') ? from : `"${name.replace(/"/g, '')}" <${from.trim()}>`;
 
 // Notification types
 export type NotificationType = 'SMS' | 'EMAIL' | 'PUSH';
@@ -183,7 +187,8 @@ class NotificationService {
 
     try {
       const result = await this.emailTransporter.sendMail({
-        from: process.env.SMTP_FROM || 'noreply@microfinex.com',
+        // A bare address is shown under the platform's current name.
+        from: withDisplayName(process.env.SMTP_FROM || 'noreply@microfinex.com', brandName()),
         to,
         subject,
         html: htmlBody,

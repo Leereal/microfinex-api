@@ -208,16 +208,12 @@ export async function getAuditStats(
   try {
     const { organizationId, startDate, endDate } = req.query;
 
-    // Use user's organizationId if not provided
-    const orgId = (organizationId as string) || req.userContext?.organizationId;
-
-    if (!orgId) {
-      res.status(400).json({
-        success: false,
-        message: 'Organization ID is required',
-      });
-      return;
-    }
+    // A super admin has no organization of their own, and the platform-wide
+    // trail is exactly what they are here to read. Rejecting the request meant
+    // the dashboard's own statistics call 400'd for the one role that can see
+    // everything, so the cards sat at 0 / 0 / N/A beside 5,000 logged events.
+    const orgId =
+      (organizationId as string) || req.userContext?.organizationId || null;
 
     const stats = await auditService.getAuditStats(orgId, {
       startDate: startDate ? new Date(startDate as string) : undefined,

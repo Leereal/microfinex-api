@@ -98,6 +98,14 @@ const historicalQuerySchema = z.object({
 });
 
 // All routes require authentication
+const breakdownQuerySchema = z.object({
+  branchId: z.string().uuid().optional(),
+  currency: z.nativeEnum(Currency),
+  targetType: z.nativeEnum(TargetType),
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+});
+
 router.use(authenticateToken);
 
 /**
@@ -251,6 +259,41 @@ router.get(
       query.currency,
       query.targetType,
       query.months
+    );
+
+    res.json({
+      success: true,
+      data,
+    });
+  })
+);
+
+/**
+ * @route GET /api/v1/monthly-targets/breakdown
+ * @desc What an achieved figure is made of - the loans, top-ups or repayments
+ *       counted towards one branch's target for one month.
+ */
+router.get(
+  '/breakdown',
+  requirePermission(PERMISSIONS.REPORTS_VIEW),
+  handleAsync(async (req: Request, res: Response) => {
+    const query = breakdownQuerySchema.parse(req.query);
+    const organizationId = req.user?.organizationId;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Organization ID required',
+      });
+    }
+
+    const data = await monthlyTargetService.getTargetBreakdown(
+      organizationId,
+      query.branchId,
+      query.currency,
+      query.targetType,
+      query.year,
+      query.month
     );
 
     res.json({

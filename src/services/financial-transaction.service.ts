@@ -5,6 +5,7 @@ import {
   FinancialTransactionStatus,
 } from '@prisma/client';
 import { paymentMethodService } from './payment-method.service';
+import { toMoney, roundMoney } from '../utils/money';
 
 export interface CreateFinancialTransactionInput {
   organizationId: string;
@@ -57,9 +58,11 @@ export interface CurrencySummary {
 }
 
 export interface FinancialSummary {
-  totalIncome: number;
-  totalExpenses: number;
-  netBalance: number;
+  /**
+   * Amounts live in byCurrency only. A totalIncome/totalExpenses/netBalance
+   * triple used to sit here, summed across every currency - the figure the
+   * dashboard showed, and one that added USD to ZiG.
+   */
   transactionCount: number;
   incomeCount: number;
   expenseCount: number;
@@ -90,9 +93,10 @@ class FinancialTransactionService {
    * Generate unique transaction number
    */
   private async generateTransactionNumber(
-    organizationId: string
+    organizationId: string,
+    client: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<string> {
-    const count = await prisma.financialTransaction.count({
+    const count = await client.financialTransaction.count({
       where: { organizationId },
     });
 
@@ -322,12 +326,10 @@ class FinancialTransactionService {
       a.currency.localeCompare(b.currency)
     );
 
-    // Calculate overall totals (for backwards compatibility - using default currency)
-    const totalIncome = byCurrency.reduce((sum, c) => sum + c.totalIncome, 0);
-    const totalExpenses = byCurrency.reduce(
-      (sum, c) => sum + c.totalExpenses,
-      0
-    );
+    // Counts add across currencies; amounts do not. There used to be a
+    // totalIncome/totalExpenses pair here summing USD, ZAR and ZiG into one
+    // figure "for backwards compatibility" - it was the number the dashboard
+    // displayed, and it meant nothing. Callers read byCurrency instead.
     const incomeCount = byCurrency.reduce((sum, c) => sum + c.incomeCount, 0);
     const expenseCount = byCurrency.reduce((sum, c) => sum + c.expenseCount, 0);
 
@@ -378,9 +380,6 @@ class FinancialTransactionService {
     });
 
     return {
-      totalIncome,
-      totalExpenses,
-      netBalance: totalIncome - totalExpenses,
       transactionCount: incomeCount + expenseCount,
       incomeCount,
       expenseCount,
@@ -418,9 +417,26 @@ class FinancialTransactionService {
   }
 
   /**
-   * Create a new financial transaction
+   * Create a new financial transaction.
+   *
+   * Pass `client` to enlist in a caller's transaction so the ledger entry and
+   * whatever prompted it (a loan repayment, say) commit or roll back together.
+   * Without it the write runs in its own transaction as before.
    */
-  async create(input: CreateFinancialTransactionInput) {
+  async create(
+    input: CreateFinancialTransactionInput,
+    client?: Prisma.TransactionClient
+  ) {
+    if (client) {
+      return this.createWithin(client, input);
+    }
+    return prisma.$transaction(tx => this.createWithin(tx, input));
+  }
+
+  private async createWithin(
+    tx: Prisma.TransactionClient,
+    input: CreateFinancialTransactionInput
+  ) {
     const {
       organizationId,
       branchId,
@@ -449,7 +465,7 @@ class FinancialTransactionService {
     }
 
     // Get payment method and verify it exists
-    const paymentMethod = await prisma.paymentMethod.findFirst({
+    const paymentMethod = await tx.paymentMethod.findFirst({
       where: { id: paymentMethodId, organizationId },
     });
 
@@ -457,68 +473,85 @@ class FinancialTransactionService {
       throw new Error('Payment method not found');
     }
 
-    // Calculate balance before/after
-    const balanceBefore = Number(paymentMethod.currentBalance);
-    const balanceAfter =
-      type === 'INCOME' ? balanceBefore + amount : balanceBefore - amount;
+    /**
+     * The money must be in the currency the account holds.
+     *
+     * The caller's currency was written onto the row and the method's balance
+     * moved by the same number regardless, so a ZAR payment into a USD account
+     * added its face value to a USD balance - a silent conversion at a rate of
+     * one. A payment method is a single wallet in a single currency; anything
+     * else needs a rate, and there is none here.
+     */
+    if (currency && currency !== paymentMethod.currency) {
+      throw new Error(
+        `${paymentMethod.name} holds ${paymentMethod.currency}, so it cannot take a transaction in ${currency}. Use a ${currency} payment method.`
+      );
+    }
+
+    // Calculate balance before/after using decimal arithmetic - float rounding
+    // here would slowly drift every payment method's recorded balance.
+    const balanceBefore = toMoney(paymentMethod.currentBalance);
+    const movement = toMoney(amount);
+    const balanceAfter = roundMoney(
+      type === 'INCOME'
+        ? balanceBefore.add(movement)
+        : balanceBefore.sub(movement)
+    );
 
     // Check if expense would cause negative balance (optional - could allow overdraft)
-    if (type === 'EXPENSE' && balanceAfter < 0) {
+    if (type === 'EXPENSE' && balanceAfter.lt(0)) {
       throw new Error(
-        `Insufficient balance in ${paymentMethod.name}. Available: ${balanceBefore}, Required: ${amount}`
+        `Insufficient balance in ${paymentMethod.name}. Available: ${balanceBefore.toFixed(2)}, Required: ${movement.toFixed(2)}`
       );
     }
 
     // Generate transaction number
-    const transactionNumber =
-      await this.generateTransactionNumber(organizationId);
+    const transactionNumber = await this.generateTransactionNumber(
+      organizationId,
+      tx
+    );
 
-    // Create transaction and update balance in a transaction
-    const result = await prisma.$transaction(async tx => {
-      // Create the transaction record
-      const transaction = await tx.financialTransaction.create({
-        data: {
-          organizationId,
-          branchId,
-          transactionNumber,
-          type,
-          incomeCategoryId: type === 'INCOME' ? incomeCategoryId : null,
-          expenseCategoryId: type === 'EXPENSE' ? expenseCategoryId : null,
-          paymentMethodId,
-          amount,
-          currency,
-          description,
-          reference,
-          relatedLoanId,
-          relatedPaymentId,
-          transactionDate,
-          balanceBefore,
-          balanceAfter,
-          status: 'COMPLETED',
-          notes,
-          attachments,
-          processedBy,
+    // Create the transaction record
+    const transaction = await tx.financialTransaction.create({
+      data: {
+        organizationId,
+        branchId,
+        transactionNumber,
+        type,
+        incomeCategoryId: type === 'INCOME' ? incomeCategoryId : null,
+        expenseCategoryId: type === 'EXPENSE' ? expenseCategoryId : null,
+        paymentMethodId,
+        amount,
+        currency,
+        description,
+        reference,
+        relatedLoanId,
+        relatedPaymentId,
+        transactionDate,
+        balanceBefore,
+        balanceAfter,
+        status: 'COMPLETED',
+        notes,
+        attachments,
+        processedBy,
+      },
+      include: {
+        paymentMethod: true,
+        incomeCategory: true,
+        expenseCategory: true,
+        processor: {
+          select: { id: true, firstName: true, lastName: true },
         },
-        include: {
-          paymentMethod: true,
-          incomeCategory: true,
-          expenseCategory: true,
-          processor: {
-            select: { id: true, firstName: true, lastName: true },
-          },
-        },
-      });
-
-      // Update payment method balance
-      await tx.paymentMethod.update({
-        where: { id: paymentMethodId },
-        data: { currentBalance: balanceAfter },
-      });
-
-      return transaction;
+      },
     });
 
-    return result;
+    // Update payment method balance
+    await tx.paymentMethod.update({
+      where: { id: paymentMethodId },
+      data: { currentBalance: balanceAfter },
+    });
+
+    return transaction;
   }
 
   /**
@@ -701,87 +734,140 @@ class FinancialTransactionService {
     },
     currency: string,
     paymentMethodId: string,
-    processedBy: string
+    processedBy: string,
+    client?: Prisma.TransactionClient
   ): Promise<{ penalty?: any; interest?: any; principal?: any }> {
     const results: { penalty?: any; interest?: any; principal?: any } = {};
+    const db = client ?? prisma;
 
-    // Record penalty income if any
-    if (components.penaltyAmount > 0) {
-      const penaltyCategory = await prisma.incomeCategory.findFirst({
-        where: {
-          organizationId,
-          code: 'PENALTY_INCOME',
-        },
-      });
+    const components_: Array<{
+      key: 'penalty' | 'interest' | 'principal';
+      amount: number;
+      code: string;
+      label: string;
+    }> = [
+      {
+        key: 'penalty',
+        amount: components.penaltyAmount,
+        code: 'PENALTY_INCOME',
+        label: 'Penalty payment',
+      },
+      {
+        key: 'interest',
+        amount: components.interestAmount,
+        code: 'INTEREST_INCOME',
+        label: 'Interest payment',
+      },
+      {
+        key: 'principal',
+        amount: components.principalAmount,
+        code: 'LOAN_REPAYMENT',
+        label: 'Principal repayment',
+      },
+    ];
 
-      if (penaltyCategory) {
-        results.penalty = await this.create({
-          organizationId,
-          branchId,
-          type: 'INCOME',
-          incomeCategoryId: penaltyCategory.id,
-          paymentMethodId,
-          amount: components.penaltyAmount,
-          currency,
-          description: `Penalty payment for loan ${loanNumber}`,
-          relatedLoanId: loanId,
-          relatedPaymentId: paymentId,
-          processedBy,
-        });
-      }
+    /**
+     * Written as one batch rather than three passes.
+     *
+     * Each component used to be created on its own, and each creation looked up
+     * its income category, re-read the payment method, counted every
+     * transaction in the organization to derive a number, wrote the row with
+     * four joins attached, then updated the payment method balance. Five round
+     * trips each, fifteen in all - and against a hosted database at roughly
+     * 300ms a query that alone is most of a five-second transaction budget,
+     * which is why recording a repayment timed out.
+     *
+     * The same work needs one read of the categories, one of the payment
+     * method, one count, one insert and one balance update. The balances are
+     * chained locally so each row still records what the payment method held
+     * before and after it.
+     */
+    const payable = components_.filter(component => component.amount > 0);
+    if (payable.length === 0) return results;
+
+    const categories = await db.incomeCategory.findMany({
+      where: {
+        organizationId,
+        code: { in: payable.map(component => component.code) },
+      },
+      select: { id: true, code: true },
+    });
+
+    const categoryByCode = new Map(
+      categories.map(category => [category.code, category.id])
+    );
+
+    const billable = payable.filter(component =>
+      categoryByCode.has(component.code)
+    );
+    if (billable.length === 0) return results;
+
+    const paymentMethod = await db.paymentMethod.findFirst({
+      where: { id: paymentMethodId, organizationId },
+      select: { id: true, name: true, currency: true, currentBalance: true },
+    });
+
+    if (!paymentMethod) {
+      throw new Error('Payment method not found');
     }
 
-    // Record interest income if any
-    if (components.interestAmount > 0) {
-      const interestCategory = await prisma.incomeCategory.findFirst({
-        where: {
-          organizationId,
-          code: 'INTEREST_INCOME',
-        },
-      });
-
-      if (interestCategory) {
-        results.interest = await this.create({
-          organizationId,
-          branchId,
-          type: 'INCOME',
-          incomeCategoryId: interestCategory.id,
-          paymentMethodId,
-          amount: components.interestAmount,
-          currency,
-          description: `Interest payment for loan ${loanNumber}`,
-          relatedLoanId: loanId,
-          relatedPaymentId: paymentId,
-          processedBy,
-        });
-      }
+    // The same rule createWithin enforces: a wallet only holds its own
+    // currency. This path writes its rows directly, so it has to check too.
+    if (currency && currency !== paymentMethod.currency) {
+      throw new Error(
+        `${paymentMethod.name} holds ${paymentMethod.currency}, so it cannot take a repayment in ${currency}. Use a ${currency} payment method.`
+      );
     }
 
-    // Record principal repayment income if any
-    if (components.principalAmount > 0) {
-      const principalCategory = await prisma.incomeCategory.findFirst({
-        where: {
-          organizationId,
-          code: 'LOAN_REPAYMENT',
-        },
-      });
+    // One count for the batch; the rows that follow take consecutive numbers.
+    const existingCount = await db.financialTransaction.count({
+      where: { organizationId },
+    });
 
-      if (principalCategory) {
-        results.principal = await this.create({
-          organizationId,
-          branchId,
-          type: 'INCOME',
-          incomeCategoryId: principalCategory.id,
-          paymentMethodId,
-          amount: components.principalAmount,
-          currency,
-          description: `Principal repayment for loan ${loanNumber}`,
-          relatedLoanId: loanId,
-          relatedPaymentId: paymentId,
-          processedBy,
-        });
-      }
-    }
+    const date = new Date();
+    const prefix = `TXN${date.getFullYear().toString().slice(-2)}${(
+      date.getMonth() + 1
+    )
+      .toString()
+      .padStart(2, '0')}`;
+
+    let running = toMoney(paymentMethod.currentBalance);
+    const rows = billable.map((component, index) => {
+      const before = running;
+      running = roundMoney(before.add(toMoney(component.amount)));
+
+      return {
+        organizationId,
+        branchId,
+        transactionNumber: `${prefix}${(existingCount + index + 1)
+          .toString()
+          .padStart(6, '0')}`,
+        type: 'INCOME' as const,
+        incomeCategoryId: categoryByCode.get(component.code)!,
+        paymentMethodId,
+        amount: component.amount,
+        currency: currency as any,
+        description: `${component.label} for loan ${loanNumber}`,
+        relatedLoanId: loanId,
+        relatedPaymentId: paymentId,
+        transactionDate: date,
+        balanceBefore: before,
+        balanceAfter: running,
+        status: 'COMPLETED' as const,
+        processedBy,
+      };
+    });
+
+    await db.financialTransaction.createMany({ data: rows });
+
+    await db.paymentMethod.update({
+      where: { id: paymentMethodId },
+      data: { currentBalance: running },
+    });
+
+    billable.forEach((component, index) => {
+      results[component.key] = rows[index];
+    });
 
     return results;
   }
@@ -826,7 +912,13 @@ class FinancialTransactionService {
         take: limit,
       }),
       prisma.financialTransaction.count({ where }),
-      prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } }),
+      // Scoped to the organization: findUnique on the id alone would return a
+      // payment method belonging to somebody else. The transaction query is
+      // already scoped, so only this object was exposed, but it carries the
+      // name, account number and balance.
+      prisma.paymentMethod.findFirst({
+        where: { id: paymentMethodId, organizationId },
+      }),
     ]);
 
     return {
@@ -848,10 +940,13 @@ class FinancialTransactionService {
   async voidByPaymentId(
     paymentId: string,
     voidedBy: string,
-    reason?: string
+    reason?: string,
+    client?: Prisma.TransactionClient
   ): Promise<{ voidedCount: number; restoredAmount: number }> {
+    const db = client ?? prisma;
+
     // Find all transactions linked to this payment
-    const transactions = await prisma.financialTransaction.findMany({
+    const transactions = await db.financialTransaction.findMany({
       where: {
         relatedPaymentId: paymentId,
         status: 'COMPLETED',
@@ -865,14 +960,14 @@ class FinancialTransactionService {
       return { voidedCount: 0, restoredAmount: 0 };
     }
 
-    let totalRestoredAmount = 0;
+    let totalRestoredAmount = toMoney(0);
 
     // Void each transaction and reverse the balance change
     for (const transaction of transactions) {
-      const amount = parseFloat(transaction.amount.toString());
+      const amount = toMoney(transaction.amount);
 
       // Update transaction status to VOIDED
-      await prisma.financialTransaction.update({
+      await db.financialTransaction.update({
         where: { id: transaction.id },
         data: {
           status: 'VOIDED',
@@ -885,21 +980,22 @@ class FinancialTransactionService {
       // EXPENSE transactions decreased the balance, so we increase it
       if (transaction.paymentMethodId) {
         const balanceAdjustment =
-          transaction.type === 'INCOME' ? -amount : amount;
+          transaction.type === 'INCOME' ? amount.negated() : amount;
 
         await paymentMethodService.adjustBalanceInternal(
           transaction.paymentMethodId,
-          balanceAdjustment,
-          `Reversal of transaction ${transaction.transactionNumber} - ${reason || 'Payment voided'}`
+          balanceAdjustment.toNumber(),
+          `Reversal of transaction ${transaction.transactionNumber} - ${reason || 'Payment voided'}`,
+          client
         );
 
-        totalRestoredAmount += Math.abs(balanceAdjustment);
+        totalRestoredAmount = totalRestoredAmount.add(balanceAdjustment.abs());
       }
     }
 
     return {
       voidedCount: transactions.length,
-      restoredAmount: totalRestoredAmount,
+      restoredAmount: totalRestoredAmount.toNumber(),
     };
   }
 

@@ -43,6 +43,8 @@ import documentRoutes from './document.routes';
 import collateralRoutes from './collateral.routes';
 import aiRoutes from './ai.routes';
 import clientDraftRoutes from './client-drafts.routes';
+import clientDeletionRequestRoutes from './client-deletion-requests.routes';
+import inboxRoutes from './inbox.routes';
 // Currency management
 import currencyRoutes from './currency.routes';
 // Financial Management routes
@@ -60,6 +62,17 @@ import chargeRoutes from './charges.routes';
 import loanEngineRoutes from './loan-engine.routes';
 // Monthly Targets
 import monthlyTargetRoutes from './monthly-target.routes';
+// OBSE bank statement analysis
+import obseRoutes from './obse.routes';
+// Client communications
+import communicationsRoutes from './communications.routes';
+import communicationsPublicRoutes from './communications-public.routes';
+import brandingRoutes, { brandingPublicRoutes } from './branding.routes';
+// Agentic Assistant
+import assistantRoutes from './assistant.routes';
+import assistantPublicRoutes from './assistant-public.routes';
+import mcpRoutes from './mcp.routes';
+import { brandName } from '../services/branding/branding.cache';
 
 const router = Router();
 
@@ -87,6 +100,11 @@ router.use(`${apiVersion}/loan-items`, loanItemRoutes);
 router.use(`${apiVersion}/online-applications`, onlineApplicationRoutes);
 router.use(`${apiVersion}/roles`, roleRoutes);
 router.use(`${apiVersion}/audit`, auditRoutes);
+// Unsubscribe links and the WhatsApp webhook - reached without signing in.
+router.use(`${apiVersion}/public/communications`, communicationsPublicRoutes);
+router.use(`${apiVersion}/public/branding`, brandingPublicRoutes);
+// New mail pushed to us by Composio, signed rather than signed in.
+router.use(`${apiVersion}/public/assistant`, assistantPublicRoutes);
 router.use(`${apiVersion}/public`, publicRoutes);
 router.use(`${apiVersion}/uploads`, uploadRoutes);
 router.use(`${apiVersion}/sync`, syncRoutes);
@@ -109,6 +127,12 @@ router.use(`${apiVersion}/documents`, documentRoutes);
 router.use(`${apiVersion}/collaterals`, collateralRoutes);
 router.use(`${apiVersion}/ai`, aiRoutes);
 router.use(`${apiVersion}/client-drafts`, clientDraftRoutes);
+router.use(
+  `${apiVersion}/client-deletion-requests`,
+  clientDeletionRequestRoutes
+);
+// The signed-in user's own notification inbox (the bell in the header).
+router.use(`${apiVersion}/inbox`, inboxRoutes);
 
 // Currency management
 router.use(`${apiVersion}/currencies`, currencyRoutes);
@@ -122,6 +146,12 @@ router.use(`${apiVersion}/financial-transactions`, financialTransactionRoutes);
 // Notes module
 router.use(`${apiVersion}/notes`, notesRoutes);
 
+// Agentic Assistant
+router.use(`${apiVersion}/assistant`, assistantRoutes);
+
+// This system as an MCP server, for assistants outside it.
+router.use(`${apiVersion}/mcp`, mcpRoutes);
+
 // Loan configuration
 router.use(`${apiVersion}/loan-purposes`, loanPurposeRoutes);
 
@@ -133,6 +163,15 @@ router.use(`${apiVersion}/loan-engine`, loanEngineRoutes);
 
 // Monthly Targets - Disbursement and repayment targets
 router.use(`${apiVersion}/monthly-targets`, monthlyTargetRoutes);
+
+// OBSE - bank statement affordability analysis
+router.use(`${apiVersion}/obse`, obseRoutes);
+
+// Client communications - email, SMS, WhatsApp and broadcasts
+router.use(`${apiVersion}/communications`, communicationsRoutes);
+
+// White-label branding and landing page (Super Admin)
+router.use(`${apiVersion}/branding`, brandingRoutes);
 
 // Unversioned health check endpoint (for load balancers, etc.)
 router.get('/health', (req, res) => {
@@ -162,7 +201,7 @@ router.get(`${apiVersion}/health`, (req, res) => {
 router.get(`${apiVersion}`, (req, res) => {
   const versionInfo = getVersionInfo();
   res.json({
-    name: 'Microfinex API',
+    name: `${brandName()} API`,
     version: CURRENT_VERSION,
     description: 'Modern Microfinance Management System API',
     ...versionInfo,
@@ -192,7 +231,7 @@ router.get('/docs', (req, res) => {
 router.get(`${apiVersion}/docs`, (req, res) => {
   const versionInfo = getVersionInfo();
   res.json({
-    name: 'Microfinex API Documentation',
+    name: `${brandName()} API Documentation`,
     version: CURRENT_VERSION,
     description: 'Modern Microfinance Management System API',
     ...versionInfo,

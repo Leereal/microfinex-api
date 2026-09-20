@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
+import { loadPermissions, requirePermission } from '../middleware/permissions';
+import { PERMISSIONS } from '../constants/permissions';
 import { UserRole } from '../types';
 import {
   paymentService,
@@ -18,7 +20,16 @@ const paymentQuerySchema = z.object({
   loanId: z.string().uuid().optional(),
   clientId: z.string().uuid().optional(),
   status: z
-    .enum(['PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'REFUNDED'])
+    .enum([
+      'PENDING',
+      'COMPLETED',
+      'FAILED',
+      'CANCELLED',
+      // Filtering by this returned nothing - the value the reversal writes was
+      // not in the list the query would accept.
+      'REVERSED',
+      'REFUNDED',
+    ])
     .optional(),
   method: z.string().optional(), // Dynamic payment methods from database
   dateFrom: z.string().optional(),
@@ -84,11 +95,22 @@ router.get(
 
       const skip = (Number(page) - 1) * Number(limit);
 
-      // Build where clause
+      /**
+       * Repayments only.
+       *
+       * A disbursement is recorded as a Payment row too - it is money moving
+       * against the loan - but it is money going *out*. Listing it here put the
+       * disbursement in Loan Repayments, counted it in "Total Collected", and
+       * showed a loan as having been partly repaid on the day it was paid out.
+       * Pass ?type=ALL to see every movement including disbursements.
+       */
       const where: any = {
         loan: {
           organizationId,
         },
+        ...(req.query.type === 'ALL'
+          ? {}
+          : { type: { notIn: ['LOAN_DISBURSEMENT', 'LOAN_TOPUP'] } }),
       };
 
       if (loanId) {
@@ -190,19 +212,24 @@ router.get(
         prisma.payment.count({ where }),
       ]);
 
-      // Get summary statistics
-      const summaryWhere = {
-        loan: { organizationId },
-        ...(status && { status }),
-        ...(dateFrom || dateTo
-          ? {
-              paymentDate: {
-                ...(dateFrom && { gte: new Date(dateFrom) }),
-                ...(dateTo && { lte: new Date(dateTo) }),
-              },
-            }
-          : {}),
-      };
+      /**
+       * Summary figures over exactly what the list is showing.
+       *
+       * These built their own filter and got it wrong twice. It omitted the
+       * disbursement exclusion, so the disbursement was counted as a completed
+       * repayment - "Completed 1" above an empty table. And the status
+       * breakdown filtered on nothing but the organization, so it ignored the
+       * status, method, date and search filters the operator had applied and
+       * described a different set of rows from the one underneath it.
+       *
+       * Reusing the list's own `where` means the cards and the table can only
+       * ever agree.
+       */
+      const summaryWhere = { ...where };
+      // The status card breaks down by status, so it must not be pre-filtered
+      // by one.
+      const breakdownWhere = { ...where };
+      delete (breakdownWhere as any).status;
 
       const [totalAmount, statusCounts] = await Promise.all([
         prisma.payment.aggregate({
@@ -211,7 +238,7 @@ router.get(
         }),
         prisma.payment.groupBy({
           by: ['status'],
-          where: { loan: { organizationId } },
+          where: breakdownWhere,
           _count: true,
         }),
       ]);
@@ -267,10 +294,19 @@ router.get(
  *     security:
  *       - bearerAuth: []
  */
+/**
+ * Who may take a payment is a permission, not a list of job titles.
+ *
+ * This named MANAGER and STAFF - two of the ten roles - so an org admin, an
+ * accountant and, absurdly, a teller could not record a repayment. Asking for
+ * the permission lets an organization decide that for itself, which is what the
+ * permission system is for.
+ */
 router.post(
   '/',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.STAFF),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PAYMENTS_RECEIVE),
   validateRequest(createPaymentSchema),
   async (req, res) => {
     try {
@@ -322,7 +358,8 @@ router.post(
 router.post(
   '/bulk',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PAYMENTS_BULK),
   validateRequest(bulkPaymentSchema),
   async (req, res) => {
     try {
@@ -374,7 +411,8 @@ router.post(
 router.post(
   '/:paymentId/reverse',
   authenticate,
-  authorize(UserRole.MANAGER, UserRole.ADMIN),
+  loadPermissions,
+  requirePermission(PERMISSIONS.PAYMENTS_REVERSE),
   validateRequest(reversePaymentSchema),
   async (req, res) => {
     try {

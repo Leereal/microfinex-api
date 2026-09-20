@@ -1,0 +1,532 @@
+p adding very bit cards and urgely screen . I re{
+  "batchId": "seed-1789080474682",
+  "startedAt": "2026-09-10T22:47:54.682Z",
+  "finishedAt": "2026-09-10T22:48:36.646Z",
+  "organizationId": "8ca3ee05-7dcd-4154-8163-29f76112e02f",
+  "organizationName": "Leereal",
+  "aiProvider": "local generator",
+  "entries": [
+    {
+      "model": "employer",
+      "id": "b57c8717-bc87-4cd8-8dd6-12f1feceaa62",
+      "label": "Safeguard Security"
+    },
+    {
+      "model": "client",
+      "id": "0d4d7832-4527-40d7-a464-054901da31b3",
+      "label": "CL26090003 Vimbai Mhlanga"
+    },
+    {
+      "model": "clientAddress",
+      "id": "23700900-bfcb-41c8-a661-b8d93086bb85"
+    },
+    {
+      "model": "clientContact",
+      "id": "5c0d9eef-8ecf-4fb4-a3ff-b3a1a5eada41"
+    },
+    {
+      "model": "clientBusiness",
+      "id": "6a59e292-5646-425b-9936-bd4fef0a7ebf"
+    },
+    {
+      "model": "nextOfKin",
+      "id": "3e716099-970a-4867-b100-be86b170f06b"
+    },
+    {
+      "model": "clientLimit",
+      "id": "4aae2e5c-d230-4b90-bf9b-fd93a03ee18a"
+    },
+    {
+      "model": "clientDocument",
+      "id": "5be9c593-2f9b-4553-bdb7-01bb2b617dd9"
+    },
+    {
+      "model": "clientDocument",
+      "id": "bfd7b8c0-bab3-4ff9-ab65-4078107e989f"
+    },
+    {
+      "model": "client",
+      "id": "b65672ab-da62-4a0d-a181-82dc6bd70d35",
+      "label": "CL26090004 Vimbai Ncube"
+    },
+    {
+      "model": "clientAddress",
+      "id": "2f6dd679-24d0-4ef5-852d-fbef7e9f77f4"
+    },
+    {
+      "model": "clientContact",
+      "id": "417ea34f-a9b2-4993-a2fc-9fcfc898e552"
+    },
+    {
+      "model": "nextOfKin",
+      "id": "a2ae84ff-cf31-477e-ae04-6b947d19373e"
+    },
+    {
+      "model": "clientEmployer",
+      "id": "49c932ba-5a4e-40d0-87a6-01bbc8c25f28"
+    },
+    {
+      "model": "clientLimit",
+      "id": "e9f11dc8-2658-442c-b9d1-9d848b331bb1"
+    },
+    {
+      "model": "clientDocument",
+      "id": "62989c7c-d5da-49e9-a1bb-d776fed5864d"
+    },
+    {
+      "model": "clientDocument",
+      "id": "a8eaf66b-3c51-4106-8241-75b6632563db"
+    },
+    {
+      "model": "client",
+      "id": "f84b58d1-d57b-4e49-aeb5-6440eb12ffba",
+      "label": "CL26090005 Nomsa Sibanda"
+    },
+    {
+      "model": "clientAddress",
+      "id": "2ce3039a-b353-4259-96bd-8f1e563f854f"
+    },
+    {
+      "model": "clientContact",
+      "id": "19a971fc-d557-49a5-ab83-a04a4596f47f"
+    },
+    {
+      "model": "nextOfKin",
+      "id": "7d9ce7e2-94de-4b00-9e53-0c43e1eb66b0"
+    },
+    {
+      "model": "clientLimit",
+      "id": "c3738544-0334-4ae6-9a4c-0ea542fd01f4"
+    },
+    {
+      "model": "clientDocument",
+      "id": "8ded3eef-bfc6-4819-a862-18ff25da0253"
+    },
+    {
+      "model": "clientDocument",
+      "id": "64d8afb7-a1a3-47ef-91e5-63bfcec3bf93"
+    },
+    {
+      "model": "clientCollateral",
+      "id": "a654a2a8-4f7b-41dc-b6e0-23e1a10f3985"
+    },
+    {
+      "model": "group",
+      "id": "90ca4df5-3a05-461d-8b94-d773cbccd291",
+      "label": "Sunrise Savings Club 1"
+    },
+    {
+      "model": "groupMember",
+      "id": "725e7df3-39fb-4216-957b-4c8e1fb02070"
+    },
+    {
+      "model": "groupMember",
+      "id": "76ca7ef1-f995-41ab-9bca-3b789547b420"
+    },
+    {
+      "model": "groupMember",
+      "id": "4d879689-a252-4322-8d93-82be11c460d3"
+    },
+    {
+      "model": "group",
+      "id": "a8dac105-f39c-41f0-b6f5-79860eceb8a2",
+      "label": "Chitungwiza Growers 2"
+    },
+    {
+      "model": "loan",
+      "id": "f888a672-6126-49c1-9311-f52ed099762b",
+      "label": "LN26010017 PENDING_DISBURSEMENT"
+    },
+    {
+      "model": "loanCharge",
+      "id": "db11c6a2-29a6-43e0-9e71-ff5d2bb54722"
+    },
+    {
+      "model": "loanAssessment",
+      "id": "98153e7c-3fbb-45b8-a532-3cdf7d170b38"
+    },
+    {
+      "model": "loanVisit",
+      "id": "dd7d17bf-81ea-4a3b-98f3-c0beb4180f70"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "1417daf4-1e58-49a2-895d-39e7189925dd"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "eae905e1-55d3-4c40-9aa3-69c0a3347d7d"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "03f9c5eb-2e5e-4f36-af9b-971e6d13acb2"
+    },
+    {
+      "model": "loan",
+      "id": "b182994b-1437-4144-a0ab-a2896f1b15d2",
+      "label": "LN26010018 OVERDUE"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "eead2c2f-6c15-4b38-b048-c441b0ed486c"
+    },
+    {
+      "model": "loanCharge",
+      "id": "dc51e36e-faf9-4778-a68d-92603c1387c7"
+    },
+    {
+      "model": "loanAssessment",
+      "id": "833f2a6a-6198-4233-b6d2-0f19c056117b"
+    },
+    {
+      "model": "loanVisit",
+      "id": "26607723-5493-407c-b112-db0ee787c95e"
+    },
+    {
+      "model": "securityPledge",
+      "id": "d1a74557-7357-4ce6-920b-ee901218c1a9"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "9790f3a2-57d9-4977-a04e-0c8dbb412ef1"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "15850e06-deed-4dd7-be6a-d8b96efdd849"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "27e972b2-5ff8-4d56-a2d5-d6db06b5e18b"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "9acceb5f-5c03-42a8-b96e-751312cfb831"
+    },
+    {
+      "model": "loan",
+      "id": "96cc3806-9e26-4590-932e-34f7a9a62975",
+      "label": "LN26010019 PENDING_ASSESSMENT"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "6c2f83bb-21ce-45f7-a664-d388f4985af0"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "ba655719-995d-4fac-b773-12a6c93389aa"
+    },
+    {
+      "model": "loan",
+      "id": "939d44fd-a96f-401d-b269-119e59b8745f",
+      "label": "LN26010020 COMPLETED"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "4e8f5ae8-14e4-419c-b7c1-0e68823f5ad3"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "305f6761-8253-44b2-ac7b-18e502eb5d39"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "cea0d1fe-63c1-4369-bcbe-c5253f283058"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "4256558f-097c-4c8b-9ada-9288e959b29c"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "816cacf8-78b5-4545-a940-a33b09a88ba7"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "d14c213a-bbd0-4264-b539-6c57fd25d6d4"
+    },
+    {
+      "model": "repaymentSchedule",
+      "id": "aeb8fcb4-8aac-4af2-bd9b-f6cef79bd01d"
+    },
+    {
+      "model": "payment",
+      "id": "02d2eff6-8716-4e74-8bd3-f1327cef7c9a"
+    },
+    {
+      "model": "payment",
+      "id": "886f9267-e3d5-43d1-94bb-d9f23d5eba9c"
+    },
+    {
+      "model": "payment",
+      "id": "c1f80304-781f-4188-b3cd-fbf35d3bd9a8"
+    },
+    {
+      "model": "payment",
+      "id": "d0f598c3-cd2c-474c-96b6-75191f3df4b9"
+    },
+    {
+      "model": "payment",
+      "id": "6abecca3-71ed-495a-b2e7-b934723e83d1"
+    },
+    {
+      "model": "payment",
+      "id": "882fae62-d7bf-47d3-8ef0-e865b2511f75"
+    },
+    {
+      "model": "payment",
+      "id": "38a823cb-3c16-4c49-8579-f955e2d91c33"
+    },
+    {
+      "model": "loanCharge",
+      "id": "99070cfe-898b-4062-a9f8-ab223a9a987e"
+    },
+    {
+      "model": "loanAssessment",
+      "id": "31bbe7b8-b627-4d64-817c-1070a76135ff"
+    },
+    {
+      "model": "loanVisit",
+      "id": "7940d8ea-a0ed-41f7-ad0d-313d43a921d8"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "64d0f18c-724e-4ff5-b94c-0e2c431b92fc"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "40206f9a-149c-4d26-9b6e-ddd3b5d18060"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "d37a2e5b-880f-400a-8cad-65efd56bd96b"
+    },
+    {
+      "model": "loanWorkflowHistory",
+      "id": "1ca8676d-80f8-40ef-9fb4-05d5d7089b4b"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "d02ec683-7388-495f-b757-624af9af63c6"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "e175c55e-1033-4427-bf43-2c14b0b1089d"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "18f17fde-5402-4a98-aa17-d7aecf8d241d"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "4a657ea0-333a-4c1a-926b-e1a5f9ee2e6d"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "75a6fffc-858d-4a22-b51f-e1ee4b37e645"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "32e0a1f9-c759-4296-88dd-a17c9c3719ea"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "5fa757df-8450-4d40-8998-2dd9f11d5ffe"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "9059dde8-ccdf-48dc-8be8-61cc6e4d4973"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "12f21249-e498-48da-9699-832a35565afa"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "51a86975-913d-40fe-97c2-445bf4c4c1b8"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "6ca40456-5d5f-4b00-a4a1-56767c50b06f"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "6e581e9a-14d1-453b-b146-2558579c2f8b"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "6d21cef2-6695-4e08-98cb-0116436654f2"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "ab72a30d-4dd5-4615-9ad9-6be4928c75ed"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "ca0b9ba5-de8c-49f5-9332-2a0e5a3fba82"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "81d8540b-2bbc-41e3-8ea4-8c8ac7b02d20"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "d17fcaa0-c2bd-4671-bdc9-dbae4aa8c503"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "2afcea9f-c905-44c0-ac0f-7c40dd654434"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "011d0314-c0ef-4807-8060-a0852c6fc6e2"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "4fc2eb18-b2c5-48c0-8df3-d8a7c4272bea"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "9191a364-fc8f-4ee0-b2b7-050e893396d4"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "2d79bd53-a7bd-4a96-90f9-8ec9d6a153c7"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "87ac9ed5-b472-49c3-87de-6e1b2d7ff0d0"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "8bff882b-1f79-4c20-8ca2-db3cbb9bf524"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "1b567b62-edeb-4a56-b471-89dcb776711b"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "80f79560-a98e-4f1d-a5af-71aed9b99da5"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "14694dad-ae5d-4191-a2f0-88c2ac57329e"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "a6164d1b-f93e-4569-b063-f45d4e08f38d"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "a1be4d42-e943-4fd9-bffd-26aa1c6d8fa6"
+    },
+    {
+      "model": "financialTransaction",
+      "id": "8671b6cb-e70e-4ee8-8285-ff4ecc9d7148"
+    },
+    {
+      "model": "exchangeRate",
+      "id": "7dddeb5c-981d-4a27-82ae-1c7965eea6f1"
+    },
+    {
+      "model": "exchangeRate",
+      "id": "33043da6-2978-4330-a3b5-d214475c38b7"
+    },
+    {
+      "model": "exchangeRate",
+      "id": "eabb5bbf-8383-4ca2-84b8-e05b426031c4"
+    },
+    {
+      "model": "monthlyTarget",
+      "id": "a1e12fd9-bc24-462d-8b89-fad41cafd25b"
+    },
+    {
+      "model": "monthlyTarget",
+      "id": "519c19c7-cc0c-42ed-be4a-dc65a1599591"
+    },
+    {
+      "model": "monthlyTarget",
+      "id": "9f7e2c0a-0732-48cf-9ca1-8c36b0d155d9"
+    },
+    {
+      "model": "monthlyTarget",
+      "id": "822f9b48-cbf1-4d6c-a07c-d2039d0dc8f9"
+    },
+    {
+      "model": "onlineApplication",
+      "id": "5af79374-327b-4f75-92b4-69247514ed05"
+    },
+    {
+      "model": "onlineApplication",
+      "id": "89a1a927-b7c0-4fb2-a4a2-bf0da2e4f592"
+    },
+    {
+      "model": "onlineApplication",
+      "id": "7d44bbc7-255d-4aac-9eca-3b3ea6bb5665"
+    },
+    {
+      "model": "onlineApplication",
+      "id": "124edcb2-6aad-4b18-8bcf-cfbdc26f4077"
+    },
+    {
+      "model": "onlineApplication",
+      "id": "10c37611-75b7-457b-bec8-34966083231c"
+    },
+    {
+      "model": "note",
+      "id": "f691eaaf-6fda-4959-8706-553a9f1f7931"
+    },
+    {
+      "model": "note",
+      "id": "f6e3cc7e-4df4-4abc-93c6-15a128b6d4c0"
+    },
+    {
+      "model": "note",
+      "id": "1c37f8f2-a2d4-4cc5-9a00-38f165dc83be"
+    },
+    {
+      "model": "auditLog",
+      "id": "279835ee-881e-4230-9ea0-3bf510efa234"
+    },
+    {
+      "model": "auditLog",
+      "id": "4a65684c-d93e-4a99-bfd0-4475dbe8b6d3"
+    },
+    {
+      "model": "auditLog",
+      "id": "6b083f96-fa04-4888-b5a5-8d73a3292c92"
+    },
+    {
+      "model": "auditLog",
+      "id": "8af4e554-97a3-4517-95e8-c9d111b8ca58"
+    }
+  ],
+  "summary": {
+    "employer": 1,
+    "client": 3,
+    "clientAddress": 3,
+    "clientContact": 3,
+    "clientBusiness": 1,
+    "nextOfKin": 3,
+    "clientLimit": 3,
+    "clientDocument": 6,
+    "clientEmployer": 1,
+    "clientCollateral": 1,
+    "group": 2,
+    "groupMember": 3,
+    "loan": 4,
+    "loanCharge": 3,
+    "loanAssessment": 3,
+    "loanVisit": 3,
+    "loanWorkflowHistory": 13,
+    "repaymentSchedule": 8,
+    "securityPledge": 1,
+    "payment": 7,
+    "financialTransaction": 30,
+    "exchangeRate": 3,
+    "monthlyTarget": 4,
+    "onlineApplication": 5,
+    "note": 3,
+    "auditLog": 4
+  }
+}

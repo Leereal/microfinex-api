@@ -61,6 +61,7 @@ export enum PaymentStatus {
 
 export enum TransactionType {
   LOAN_DISBURSEMENT = 'LOAN_DISBURSEMENT',
+  LOAN_TOPUP = 'LOAN_TOPUP',
   LOAN_REPAYMENT = 'LOAN_REPAYMENT',
   CHARGE = 'CHARGE',
   PENALTY = 'PENALTY',

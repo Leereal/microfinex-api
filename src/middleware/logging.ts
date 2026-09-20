@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import { logger } from '../utils/logger';
 
 // Extend Express Request interface to include logging properties
 declare module 'express' {
@@ -27,102 +28,43 @@ export const requestLogger = (
   // Get user agent
   const userAgent = req.get('User-Agent') || 'unknown';
 
-  // Log request start
-  console.log(
-    `[${new Date().toISOString()}] ${req.requestId} - ${req.method} ${req.originalUrl} - IP: ${clientIP} - UA: ${userAgent}`
-  );
-
-  // Log request completion
+  // Log request completion only. Logging both start and finish doubled the
+  // volume without adding information, since the finish line carries the same
+  // request id.
   res.on('finish', () => {
     const duration = Date.now() - (req.startTime || 0);
-    const contentLength = res.get('Content-Length') || '0';
 
-    console.log(
-      `[${new Date().toISOString()}] ${req.requestId} - ${res.statusCode} - ${duration}ms - ${contentLength} bytes`
-    );
-  });
+    // Server errors deserve attention; client errors are routine.
+    const level =
+      res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info';
 
-  // Log errors
-  res.on('error', err => {
-    console.error(
-      `[${new Date().toISOString()}] ${req.requestId} - Error:`,
-      err
-    );
-  });
-
-  next();
-};
-
-/**
- * API request logger for detailed logging
- */
-export const apiLogger = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): void => {
-  const startTime = Date.now();
-
-  // Capture response
-  const originalSend = res.send;
-  res.send = function (data) {
-    const duration = Date.now() - startTime;
-
-    // Log API request details
-    console.log({
+    logger.log(level, `${req.method} ${req.originalUrl} ${res.statusCode}`, {
       requestId: req.requestId,
       method: req.method,
       url: req.originalUrl,
       statusCode: res.statusCode,
-      duration: `${duration}ms`,
-      userAgent: req.get('User-Agent'),
-      ip: req.ip,
-      timestamp: new Date().toISOString(),
-      ...(req.user && { userId: req.user.userId }),
+      durationMs: duration,
+      contentLength: res.get('Content-Length') || '0',
+      ip: clientIP,
+      userAgent,
     });
+  });
 
-    return originalSend.call(this, data);
-  };
+  // Log errors
+  res.on('error', err => {
+    logger.error('Response stream error', {
+      requestId: req.requestId,
+      error: err.message,
+      stack: err.stack,
+    });
+  });
 
   next();
 };
 
-/**
- * Audit logger for sensitive operations
+/*
+ * apiLogger and a second auditLogger factory previously lived here. Both were
+ * unreferenced, and the audit one logged the full request body - which on
+ * /auth/login meant writing plaintext passwords to stdout. Auditing is handled
+ * by src/middleware/audit.ts, which redacts credentials.
  */
-export const auditLogger = (action: string) => {
-  return (req: Request, res: Response, next: NextFunction): void => {
-    // Log before action
-    console.log({
-      type: 'AUDIT',
-      action,
-      requestId: req.requestId,
-      userId: req.user?.userId,
-      organizationId: req.user?.organizationId,
-      ip: req.ip,
-      userAgent: req.get('User-Agent'),
-      timestamp: new Date().toISOString(),
-      requestData: {
-        method: req.method,
-        url: req.originalUrl,
-        body: req.body,
-        params: req.params,
-        query: req.query,
-      },
-    });
-
-    // Log after response
-    res.on('finish', () => {
-      console.log({
-        type: 'AUDIT_COMPLETE',
-        action,
-        requestId: req.requestId,
-        userId: req.user?.userId,
-        statusCode: res.statusCode,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    next();
-  };
-};

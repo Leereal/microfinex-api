@@ -62,6 +62,24 @@ export const FILE_TYPES = {
     maxSize: 5 * 1024 * 1024, // 5MB
     folder: 'pledges',
   },
+  // Files attached to a message in a client's or loan's discussion thread.
+  NOTE_ATTACHMENT: {
+    mimeTypes: [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/csv',
+      'text/plain',
+    ],
+    maxSize: 10 * 1024 * 1024, // 10MB
+    folder: 'notes',
+  },
 } as const;
 
 export type FileType = keyof typeof FILE_TYPES;
@@ -222,16 +240,55 @@ class StorageService {
   }
 
   /**
+   * Store a file at a path chosen by the caller, for platform files that
+   * belong to no organization (such as white-label logos). The caller
+   * validates the file.
+   */
+  async putObject(storagePath: string, file: Buffer, mimeType: string): Promise<{ path: string; etag: string }> {
+    await this.initialize();
+    const result = await this.client.putObject(BUCKET_NAME, storagePath, file, file.length, {
+      'Content-Type': mimeType,
+      'X-Upload-Time': new Date().toISOString(),
+    });
+    return { path: storagePath, etag: result.etag };
+  }
+
+  /**
    * Get a presigned URL for downloading a file
    */
   async getSignedUrl(
     storagePath: string,
-    expirySeconds?: number
+    expirySeconds?: number,
+    /** When set, the link downloads the file under this name instead of opening it. */
+    downloadName?: string
   ): Promise<string> {
     await this.initialize();
 
     const expiry = expirySeconds || PRESIGNED_URL_EXPIRY;
+    if (downloadName) {
+      const encoded = encodeURIComponent(downloadName);
+      return this.client.presignedGetObject(BUCKET_NAME, storagePath, expiry, {
+        'response-content-disposition': `attachment; filename*=UTF-8''${encoded}`,
+      });
+    }
     return this.client.presignedGetObject(BUCKET_NAME, storagePath, expiry);
+  }
+
+  /**
+   * Read a stored object back into memory.
+   * Used to re-run AI extraction against a document already in MinIO.
+   */
+  async download(storagePath: string): Promise<Buffer> {
+    await this.initialize();
+
+    const stream = await this.client.getObject(BUCKET_NAME, storagePath);
+    const chunks: Buffer[] = [];
+
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+      stream.on('error', reject);
+    });
   }
 
   /**

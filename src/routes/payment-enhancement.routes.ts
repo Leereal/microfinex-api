@@ -246,7 +246,7 @@ const payrollPaymentsSchema = z.object({
 
 router.post(
   '/payroll',
-  requirePermission('payments:create'),
+  requirePermission('payments:bulk'),
   validateRequest(payrollPaymentsSchema),
   handleAsync(async (req, res) => {
     const organizationId = req.user!.organizationId!;

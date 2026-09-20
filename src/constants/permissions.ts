@@ -42,6 +42,10 @@ export const PERMISSION_MODULES = {
   NOTES: 'notes',
   // AI Module
   AI: 'ai',
+  // Client communications
+  COMMUNICATIONS: 'communications',
+  // Agentic Assistant
+  ASSISTANT: 'assistant',
 } as const;
 
 // Permission interface
@@ -75,7 +79,14 @@ export const CLIENT_PERMISSIONS: PermissionDefinition[] = [
   {
     code: 'clients:delete',
     name: 'Delete Client',
-    description: 'Delete or deactivate clients',
+    description: 'Delete or deactivate clients, and approve deletion requests',
+    module: PERMISSION_MODULES.CLIENTS,
+  },
+  {
+    code: 'clients:delete:request',
+    name: 'Request Client Deletion',
+    description:
+      'Ask for a client to be deleted, for a holder of clients:delete to approve',
     module: PERMISSION_MODULES.CLIENTS,
   },
   {
@@ -176,6 +187,13 @@ export const LOAN_PERMISSIONS: PermissionDefinition[] = [
     code: 'loans:disburse',
     name: 'Disburse Loan',
     description: 'Process loan disbursement',
+    module: PERMISSION_MODULES.LOANS,
+  },
+  {
+    code: 'loans:reverse_disbursement',
+    name: 'Reverse Disbursement',
+    description:
+      'Review and finalise a request to undo a disbursement, restoring balances, charges and limits',
     module: PERMISSION_MODULES.LOANS,
   },
   {
@@ -1290,6 +1308,73 @@ export const AI_PERMISSIONS: PermissionDefinition[] = [
 ];
 
 // ==================== ALL PERMISSIONS ====================
+// ==================== COMMUNICATION PERMISSIONS ====================
+export const COMMUNICATION_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'communications:view',
+    name: 'View Client Messages',
+    description: 'See the emails, SMS and WhatsApp messages exchanged with clients',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+  {
+    code: 'communications:send',
+    name: 'Message Clients',
+    description: 'Send an email, SMS or WhatsApp message to one client',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+  {
+    code: 'communications:broadcast',
+    name: 'Broadcast to Clients',
+    description: 'Send one message to many clients at once',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+  {
+    code: 'communications:templates',
+    name: 'Manage Message Templates',
+    description: 'Create, edit and delete reusable message templates',
+    module: PERMISSION_MODULES.COMMUNICATIONS,
+  },
+];
+
+// ==================== AGENTIC ASSISTANT PERMISSIONS ====================
+//
+// The assistant acts on behalf of whoever is using it, so these permissions
+// govern who may use it and who may set it up - never what it can reach. What
+// it can reach is whatever that person can reach, and no more.
+export const ASSISTANT_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'assistant:use',
+    name: 'Use the Agentic Assistant',
+    description: 'Ask the assistant to look things up and prepare work for you',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:approve',
+    name: 'Approve Assistant Actions',
+    description:
+      'Authorise an action the assistant has prepared, such as creating a client or sending a message',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:automations',
+    name: 'Manage Assistant Automations',
+    description: 'Set up the scheduled work the assistant does on its own',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:connections',
+    name: 'Connect Accounts to the Assistant',
+    description: 'Connect mailboxes, servers and APIs the assistant may use',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:manage',
+    name: 'Configure the Agentic Assistant',
+    description: 'Turn the assistant on or off and decide what it may do unattended',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+];
+
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
   ...LOAN_PERMISSIONS,
@@ -1328,6 +1413,10 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...NOTE_PERMISSIONS,
   // AI Module
   ...AI_PERMISSIONS,
+  // Client communications
+  ...COMMUNICATION_PERMISSIONS,
+  // Agentic Assistant
+  ...ASSISTANT_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -1337,6 +1426,7 @@ export const PERMISSIONS = {
   CLIENTS_CREATE: 'clients:create',
   CLIENTS_UPDATE: 'clients:update',
   CLIENTS_DELETE: 'clients:delete',
+  CLIENTS_DELETE_REQUEST: 'clients:delete:request',
   CLIENTS_EXPORT: 'clients:export',
   CLIENTS_IMPORT: 'clients:import',
   CLIENTS_KYC_VIEW: 'clients:kyc:view',
@@ -1355,6 +1445,7 @@ export const PERMISSIONS = {
   LOANS_APPROVE: 'loans:approve',
   LOANS_REJECT: 'loans:reject',
   LOANS_DISBURSE: 'loans:disburse',
+  LOANS_REVERSE_DISBURSEMENT: 'loans:reverse_disbursement',
   LOANS_TOPUP: 'loans:topup',
   LOANS_RESTRUCTURE: 'loans:restructure',
   LOANS_RESCHEDULE: 'loans:reschedule',
@@ -1370,7 +1461,6 @@ export const PERMISSIONS = {
 
   // Payments
   PAYMENTS_VIEW: 'payments:view',
-  PAYMENTS_CREATE: 'payments:create',
   PAYMENTS_RECEIVE: 'payments:receive',
   PAYMENTS_REVERSE: 'payments:reverse',
   PAYMENTS_BULK: 'payments:bulk',
@@ -1577,6 +1667,19 @@ export const PERMISSIONS = {
   AI_MANAGE: 'ai:manage',
   AI_EXTRACT: 'ai:extract',
 
+  // Client communications
+  COMMUNICATIONS_VIEW: 'communications:view',
+  COMMUNICATIONS_SEND: 'communications:send',
+  COMMUNICATIONS_BROADCAST: 'communications:broadcast',
+  COMMUNICATIONS_TEMPLATES: 'communications:templates',
+
+  // Agentic Assistant
+  ASSISTANT_USE: 'assistant:use',
+  ASSISTANT_APPROVE: 'assistant:approve',
+  ASSISTANT_AUTOMATIONS: 'assistant:automations',
+  ASSISTANT_CONNECTIONS: 'assistant:connections',
+  ASSISTANT_MANAGE: 'assistant:manage',
+
   // Charges
   CHARGES_VIEW: 'charges:view',
   CHARGES_CREATE: 'charges:create',
@@ -1611,6 +1714,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...AUDIT_PERMISSIONS.map(p => p.code),
     ...BRANCH_PERMISSIONS.map(p => p.code),
     ...PRODUCT_PERMISSIONS.map(p => p.code),
+    // Loan products are a separate module from shop products; omitting them
+    // here left admins unable to manage loan products at all.
+    ...LOAN_PRODUCT_PERMISSIONS.map(p => p.code),
     ...CATEGORY_PERMISSIONS.map(p => p.code),
     ...GROUP_PERMISSIONS.map(p => p.code),
     ...EMPLOYER_PERMISSIONS.map(p => p.code),
@@ -1628,6 +1734,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...NOTE_PERMISSIONS.map(p => p.code),
     // AI Module - ADMIN can manage AI settings
     ...AI_PERMISSIONS.map(p => p.code),
+    ...COMMUNICATION_PERMISSIONS.map(p => p.code),
+    ...ASSISTANT_PERMISSIONS.map(p => p.code),
   ],
 
   // Organization Admin - same as ADMIN but specifically for organization-level management
@@ -1646,6 +1754,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...AUDIT_PERMISSIONS.map(p => p.code),
     ...BRANCH_PERMISSIONS.map(p => p.code),
     ...PRODUCT_PERMISSIONS.map(p => p.code),
+    // Loan products are a separate module from shop products; omitting them
+    // here left admins unable to manage loan products at all.
+    ...LOAN_PRODUCT_PERMISSIONS.map(p => p.code),
     ...CATEGORY_PERMISSIONS.map(p => p.code),
     ...GROUP_PERMISSIONS.map(p => p.code),
     ...EMPLOYER_PERMISSIONS.map(p => p.code),
@@ -1663,13 +1774,20 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...NOTE_PERMISSIONS.map(p => p.code),
     // AI Module - ORG_ADMIN can manage AI settings
     ...AI_PERMISSIONS.map(p => p.code),
+    ...COMMUNICATION_PERMISSIONS.map(p => p.code),
+    ...ASSISTANT_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
     // Branch-level management
+    PERMISSIONS.ASSISTANT_USE,
+    PERMISSIONS.ASSISTANT_APPROVE,
+    PERMISSIONS.ASSISTANT_AUTOMATIONS,
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_UPDATE,
+    // May ask for a deletion; approving one needs CLIENTS_DELETE.
+    PERMISSIONS.CLIENTS_DELETE_REQUEST,
     PERMISSIONS.CLIENTS_KYC_VIEW,
     PERMISSIONS.CLIENTS_KYC_UPDATE,
     PERMISSIONS.CLIENTS_STATISTICS,
@@ -1713,6 +1831,11 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.PAYMENT_METHODS_VIEW,
     PERMISSIONS.PAYMENT_METHODS_CREATE,
     PERMISSIONS.PAYMENT_METHODS_UPDATE,
+    // Managers configure the products their branch lends against, but
+    // cannot delete them.
+    PERMISSIONS.LOAN_PRODUCTS_VIEW,
+    PERMISSIONS.LOAN_PRODUCTS_CREATE,
+    PERMISSIONS.LOAN_PRODUCTS_UPDATE,
     PERMISSIONS.INCOME_CATEGORIES_VIEW,
     PERMISSIONS.INCOME_CATEGORIES_CREATE,
     PERMISSIONS.INCOME_CATEGORIES_UPDATE,
@@ -1734,6 +1857,10 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // AI - Managers can view settings and use AI extraction
     PERMISSIONS.AI_VIEW,
     PERMISSIONS.AI_EXTRACT,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.COMMUNICATIONS_SEND,
+    PERMISSIONS.COMMUNICATIONS_BROADCAST,
+    PERMISSIONS.COMMUNICATIONS_TEMPLATES,
   ],
 
   LOAN_ASSESSOR: [
@@ -1758,12 +1885,16 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_DELETE,
     // AI - Loan Assessors can use AI extraction for documents
     PERMISSIONS.AI_EXTRACT,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
   ],
 
   LOAN_OFFICER: [
+    PERMISSIONS.ASSISTANT_USE,
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_UPDATE,
+    // May ask for a deletion; approving one needs CLIENTS_DELETE.
+    PERMISSIONS.CLIENTS_DELETE_REQUEST,
     PERMISSIONS.CLIENTS_KYC_VIEW,
     PERMISSIONS.CLIENTS_KYC_UPLOAD,
     PERMISSIONS.LOANS_VIEW,
@@ -1786,6 +1917,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_DELETE,
     // AI - Loan Officers can use AI extraction for documents
     PERMISSIONS.AI_EXTRACT,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.COMMUNICATIONS_SEND,
   ],
 
   CASHIER: [
@@ -1805,6 +1938,8 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // Notes - Cashiers can view and create
     PERMISSIONS.NOTES_VIEW,
     PERMISSIONS.NOTES_CREATE,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.COMMUNICATIONS_SEND,
   ],
 
   VIEWER: [
@@ -1816,6 +1951,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.DASHBOARD_VIEW,
     // Notes - Viewers can only view
     PERMISSIONS.NOTES_VIEW,
+    PERMISSIONS.COMMUNICATIONS_VIEW,
   ],
 };
 

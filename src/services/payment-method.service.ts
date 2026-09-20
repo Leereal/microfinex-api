@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { Prisma, PaymentMethodType } from '@prisma/client';
+import { toMoney, roundMoney } from '../utils/money';
 
 export interface CreatePaymentMethodInput {
   organizationId: string;
@@ -152,14 +153,32 @@ class PaymentMethodService {
       orderBy: { name: 'asc' },
     });
 
-    const totalBalance = paymentMethods.reduce(
-      (sum, pm) => sum + Number(pm.currentBalance),
-      0
-    );
+    /**
+     * Held cash, per currency.
+     *
+     * `totalBalance` added ZAR to USD to ZiG and returned one scalar, which is
+     * not an amount of anything. It is kept only so existing callers do not
+     * break, and is now explicitly the figure for the default currency's
+     * methods rather than a cross-currency sum. Read `byCurrency`.
+     */
+    const balances = new Map<string, number>();
+    for (const method of paymentMethods) {
+      const currency = method.currency || 'USD';
+      balances.set(
+        currency,
+        (balances.get(currency) ?? 0) + Number(method.currentBalance)
+      );
+    }
+
+    const byCurrency = Array.from(balances.entries())
+      .map(([currency, balance]) => ({ currency, balance }))
+      .sort((a, b) => a.currency.localeCompare(b.currency));
 
     return {
       paymentMethods,
-      totalBalance,
+      byCurrency,
+      // Deprecated: a single number across currencies has no meaning.
+      totalBalance: byCurrency.length === 1 ? byCurrency[0]!.balance : 0,
     };
   }
 
@@ -418,7 +437,22 @@ class PaymentMethodService {
       throw new Error('Destination payment method is not active');
     }
 
+    /**
+     * Both ends must hold the same currency.
+     *
+     * Moving money between a USD wallet and a ZAR one by decrementing the first
+     * and incrementing the second by the same number treats them as if they
+     * were interchangeable. A conversion needs a rate, and there is none here.
+     */
+    if (fromMethod.currency !== toMethod.currency) {
+      throw new Error(
+        `Cannot transfer between payment methods in different currencies. ${fromMethod.name} holds ${fromMethod.currency} and ${toMethod.name} holds ${toMethod.currency}.`
+      );
+    }
+
     const fromBalance = Number(fromMethod.currentBalance);
+    const toBalance = Number(toMethod.currentBalance);
+
     if (fromBalance < amount) {
       throw new Error(
         `Insufficient balance. Available: ${fromBalance}, Requested: ${amount}`
@@ -439,8 +473,25 @@ class PaymentMethodService {
         data: { currentBalance: { increment: amount } },
       });
 
-      // Create transfer record in financial transactions (as internal transfer)
-      const transferRecord = await tx.financialTransaction.create({
+      /**
+       * Two rows, one for each side.
+       *
+       * Only the source's expense was written, so the destination's balance
+       * went up with nothing in its ledger to account for it - replaying that
+       * method's transactions could never arrive at the balance it actually
+       * held. Money leaving one place and arriving in another is two entries,
+       * and both belong to the same transfer.
+       *
+       * The shared reference is what ties them together, and the suffixed
+       * numbers keep them distinct: a single `TRF-${Date.now()}` also collided
+       * whenever two transfers landed in the same millisecond.
+       */
+      const transferReference = `TRF-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)
+        .toUpperCase()}`;
+
+      const outgoing = await tx.financialTransaction.create({
         data: {
           organizationId,
           type: 'EXPENSE', // Debit from source
@@ -448,11 +499,29 @@ class PaymentMethodService {
           amount,
           currency: fromMethod.currency,
           description: `Transfer to ${toMethod.name}: ${description}`,
+          reference: transferReference,
           status: 'COMPLETED',
           processedBy: processedBy || 'SYSTEM',
-          transactionNumber: `TRF-${Date.now()}`,
+          transactionNumber: `${transferReference}-OUT`,
           balanceBefore: fromBalance,
           balanceAfter: Number(updatedFrom.currentBalance),
+        },
+      });
+
+      const incoming = await tx.financialTransaction.create({
+        data: {
+          organizationId,
+          type: 'INCOME', // Credit to destination
+          paymentMethodId: toPaymentMethodId,
+          amount,
+          currency: toMethod.currency,
+          description: `Transfer from ${fromMethod.name}: ${description}`,
+          reference: transferReference,
+          status: 'COMPLETED',
+          processedBy: processedBy || 'SYSTEM',
+          transactionNumber: `${transferReference}-IN`,
+          balanceBefore: toBalance,
+          balanceAfter: Number(updatedTo.currentBalance),
         },
       });
 
@@ -460,7 +529,12 @@ class PaymentMethodService {
         success: true,
         fromPaymentMethod: updatedFrom,
         toPaymentMethod: updatedTo,
-        transferRecord,
+        // `transferRecord` is the outgoing leg, as it always was; both legs are
+        // returned so a caller can show either side.
+        transferRecord: outgoing,
+        outgoingTransaction: outgoing,
+        incomingTransaction: incoming,
+        transferReference,
         amount,
         description,
       };
@@ -604,9 +678,11 @@ class PaymentMethodService {
   async adjustBalanceInternal(
     paymentMethodId: string,
     amount: number,
-    reason: string
+    reason: string,
+    client?: Prisma.TransactionClient
   ): Promise<void> {
-    const paymentMethod = await prisma.paymentMethod.findUnique({
+    const db = client ?? prisma;
+    const paymentMethod = await db.paymentMethod.findUnique({
       where: { id: paymentMethodId },
     });
 
@@ -617,10 +693,11 @@ class PaymentMethodService {
       return;
     }
 
-    const currentBalance = parseFloat(paymentMethod.currentBalance.toString());
-    const newBalance = currentBalance + amount;
+    const newBalance = roundMoney(
+      toMoney(paymentMethod.currentBalance).add(toMoney(amount))
+    );
 
-    await prisma.paymentMethod.update({
+    await db.paymentMethod.update({
       where: { id: paymentMethodId },
       data: {
         currentBalance: newBalance,
@@ -628,7 +705,7 @@ class PaymentMethodService {
     });
 
     console.log(
-      `Payment method ${paymentMethod.name} balance adjusted by ${amount}: ${reason}. New balance: ${newBalance}`
+      `Payment method ${paymentMethod.name} balance adjusted by ${amount}: ${reason}. New balance: ${newBalance.toFixed(2)}`
     );
   }
 }

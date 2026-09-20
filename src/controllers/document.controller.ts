@@ -11,8 +11,44 @@
 import { Request, Response } from 'express';
 import { documentService } from '../services/document.service';
 import { aiExtractionService } from '../services/ai-extraction.service';
+import { storageService } from '../services/storage.service';
 import { prisma } from '../config/database';
 import { DocumentStatus } from '@prisma/client';
+
+/**
+ * Map an organization's DocumentType code onto the extraction prompt key the
+ * AI service understands. Unknown codes fall back to OTHER, which asks the
+ * model to detect the document type itself.
+ */
+function mapDocumentTypeCodeToExtractionType(code?: string | null): string {
+  if (!code) return 'OTHER';
+
+  const normalized = code.toUpperCase().replace(/[\s-]+/g, '_');
+
+  const map: Record<string, string> = {
+    ID: 'ID',
+    NATIONAL_ID: 'ID',
+    IDENTITY: 'ID',
+    PASSPORT: 'PASSPORT',
+    DRIVERS_LICENSE: 'DRIVING_LICENCE',
+    DRIVERS_LICENCE: 'DRIVING_LICENCE',
+    DRIVING_LICENCE: 'DRIVING_LICENCE',
+    DRIVING_LICENSE: 'DRIVING_LICENCE',
+    LICENSE: 'DRIVING_LICENCE',
+    POA: 'POA',
+    PROOF_OF_ADDRESS: 'POA',
+    UTILITY_BILL: 'POA',
+    BANK_STATEMENT: 'BANK_STATEMENT',
+    PAYSLIP: 'PAYSLIP',
+    PAY_SLIP: 'PAYSLIP',
+    EMPLOYMENT_LETTER: 'EMPLOYMENT_LETTER',
+    BIZ_REG: 'BIZ_REG',
+    BUSINESS_REGISTRATION: 'BIZ_REG',
+    PHOTO: 'PHOTO',
+  };
+
+  return map[normalized] || 'OTHER';
+}
 
 class DocumentController {
   /**
@@ -148,6 +184,92 @@ class DocumentController {
       res.status(500).json({
         success: false,
         message: 'Failed to upload document',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * List every document in the organization (paginated, filterable)
+   * GET /api/v1/documents
+   */
+  async getOrganizationDocuments(req: Request, res: Response) {
+    try {
+      const organizationId = req.user?.organizationId;
+      const { clientId, documentTypeId, status, search, page, limit } =
+        req.query;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization context required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const result = await documentService.getOrganizationDocuments(
+        organizationId,
+        {
+          clientId: clientId ? String(clientId) : undefined,
+          documentTypeId: documentTypeId ? String(documentTypeId) : undefined,
+          status: status ? (String(status) as DocumentStatus) : undefined,
+          search: search ? String(search) : undefined,
+          page: page ? Number(page) : undefined,
+          limit: limit ? Number(limit) : undefined,
+        }
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get organization documents error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get documents',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
+  /**
+   * Clients that have documents, with counts — the folder list
+   * GET /api/v1/documents/folders
+   */
+  async getClientFolders(req: Request, res: Response) {
+    try {
+      const organizationId = req.user?.organizationId;
+      const { search } = req.query;
+
+      if (!organizationId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Organization context required',
+          error: 'MISSING_ORGANIZATION',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      const folders = await documentService.getClientDocumentFolders(
+        organizationId,
+        search ? String(search) : undefined
+      );
+
+      res.json({
+        success: true,
+        data: { folders },
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get client folders error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get client document folders',
         error: 'INTERNAL_ERROR',
         timestamp: new Date().toISOString(),
       });
@@ -458,67 +580,51 @@ class DocumentController {
         });
       }
 
-      // Get AI configuration for organization
-      let aiConfig = await prisma.organizationAIConfig.findFirst({
-        where: {
-          organizationId,
-          isActive: true,
-        },
-        include: {
-          provider: true,
-        },
-        orderBy: {
-          isDefault: 'desc',
-        },
-      });
+      // Pull the stored file back out of MinIO so the model can read it
+      const fileBuffer = await storageService.download(document.storagePath);
 
-      // If specific provider requested, use that
-      if (providerId) {
-        aiConfig = await prisma.organizationAIConfig.findFirst({
-          where: {
-            organizationId,
-            providerId,
-            isActive: true,
+      const result = await aiExtractionService.extractFromDocuments(
+        organizationId,
+        [
+          {
+            documentType: mapDocumentTypeCodeToExtractionType(
+              document.documentType?.code
+            ),
+            data: fileBuffer.toString('base64'),
+            mimeType: document.mimeType,
+            fileName: document.fileName,
           },
-          include: {
-            provider: true,
-          },
-        });
-      }
+        ]
+      );
 
-      if (!aiConfig) {
-        return res.status(400).json({
+      if (!result.success) {
+        return res.status(422).json({
           success: false,
-          message: 'No AI provider configured for this organization',
-          error: 'NO_AI_CONFIG',
+          message: result.error || 'Extraction failed',
+          error: 'EXTRACTION_FAILED',
+          data: { documentId, provider: result.provider, model: result.model },
           timestamp: new Date().toISOString(),
         });
       }
 
-      const extractedData = await aiExtractionService.extractFromDocument(
+      // Persist the extraction against the document
+      await documentService.storeAIExtractionData(
         documentId,
-        document.documentType.name,
         organizationId,
-        aiConfig.providerId
+        result.data as unknown as Record<string, unknown>,
+        result.confidence
       );
-
-      // Update document with extracted data
-      await prisma.clientDocument.update({
-        where: { id: documentId },
-        data: {
-          extractedData: extractedData as any,
-          aiProviderId: aiConfig.providerId,
-          aiProcessedAt: new Date(),
-        },
-      });
 
       res.json({
         success: true,
         message: 'Data extracted successfully',
         data: {
           documentId,
-          extractedData,
-          provider: aiConfig.provider.name,
+          extractedData: result.data,
+          confidence: result.confidence,
+          provider: result.provider,
+          model: result.model,
+          documents: result.documents,
         },
         timestamp: new Date().toISOString(),
       });
@@ -586,8 +692,29 @@ class DocumentController {
     try {
       const organizationId = req.user?.organizationId;
       const userId = req.user?.userId;
-      const { name, description, isRequired, supportsAI, aiExtractionFields } =
-        req.body;
+      const { name, description, isRequired, isActive, sortOrder } = req.body;
+
+      /**
+       * The code, which is what an upload is matched against.
+       *
+       * `code` is required on the model and unique per organization, and this
+       * handler never set it - along with writing supportsAI,
+       * aiExtractionFields and createdBy, none of which exist on DocumentType.
+       * Every attempt to add a document type therefore died in Prisma and came
+       * back as "Failed to create document type". Derived from the name when
+       * the caller does not supply one.
+       */
+      const rawCode: unknown = req.body.code;
+      const code =
+        (typeof rawCode === 'string' && rawCode.trim()
+          ? rawCode
+          : String(name ?? '')
+        )
+          .trim()
+          .toUpperCase()
+          .replace(/[^A-Z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .slice(0, 30) || 'DOCUMENT';
 
       if (!organizationId) {
         return res.status(400).json({
@@ -627,15 +754,32 @@ class DocumentController {
         });
       }
 
+      // The unique constraint is on (organizationId, code), so a clash there
+      // is what actually blocks the insert - it was never checked.
+      const codeClash = await prisma.documentType.findFirst({
+        where: { organizationId, code },
+        select: { name: true },
+      });
+
+      if (codeClash) {
+        return res.status(409).json({
+          success: false,
+          message: `The code "${code}" is already used by ${codeClash.name}`,
+          error: 'DUPLICATE_CODE',
+          field: 'code',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       const documentType = await prisma.documentType.create({
         data: {
           name,
-          description,
+          code,
+          description: description ?? null,
           isRequired: isRequired ?? false,
-          supportsAI: supportsAI ?? false,
-          aiExtractionFields: aiExtractionFields ?? [],
+          isActive: isActive ?? true,
+          sortOrder: typeof sortOrder === 'number' ? sortOrder : 0,
           organizationId,
-          createdBy: userId,
         },
       });
 
@@ -664,14 +808,8 @@ class DocumentController {
     try {
       const { typeId } = req.params;
       const organizationId = req.user?.organizationId;
-      const {
-        name,
-        description,
-        isRequired,
-        supportsAI,
-        aiExtractionFields,
-        isActive,
-      } = req.body;
+      const { name, description, isRequired, isActive, sortOrder, code } =
+        req.body;
 
       if (!organizationId) {
         return res.status(400).json({
@@ -724,15 +862,44 @@ class DocumentController {
         }
       }
 
+      // Same as create: supportsAI and aiExtractionFields are not fields on
+      // DocumentType, so including them made every update throw.
+      const normalisedCode =
+        typeof code === 'string' && code.trim()
+          ? code
+              .trim()
+              .toUpperCase()
+              .replace(/[^A-Z0-9]+/g, '_')
+              .replace(/^_+|_+$/g, '')
+              .slice(0, 30)
+          : undefined;
+
+      if (normalisedCode && normalisedCode !== existingType.code) {
+        const codeClash = await prisma.documentType.findFirst({
+          where: { organizationId, code: normalisedCode, id: { not: typeId } },
+          select: { name: true },
+        });
+
+        if (codeClash) {
+          return res.status(409).json({
+            success: false,
+            message: `The code "${normalisedCode}" is already used by ${codeClash.name}`,
+            error: 'DUPLICATE_CODE',
+            field: 'code',
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
       const documentType = await prisma.documentType.update({
         where: { id: typeId },
         data: {
           ...(name && { name }),
+          ...(normalisedCode && { code: normalisedCode }),
           ...(description !== undefined && { description }),
           ...(isRequired !== undefined && { isRequired }),
-          ...(supportsAI !== undefined && { supportsAI }),
-          ...(aiExtractionFields !== undefined && { aiExtractionFields }),
           ...(isActive !== undefined && { isActive }),
+          ...(typeof sortOrder === 'number' && { sortOrder }),
         },
       });
 
@@ -1073,16 +1240,21 @@ class DocumentController {
         });
       }
 
-      const document = await prisma.clientDocument.findFirst({
-        where: {
-          id: documentId,
-          client: {
-            organizationId,
-          },
-        },
-      });
+      const result = await documentService.getDownloadUrl(
+        documentId,
+        organizationId
+      );
 
-      if (!document) {
+      res.json({
+        success: true,
+        message: 'Download URL generated successfully',
+        data: result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Get download URL error:', error);
+
+      if (error instanceof Error && error.message === 'Document not found') {
         return res.status(404).json({
           success: false,
           message: 'Document not found',
@@ -1091,16 +1263,6 @@ class DocumentController {
         });
       }
 
-      const downloadUrl = await documentService.getDownloadUrl(documentId);
-
-      res.json({
-        success: true,
-        message: 'Download URL generated successfully',
-        data: { downloadUrl },
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('Get download URL error:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to generate download URL',

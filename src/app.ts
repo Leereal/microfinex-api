@@ -39,7 +39,19 @@ app.use(
 app.use(compression());
 
 // Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
+/** Meta signs the exact bytes it sent, so the WhatsApp webhook needs them unparsed. */
+export const WHATSAPP_WEBHOOK_PATH = '/api/v1/public/communications/whatsapp/webhook';
+
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      if ((req as { originalUrl?: string }).originalUrl?.startsWith(WHATSAPP_WEBHOOK_PATH)) {
+        (req as { rawBody?: Buffer }).rawBody = Buffer.from(buf);
+      }
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
@@ -58,7 +70,7 @@ app.use('/api', routes);
 // Swagger Documentation
 const swaggerOptions = {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Microfinex API Documentation',
+  customSiteTitle: `${process.env.API_TITLE || 'MicroSteward API'} Documentation`,
   swaggerOptions: {
     persistAuthorization: true,
     displayRequestDuration: true,

@@ -5,7 +5,7 @@ const options: swaggerJsdoc.Options = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Microfinex API',
+      title: process.env.API_TITLE || 'MicroSteward API',
       version: '1.0.0',
       description:
         'Modern Microfinance Management System API - A comprehensive solution for microfinance institutions to manage clients, loans, payments, and reporting.',

@@ -1,5 +1,7 @@
 import { prisma } from '../config/database';
 import { Prisma } from '@prisma/client';
+import { storageService } from './storage.service';
+import { seedDefaultDocumentTypes } from './document-type-defaults';
 
 export interface OrganizationFilters {
   search?: string;
@@ -26,6 +28,62 @@ export interface CreateOrganizationInput {
 
 export interface UpdateOrganizationInput
   extends Partial<CreateOrganizationInput> {}
+
+/**
+ * Blank out empty optional unique fields.
+ *
+ * `registrationNumber` and `licenseNumber` carry unique constraints, and an
+ * empty string is a value like any other as far as Postgres is concerned - so
+ * the first organization saved with `""` claimed it, and every later save of a
+ * blank one collided with it. The edit form sends `""` for any field the
+ * operator left empty, so this fired on organizations that had nothing to do
+ * with each other. NULL is exempt from a unique constraint; empty is not.
+ */
+function normaliseUniqueFields<T extends Record<string, any>>(data: T): T {
+  const cleaned: Record<string, any> = { ...data };
+
+  for (const field of ['registrationNumber', 'licenseNumber', 'email'] as const) {
+    if (field in cleaned) {
+      const value = cleaned[field];
+      if (typeof value === 'string' && value.trim() === '') {
+        cleaned[field] = null;
+      } else if (typeof value === 'string') {
+        cleaned[field] = value.trim();
+      }
+    }
+  }
+
+  return cleaned as T;
+}
+
+/**
+ * Attach a usable logo URL to an organization.
+ *
+ * The database stores only the object path inside the bucket; `logoUrl` was
+ * declared on the client type but nothing ever filled it, so an organization
+ * with a logo still rendered the placeholder icon everywhere. Signing is a
+ * local HMAC in the MinIO client - no round trip - so doing it per row is
+ * cheap, and a failure just leaves the logo absent rather than failing the
+ * whole listing.
+ */
+async function withLogoUrl<T extends { logo?: string | null }>(
+  organization: T
+): Promise<T & { logoUrl: string | null }> {
+  if (!organization.logo) {
+    return { ...organization, logoUrl: null };
+  }
+
+  try {
+    const logoUrl = await storageService.getSignedUrl(organization.logo);
+    return { ...organization, logoUrl };
+  } catch (error) {
+    console.error('Could not sign organization logo URL:', error);
+    return { ...organization, logoUrl: null };
+  }
+}
+
+const withLogoUrls = <T extends { logo?: string | null }>(items: T[]) =>
+  Promise.all(items.map(withLogoUrl));
 
 class OrganizationService {
   /**
@@ -91,7 +149,7 @@ class OrganizationService {
     const totalPages = Math.ceil(total / limit);
 
     return {
-      organizations,
+      organizations: await withLogoUrls(organizations),
       pagination: {
         page,
         limit,
@@ -107,7 +165,7 @@ class OrganizationService {
    * Get organization by ID
    */
   async findById(id: string) {
-    return prisma.organization.findUnique({
+    const organization = await prisma.organization.findUnique({
       where: { id },
       include: {
         branches: {
@@ -130,32 +188,84 @@ class OrganizationService {
         },
       },
     });
+
+    return organization ? withLogoUrl(organization) : null;
   }
 
   /**
    * Check if organization with name or email exists
    */
   async exists(name: string, email?: string): Promise<boolean> {
-    const conditions: Prisma.OrganizationWhereInput[] = [{ name }];
-    if (email) {
-      conditions.push({ email });
+    return !!(await this.findConflict({ name, email }));
+  }
+
+  /**
+   * Find the organization that blocks this one from being saved, and say which
+   * field is to blame.
+   *
+   * The old `exists()` answered only yes/no, so the caller could say no more
+   * than "name or email already exists" - leaving the operator to guess which
+   * of the two to change. Every unique field is checked here, in the order a
+   * person reads the form, and the first clash is the one reported.
+   *
+   * `registrationNumber` and `licenseNumber` carry database unique constraints
+   * but were never checked, so a clash there escaped as a P2002 and surfaced as
+   * "Internal server error".
+   */
+  async findConflict(
+    data: {
+      name?: string;
+      email?: string;
+      registrationNumber?: string;
+      licenseNumber?: string;
+    },
+    excludeId?: string
+  ): Promise<{ field: string; label: string; organization: { id: string; name: string } } | null> {
+    const candidates: Array<{ field: string; label: string; value?: string }> = [
+      { field: 'name', label: 'name', value: data.name },
+      { field: 'email', label: 'email address', value: data.email },
+      {
+        field: 'registrationNumber',
+        label: 'registration number',
+        value: data.registrationNumber,
+      },
+      { field: 'licenseNumber', label: 'licence number', value: data.licenseNumber },
+    ];
+
+    for (const candidate of candidates) {
+      const value = candidate.value?.trim();
+      if (!value) continue;
+
+      const where: Prisma.OrganizationWhereInput = {
+        [candidate.field]: value,
+      } as Prisma.OrganizationWhereInput;
+
+      // On an update, an organization does not conflict with itself.
+      if (excludeId) where.NOT = { id: excludeId };
+
+      const organization = await prisma.organization.findFirst({
+        where,
+        select: { id: true, name: true },
+      });
+
+      if (organization) {
+        return { field: candidate.field, label: candidate.label, organization };
+      }
     }
 
-    const existing = await prisma.organization.findFirst({
-      where: { OR: conditions },
-    });
-
-    return !!existing;
+    return null;
   }
 
   /**
    * Create a new organization
    */
   async create(data: CreateOrganizationInput) {
-    return prisma.organization.create({
+    const clean = normaliseUniqueFields(data);
+
+    const organization = await prisma.organization.create({
       data: {
-        ...data,
-        isActive: data.isActive ?? true,
+        ...clean,
+        isActive: clean.isActive ?? true,
       },
       include: {
         _count: {
@@ -167,6 +277,17 @@ class OrganizationService {
         },
       },
     });
+
+    // A document cannot be filed without a type, and a new organization had
+    // none - so the first upload on a brand new organization failed with
+    // "unknown type". Seeding is additive and never fails the creation.
+    try {
+      await seedDefaultDocumentTypes(organization.id);
+    } catch (error) {
+      console.error('Could not seed default document types:', error);
+    }
+
+    return organization;
   }
 
   /**
@@ -175,7 +296,7 @@ class OrganizationService {
   async update(id: string, data: UpdateOrganizationInput) {
     return prisma.organization.update({
       where: { id },
-      data,
+      data: normaliseUniqueFields(data),
       include: {
         _count: {
           select: {

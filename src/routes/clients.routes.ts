@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
+import { resolveDataScope } from '../utils/scope';
 import {
   clientService,
   createClientSchema,
@@ -12,6 +13,7 @@ import {
 } from '../services/client.service';
 import { logCreate } from '../services/audit.service';
 import { cacheService } from '../services/cache.service';
+import { describeDuplicateClient } from '../utils/duplicate-client';
 
 const router = Router();
 
@@ -79,7 +81,11 @@ router.get(
           typeof req.query.isActive === 'string'
             ? req.query.isActive === 'true'
             : undefined,
-        branchId: req.query.branchId as string,
+        // Enforced from the caller's role and branch assignment rather than
+        // accepted from the query string.
+        branchId: resolveDataScope(req, {
+          branchId: req.query.branchId as string,
+        }).branchId,
         employmentStatus: req.query.employmentStatus as any,
         page:
           typeof req.query.page === 'string'
@@ -435,13 +441,24 @@ router.post(
 
       // Handle specific Prisma errors
       if (error.code === 'P2002') {
-        // Unique constraint violation
-        const field = error.meta?.target?.[0] || 'field';
+        // Unique constraint violation. Which column it was about is not
+        // reliably in meta.target, so it is resolved properly here - the
+        // operator needs to know which field to change.
+        const duplicate = await describeDuplicateClient(error, {
+          // Re-read from the request: the try block's const is out of scope here.
+          organizationId: req.userContext?.organizationId,
+          values: req.body,
+        });
+
         return res.status(409).json({
           success: false,
-          message: `A client with this ${field} already exists`,
+          message:
+            duplicate?.message ?? 'A client with these details already exists',
           error: 'DUPLICATE_ENTRY',
-          field,
+          field: duplicate?.field,
+          fieldLabel: duplicate?.fieldLabel,
+          advice: duplicate?.advice,
+          section: duplicate?.section,
           timestamp: new Date().toISOString(),
         });
       }
@@ -467,6 +484,10 @@ router.post(
           message: error.message,
           error: 'DUPLICATE_PHONE',
           field: 'phone',
+          fieldLabel: 'phone number',
+          advice:
+            'Use a different phone number, or open the existing client record.',
+          section: 'contacts',
           timestamp: new Date().toISOString(),
         });
       }
@@ -478,6 +499,10 @@ router.post(
           message: error.message,
           error: 'DUPLICATE_ID_NUMBER',
           field: 'idNumber',
+          fieldLabel: 'ID number',
+          advice:
+            'Check the ID number for a typo, or open the existing client record.',
+          section: 'identification',
           timestamp: new Date().toISOString(),
         });
       }
@@ -599,6 +624,39 @@ router.put(
           timestamp: new Date().toISOString(),
         });
       }
+
+      // Editing a client onto someone else's phone or ID number hits the same
+      // unique constraints as creating one, and used to surface as a bare
+      // "Internal server error".
+      const duplicate = await describeDuplicateClient(error, {
+        organizationId: req.userContext?.organizationId,
+        values: req.body,
+      });
+      if (duplicate) {
+        return res.status(409).json({
+          success: false,
+          message: duplicate.message,
+          error: 'DUPLICATE_ENTRY',
+          field: duplicate.field,
+          fieldLabel: duplicate.fieldLabel,
+          advice: duplicate.advice,
+          section: duplicate.section,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      // The service raises these as plain Errors before Prisma is reached.
+      const message = (error as Error).message ?? '';
+      if (message.includes('already exists')) {
+        return res.status(409).json({
+          success: false,
+          message,
+          error: 'DUPLICATE_ENTRY',
+          field: message.includes('ID number') ? 'idNumber' : 'phone',
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',

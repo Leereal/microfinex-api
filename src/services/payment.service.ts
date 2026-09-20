@@ -4,6 +4,32 @@ import { prisma } from '../config/database';
 const Decimal = Prisma.Decimal;
 import { financialTransactionService } from './financial-transaction.service';
 import { clientLimitService } from './client-limit.service';
+import {
+  Money,
+  toMoney,
+  roundMoney,
+  isSettled,
+  isOutstanding,
+  atLeastZero,
+  minMoney,
+  sumMoney,
+} from '../utils/money';
+import { withUniqueRetry } from '../utils/db';
+
+/**
+ * How long a payment is allowed to take.
+ *
+ * Prisma's five-second default assumes a database next door. Recording a
+ * repayment is a genuinely multi-step write - lock the loan, allocate across
+ * penalty, interest and principal, write the payment, book the income against
+ * each component, move the payment method balance, settle the schedule - and
+ * against a hosted database every one of those steps costs a round trip of
+ * roughly a third of a second. The work has been cut down to the queries it
+ * actually needs; this is the headroom so a slow moment on the network does not
+ * abandon a payment halfway.
+ */
+const PAYMENT_TRANSACTION_OPTIONS = { timeout: 20_000, maxWait: 10_000 };
+import { createError } from '../middleware/error';
 
 export interface PaymentRecord {
   id: string;
@@ -23,10 +49,11 @@ export interface PaymentRecord {
 }
 
 export interface PaymentAllocation {
-  penaltyAmount: number;
-  interestAmount: number;
-  principalAmount: number;
-  remainingAmount: number;
+  penaltyAmount: Money;
+  interestAmount: Money;
+  principalAmount: Money;
+  /** Any part of the payment that could not be applied to a balance. */
+  remainingAmount: Money;
 }
 
 export interface PaymentScheduleItem {
@@ -75,11 +102,56 @@ export const reversePaymentSchema = z.object({
   notes: z.string().optional(),
 });
 
+/**
+ * Split a payment across the outstanding balances of a loan.
+ *
+ * Repayments settle in a fixed waterfall - penalties, then interest, then
+ * principal - so that the lender's charges are cleared before the borrower's
+ * debt is reduced. Anything left once all three are settled is returned as
+ * `remainingAmount`; the caller decides whether that is an overpayment to
+ * reject or a credit to hold.
+ *
+ * Exported as a pure function so the waterfall can be tested without a
+ * database.
+ */
+export function allocatePayment(
+  paymentAmount: Money,
+  penaltyBalance: Money,
+  interestBalance: Money,
+  principalBalance: Money
+): PaymentAllocation {
+  let remainingAmount = roundMoney(paymentAmount);
+  const zero = new Prisma.Decimal(0);
+
+  const take = (balance: Money): Money => {
+    if (!isOutstanding(remainingAmount) || !isOutstanding(balance)) {
+      return zero;
+    }
+    const applied = roundMoney(minMoney(remainingAmount, balance));
+    remainingAmount = remainingAmount.sub(applied);
+    return applied;
+  };
+
+  const penaltyAmount = take(penaltyBalance);
+  const interestAmount = take(interestBalance);
+  const principalAmount = take(principalBalance);
+
+  return {
+    penaltyAmount,
+    interestAmount,
+    principalAmount,
+    remainingAmount,
+  };
+}
+
 class PaymentService {
   /**
    * Generate unique payment number
    */
-  private async generatePaymentNumber(organizationId: string): Promise<string> {
+  private async generatePaymentNumber(
+    organizationId: string,
+    client: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<string> {
     const today = new Date();
     const year = today.getFullYear().toString().slice(-2);
     const month = (today.getMonth() + 1).toString().padStart(2, '0');
@@ -94,7 +166,7 @@ class PaymentService {
     const endOfDay = new Date(startOfDay);
     endOfDay.setDate(endOfDay.getDate() + 1);
 
-    const count = await prisma.payment.count({
+    const count = await client.payment.count({
       where: {
         loan: {
           organizationId,
@@ -106,6 +178,9 @@ class PaymentService {
       },
     });
 
+    // paymentNumber is uniquely indexed, so concurrent writers deriving the
+    // same count will collide. Callers wrap the write in withUniqueRetry,
+    // which re-derives this number on the next attempt.
     const sequence = (count + 1).toString().padStart(4, '0');
     return `PAY${year}${month}${day}${sequence}`;
   }
@@ -118,117 +193,191 @@ class PaymentService {
     organizationId: string,
     receivedBy: string
   ): Promise<PaymentRecord> {
-    // Get loan details with current balances
-    const loan = await prisma.loan.findFirst({
-      where: {
-        id: paymentData.loanId,
-        organizationId,
-        status: { in: ['ACTIVE', 'OVERDUE'] },
-      },
-      include: {
-        repaymentSchedule: {
-          where: {
-            status: 'PENDING',
-          },
-          orderBy: {
-            dueDate: 'asc',
-          },
-        },
-        product: { select: { currency: true } },
-        branch: { select: { id: true } },
-        client: { select: { id: true } },
-      },
-    });
+    // The payment record, the ledger entries, the loan balances and the
+    // repayment schedule must all move together. Previously these were four
+    // independent writes: a failure part-way through left a payment recorded
+    // against a loan whose balance had never been reduced.
+    //
+    // withUniqueRetry re-runs the whole transaction if the derived payment
+    // number collides with a concurrent writer.
+    const { payment, loanIsCompleted, loanAmount, currency, clientId } =
+      await withUniqueRetry(
+        () =>
+          prisma.$transaction(async tx => {
+            // Lock the loan row for the duration of the transaction so two
+            // concurrent payments cannot both read the same starting balance
+            // and overwrite each other's deduction.
+            /**
+             * No ::uuid casts. These id columns are text - Prisma writes
+             * `String @id @default(uuid())` as text unless told `@db.Uuid` -
+             * and Postgres has no `text = uuid` operator, so casting the
+             * parameter made every payment fail with "operator does not exist".
+             */
+            const locked = await tx.$queryRaw<Array<{ id: string }>>`
+              SELECT id FROM loans
+              WHERE id = ${paymentData.loanId}
+                AND "organizationId" = ${organizationId}
+                AND status IN ('ACTIVE', 'OVERDUE')
+              FOR UPDATE
+            `;
 
-    if (!loan) {
-      throw new Error('Loan not found or not in active status');
-    }
+            if (locked.length === 0) {
+              throw createError('Loan not found or not in active status', 404);
+            }
 
-    // Allocate payment amount
-    const allocation = this.allocatePayment(
-      paymentData.amount,
-      parseFloat(loan.penaltyBalance.toString()),
-      parseFloat(loan.interestBalance.toString()),
-      parseFloat(loan.principalBalance.toString())
-    );
+            const loan = await tx.loan.findFirstOrThrow({
+              where: { id: paymentData.loanId, organizationId },
+              include: {
+                product: { select: { currency: true } },
+                branch: { select: { id: true } },
+                client: { select: { id: true } },
+              },
+            });
 
-    const paymentNumber = await this.generatePaymentNumber(organizationId);
+            // Allocate payment amount (penalty, then interest, then principal)
+            const allocation = this.allocatePayment(
+              toMoney(paymentData.amount),
+              toMoney(loan.penaltyBalance),
+              toMoney(loan.interestBalance),
+              toMoney(loan.principalBalance)
+            );
 
-    // Create payment record
-    const payment = await prisma.payment.create({
-      data: {
-        paymentNumber,
-        loanId: paymentData.loanId,
-        amount: paymentData.amount,
-        principalAmount: allocation.principalAmount,
-        interestAmount: allocation.interestAmount,
-        penaltyAmount: allocation.penaltyAmount,
-        type: 'LOAN_REPAYMENT',
-        method: paymentData.paymentMethod,
-        status: 'COMPLETED',
-        transactionRef: paymentData.transactionRef,
-        paymentDate: new Date(),
-        receivedBy,
-        notes: paymentData.notes,
-      },
-    });
+            // Reject payments that exceed what is actually owed rather than
+            // recording the full amount and quietly discarding the excess.
+            if (isOutstanding(allocation.remainingAmount)) {
+              const owed = sumMoney([
+                toMoney(loan.penaltyBalance),
+                toMoney(loan.interestBalance),
+                toMoney(loan.principalBalance),
+              ]);
+              // A 400, not a 500: the request is wrong, the server is fine.
+              throw createError(
+                `Payment of ${toMoney(paymentData.amount).toFixed(2)} exceeds the ` +
+                  `outstanding balance of ${owed.toFixed(2)} by ` +
+                  `${allocation.remainingAmount.toFixed(2)}. ` +
+                  `Record a payment of at most ${owed.toFixed(2)}.`,
+                400
+              );
+            }
 
-    // Create financial transactions for each payment component (penalty, interest, principal)
-    await financialTransactionService.recordLoanRepaymentComponents(
-      organizationId,
-      loan.branchId,
-      paymentData.loanId,
-      loan.loanNumber,
-      payment.id,
-      {
-        penaltyAmount: allocation.penaltyAmount,
-        interestAmount: allocation.interestAmount,
-        principalAmount: allocation.principalAmount,
-      },
-      loan.product?.currency || 'USD',
-      paymentData.paymentMethodId,
-      receivedBy
-    );
+            const paymentNumber = await this.generatePaymentNumber(
+              organizationId,
+              tx
+            );
 
-    // Update loan balances
-    const newPenaltyBalance = Math.max(
-      0,
-      parseFloat(loan.penaltyBalance.toString()) - allocation.penaltyAmount
-    );
-    const newInterestBalance = Math.max(
-      0,
-      parseFloat(loan.interestBalance.toString()) - allocation.interestAmount
-    );
-    const newPrincipalBalance = Math.max(
-      0,
-      parseFloat(loan.principalBalance.toString()) - allocation.principalAmount
-    );
-    const newOutstandingBalance =
-      newPenaltyBalance + newInterestBalance + newPrincipalBalance;
+            // Create payment record
+            const created = await tx.payment.create({
+              data: {
+                paymentNumber,
+                loanId: paymentData.loanId,
+                amount: roundMoney(toMoney(paymentData.amount)),
+                principalAmount: allocation.principalAmount,
+                interestAmount: allocation.interestAmount,
+                penaltyAmount: allocation.penaltyAmount,
+                type: 'LOAN_REPAYMENT',
+                // Denominated in the loan's own currency. Leaving this unset
+                // fell through to Prisma's @default(USD) on Payment.currency,
+                // so a ZAR book reported its collections in dollars.
+                currency: loan.currency,
+                method: paymentData.paymentMethod,
+                status: 'COMPLETED',
+                transactionRef: paymentData.transactionRef,
+                paymentDate: new Date(),
+                receivedBy,
+                notes: paymentData.notes,
+              },
+            });
 
-    const loanIsCompleted = newOutstandingBalance === 0;
+            // Create financial transactions for each payment component
+            await financialTransactionService.recordLoanRepaymentComponents(
+              organizationId,
+              loan.branchId,
+              paymentData.loanId,
+              loan.loanNumber,
+              created.id,
+              {
+                penaltyAmount: allocation.penaltyAmount.toNumber(),
+                interestAmount: allocation.interestAmount.toNumber(),
+                principalAmount: allocation.principalAmount.toNumber(),
+              },
+              loan.currency,
+              paymentData.paymentMethodId,
+              receivedBy,
+              tx
+            );
 
-    await prisma.loan.update({
-      where: { id: paymentData.loanId },
-      data: {
-        penaltyBalance: newPenaltyBalance,
-        interestBalance: newInterestBalance,
-        principalBalance: newPrincipalBalance,
-        outstandingBalance: newOutstandingBalance,
-        lastPaymentDate: new Date(),
-        status: loanIsCompleted ? 'COMPLETED' : loan.status,
-      },
-    });
+            // Update loan balances in decimal space
+            const newPenaltyBalance = roundMoney(
+              atLeastZero(
+                toMoney(loan.penaltyBalance).sub(allocation.penaltyAmount)
+              )
+            );
+            const newInterestBalance = roundMoney(
+              atLeastZero(
+                toMoney(loan.interestBalance).sub(allocation.interestAmount)
+              )
+            );
+            const newPrincipalBalance = roundMoney(
+              atLeastZero(
+                toMoney(loan.principalBalance).sub(allocation.principalAmount)
+              )
+            );
+            const newOutstandingBalance = sumMoney([
+              newPenaltyBalance,
+              newInterestBalance,
+              newPrincipalBalance,
+            ]);
 
-    // If the loan is fully paid, restore the client's available credit limit
+            // Compare with tolerance: an exact `=== 0` check against
+            // accumulated rounding residue would leave the loan open forever.
+            const completed = isSettled(newOutstandingBalance);
+
+            await tx.loan.update({
+              where: { id: paymentData.loanId },
+              data: {
+                penaltyBalance: newPenaltyBalance,
+                interestBalance: newInterestBalance,
+                principalBalance: newPrincipalBalance,
+                outstandingBalance: completed
+                  ? new Prisma.Decimal(0)
+                  : newOutstandingBalance,
+                lastPaymentDate: new Date(),
+                status: completed ? 'COMPLETED' : loan.status,
+              },
+            });
+
+            // Apply the payment against the schedule using only what was
+            // actually allocated, so the schedule and the loan balances stay
+            // in agreement.
+            await this.updateRepaymentSchedule(
+              tx,
+              paymentData.loanId,
+              sumMoney([
+                allocation.penaltyAmount,
+                allocation.interestAmount,
+                allocation.principalAmount,
+              ])
+            );
+
+            return {
+              payment: created,
+              loanIsCompleted: completed,
+              loanAmount: toMoney(loan.amount),
+              currency: loan.currency,
+              clientId: loan.clientId,
+            };
+          }, PAYMENT_TRANSACTION_OPTIONS),
+        { field: 'paymentNumber' }
+      );
+
+    // Restoring the client's credit limit happens after the payment has
+    // durably committed. It is a separate concern and a failure here must not
+    // roll back a legitimately received payment.
     if (loanIsCompleted) {
-      const loanAmount = parseFloat(loan.amount.toString());
-      const currency = loan.product?.currency || Currency.USD;
-
       const limitResult = await clientLimitService.increaseAvailableBalance(
-        loan.clientId,
+        clientId,
         currency,
-        loanAmount,
+        loanAmount.toNumber(),
         'REPAYMENT',
         paymentData.loanId
       );
@@ -242,9 +391,6 @@ class PaymentService {
       }
     }
 
-    // Update repayment schedule
-    await this.updateRepaymentSchedule(paymentData.loanId, paymentData.amount);
-
     return this.mapPaymentToRecord(payment as any);
   }
 
@@ -252,50 +398,28 @@ class PaymentService {
    * Allocate payment amount to penalty, interest, and principal
    */
   private allocatePayment(
-    paymentAmount: number,
-    penaltyBalance: number,
-    interestBalance: number,
-    principalBalance: number
+    paymentAmount: Money,
+    penaltyBalance: Money,
+    interestBalance: Money,
+    principalBalance: Money
   ): PaymentAllocation {
-    let remainingAmount = paymentAmount;
-    let penaltyAmount = 0;
-    let interestAmount = 0;
-    let principalAmount = 0;
-
-    // First, pay penalties
-    if (remainingAmount > 0 && penaltyBalance > 0) {
-      penaltyAmount = Math.min(remainingAmount, penaltyBalance);
-      remainingAmount -= penaltyAmount;
-    }
-
-    // Then, pay interest
-    if (remainingAmount > 0 && interestBalance > 0) {
-      interestAmount = Math.min(remainingAmount, interestBalance);
-      remainingAmount -= interestAmount;
-    }
-
-    // Finally, pay principal
-    if (remainingAmount > 0 && principalBalance > 0) {
-      principalAmount = Math.min(remainingAmount, principalBalance);
-      remainingAmount -= principalAmount;
-    }
-
-    return {
-      penaltyAmount,
-      interestAmount,
-      principalAmount,
-      remainingAmount,
-    };
+    return allocatePayment(
+      paymentAmount,
+      penaltyBalance,
+      interestBalance,
+      principalBalance
+    );
   }
 
   /**
    * Update repayment schedule based on payment
    */
   private async updateRepaymentSchedule(
+    tx: Prisma.TransactionClient,
     loanId: string,
-    paymentAmount: number
+    allocatedAmount: Money
   ): Promise<void> {
-    const scheduleItems = await prisma.repaymentSchedule.findMany({
+    const scheduleItems = await tx.repaymentSchedule.findMany({
       where: {
         loanId,
         outstandingAmount: {
@@ -307,29 +431,36 @@ class PaymentService {
       },
     });
 
-    let remainingAmount = paymentAmount;
+    let remainingAmount = allocatedAmount;
 
     for (const item of scheduleItems) {
-      if (remainingAmount <= 0) break;
+      if (!isOutstanding(remainingAmount)) break;
 
-      const outstandingAmount = parseFloat(item.outstandingAmount.toString());
-      const paymentForThisItem = Math.min(remainingAmount, outstandingAmount);
-      const newPaidAmount =
-        parseFloat(item.paidAmount.toString()) + paymentForThisItem;
-      const newOutstandingAmount = outstandingAmount - paymentForThisItem;
+      const outstandingAmount = toMoney(item.outstandingAmount);
+      const paymentForThisItem = roundMoney(
+        minMoney(remainingAmount, outstandingAmount)
+      );
+      const newPaidAmount = roundMoney(
+        toMoney(item.paidAmount).add(paymentForThisItem)
+      );
+      const newOutstandingAmount = roundMoney(
+        atLeastZero(outstandingAmount.sub(paymentForThisItem))
+      );
+      const settled = isSettled(newOutstandingAmount);
 
-      await prisma.repaymentSchedule.update({
+      await tx.repaymentSchedule.update({
         where: { id: item.id },
         data: {
           paidAmount: newPaidAmount,
-          outstandingAmount: newOutstandingAmount,
-          status: newOutstandingAmount === 0 ? 'COMPLETED' : 'PENDING',
-          paymentDate:
-            newOutstandingAmount === 0 ? new Date() : item.paymentDate,
+          outstandingAmount: settled
+            ? new Prisma.Decimal(0)
+            : newOutstandingAmount,
+          status: settled ? 'COMPLETED' : 'PENDING',
+          paymentDate: settled ? new Date() : item.paymentDate,
         },
       });
 
-      remainingAmount -= paymentForThisItem;
+      remainingAmount = remainingAmount.sub(paymentForThisItem);
     }
   }
 
@@ -369,6 +500,7 @@ class PaymentService {
               email: true,
             },
           },
+          reverser: { select: { firstName: true, lastName: true } },
           loan: {
             select: {
               loanNumber: true,
@@ -396,18 +528,53 @@ class PaymentService {
     ]);
 
     return {
-      payments: payments.map(payment => ({
+      payments: payments.map(payment => {
+        /**
+         * Which way the money went.
+         *
+         * Every row used to be labelled a repayment with the amount in the
+         * credit column, disbursements and top-ups included - so a loan that
+         * had been paid out twice looked like a loan that had been paid off
+         * twice, and the statement's "total payments received" counted money
+         * the lender had handed over. Money leaving is a debit against the
+         * loan; only money coming in is a credit.
+         */
+        const isAdvance =
+          payment.type === 'LOAN_DISBURSEMENT' || payment.type === 'LOAN_TOPUP';
+        const amount = parseFloat(payment.amount.toString());
+
+        const transactionType =
+          payment.type === 'LOAN_DISBURSEMENT'
+            ? 'disbursement'
+            : payment.type === 'LOAN_TOPUP'
+              ? 'topup'
+              : payment.type === 'LOAN_REPAYMENT'
+                ? 'repayment'
+                : payment.type.toLowerCase();
+
+        const description =
+          payment.notes ||
+          (payment.type === 'LOAN_TOPUP'
+            ? `Top-up on ${payment.loan?.loanNumber}`
+            : payment.type === 'LOAN_DISBURSEMENT'
+              ? `Disbursement of ${payment.loan?.loanNumber}`
+              : `Payment for ${payment.loan?.loanNumber}`);
+
+        return {
         id: payment.id,
         loan_id: payment.loanId,
         loan_number: payment.loan?.loanNumber,
         client_name: payment.loan?.client
           ? `${payment.loan.client.firstName} ${payment.loan.client.lastName}`
           : '',
-        transaction_type: 'repayment',
-        description: `Payment for ${payment.loan?.loanNumber}`,
-        debit: 0,
-        credit: parseFloat(payment.amount.toString()),
-        amount: parseFloat(payment.amount.toString()),
+        type: payment.type,
+        transaction_type: transactionType,
+        is_advance: isAdvance,
+        payment_number: payment.paymentNumber,
+        description,
+        debit: isAdvance ? amount : 0,
+        credit: isAdvance ? 0 : amount,
+        amount,
         principal_amount: parseFloat(payment.principalAmount.toString()),
         interest_amount: parseFloat(payment.interestAmount.toString()),
         penalty_amount: parseFloat(payment.penaltyAmount.toString()),
@@ -417,6 +584,17 @@ class PaymentService {
           payment.status === 'COMPLETED'
             ? 'approved'
             : payment.status?.toLowerCase(),
+        /**
+         * Whether this payment still stands. A reversed payment stays in the
+         * history - the client saw it taken and is entitled to see it undone -
+         * but nothing may count it as money received.
+         */
+        is_reversed: payment.status === 'REVERSED',
+        reversed_at: payment.reversedAt?.toISOString() ?? null,
+        reversal_reason: payment.reversalReason ?? null,
+        reversed_by_name: payment.reverser
+          ? `${payment.reverser.firstName} ${payment.reverser.lastName}`
+          : null,
         created_at: payment.paymentDate.toISOString(),
         payment_date: payment.paymentDate.toISOString(),
         received_by: payment.receivedBy,
@@ -424,7 +602,8 @@ class PaymentService {
           ? `${payment.receiver.firstName} ${payment.receiver.lastName}`
           : '',
         notes: payment.notes,
-      })),
+        };
+      }),
       total,
       page,
       limit,
@@ -588,63 +767,150 @@ class PaymentService {
     organizationId: string,
     reversedBy: string
   ): Promise<PaymentRecord> {
-    const payment = await prisma.payment.findFirst({
-      where: {
-        id: paymentId,
-        loan: {
-          organizationId,
+    // Reversal must be atomic for the same reason the original payment is:
+    // restoring loan balances without cancelling the payment (or vice versa)
+    // corrupts the ledger.
+    const reversedPayment = await prisma.$transaction(async tx => {
+      // Text columns, not uuid - see processPayment above.
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT p.id FROM payments p
+        JOIN loans l ON l.id = p."loanId"
+        WHERE p.id = ${paymentId}
+          AND l."organizationId" = ${organizationId}
+          AND p.status = 'COMPLETED'
+        FOR UPDATE OF p, l
+      `;
+
+      if (locked.length === 0) {
+        throw createError('Payment not found or cannot be reversed', 404);
+      }
+
+      const payment = await tx.payment.findFirstOrThrow({
+        where: { id: paymentId },
+        include: { loan: true },
+      });
+
+      /**
+       * The reversal, as a record rather than a sentence.
+       *
+       * REVERSED rather than CANCELLED: a cancelled payment never took effect,
+       * a reversed one did, and has had its balances restored and its income
+       * voided. Who did it and why are columns now, so a reversal can be listed
+       * and reported on instead of read out of a free-text notes field.
+       */
+      const updated = await tx.payment.update({
+        where: { id: paymentId },
+        data: {
+          status: 'REVERSED',
+          reversedAt: new Date(),
+          reversedById: reversedBy,
+          reversalReason: reversalData.notes
+            ? `${reversalData.reason} - ${reversalData.notes}`
+            : reversalData.reason,
+          notes: `${payment.notes || ''}\n\nREVERSED: ${reversalData.reason}${reversalData.notes ? ' - ' + reversalData.notes : ''}`,
         },
-        status: 'COMPLETED',
-      },
-      include: {
-        loan: true,
-      },
-    });
+      });
 
-    if (!payment) {
-      throw new Error('Payment not found or cannot be reversed');
-    }
+      // Restore loan balances from the recorded components. The outstanding
+      // balance is recomputed as the sum of its parts rather than by adding
+      // back payment.amount, which can differ from the allocated total and
+      // would otherwise leave the loan permanently out of balance.
+      const loan = payment.loan;
+      const penaltyBalance = roundMoney(
+        toMoney(loan.penaltyBalance).add(toMoney(payment.penaltyAmount))
+      );
+      const interestBalance = roundMoney(
+        toMoney(loan.interestBalance).add(toMoney(payment.interestAmount))
+      );
+      const principalBalance = roundMoney(
+        toMoney(loan.principalBalance).add(toMoney(payment.principalAmount))
+      );
 
-    // Update payment status
-    const reversedPayment = await prisma.payment.update({
-      where: { id: paymentId },
-      data: {
-        status: 'CANCELLED',
-        notes: `${payment.notes || ''}\n\nREVERSED: ${reversalData.reason}${reversalData.notes ? ' - ' + reversalData.notes : ''}`,
-      },
-    });
+      await tx.loan.update({
+        where: { id: loan.id },
+        data: {
+          penaltyBalance,
+          interestBalance,
+          principalBalance,
+          outstandingBalance: sumMoney([
+            penaltyBalance,
+            interestBalance,
+            principalBalance,
+          ]),
+          // Only a loan that this payment closed should be reopened; leave any
+          // other status (OVERDUE, DEFAULTED, ...) untouched.
+          status: loan.status === 'COMPLETED' ? 'ACTIVE' : loan.status,
+        },
+      });
 
-    // Restore loan balances
-    const loan = payment.loan;
-    await prisma.loan.update({
-      where: { id: loan.id },
-      data: {
-        penaltyBalance:
-          parseFloat(loan.penaltyBalance.toString()) +
-          parseFloat(payment.penaltyAmount.toString()),
-        interestBalance:
-          parseFloat(loan.interestBalance.toString()) +
-          parseFloat(payment.interestAmount.toString()),
-        principalBalance:
-          parseFloat(loan.principalBalance.toString()) +
-          parseFloat(payment.principalAmount.toString()),
-        outstandingBalance:
-          parseFloat(loan.outstandingBalance.toString()) +
-          parseFloat(payment.amount.toString()),
-        status: 'ACTIVE', // Revert to active if it was marked as completed
-      },
-    });
+      // Reverse the payment's effect on the repayment schedule, newest
+      // instalment first, so the schedule matches the restored balances.
+      await this.reverseRepaymentSchedule(
+        tx,
+        loan.id,
+        sumMoney([
+          toMoney(payment.penaltyAmount),
+          toMoney(payment.interestAmount),
+          toMoney(payment.principalAmount),
+        ])
+      );
 
-    // Void corresponding financial transactions and restore payment method balances
-    await financialTransactionService.voidByPaymentId(
-      paymentId,
-      reversedBy,
-      reversalData.reason
-    );
+      // Void corresponding financial transactions and restore payment method balances
+      await financialTransactionService.voidByPaymentId(
+        paymentId,
+        reversedBy,
+        reversalData.reason,
+        tx
+      );
 
-    // TODO: Update repayment schedule to reverse payment allocation
+      return updated;
+    }, PAYMENT_TRANSACTION_OPTIONS);
 
     return this.mapPaymentToRecord(reversedPayment as any);
+  }
+
+  /**
+   * Roll a reversed payment back off the repayment schedule.
+   *
+   * Instalments are unwound in reverse due-date order — the most recently
+   * satisfied instalment is the one the payment most likely settled.
+   */
+  private async reverseRepaymentSchedule(
+    tx: Prisma.TransactionClient,
+    loanId: string,
+    amountToReverse: Money
+  ): Promise<void> {
+    const scheduleItems = await tx.repaymentSchedule.findMany({
+      where: { loanId, paidAmount: { gt: 0 } },
+      orderBy: { dueDate: 'desc' },
+    });
+
+    let remaining = amountToReverse;
+
+    for (const item of scheduleItems) {
+      if (!isOutstanding(remaining)) break;
+
+      const paidAmount = toMoney(item.paidAmount);
+      const reversedHere = roundMoney(minMoney(remaining, paidAmount));
+      const newPaidAmount = roundMoney(atLeastZero(paidAmount.sub(reversedHere)));
+      const newOutstandingAmount = roundMoney(
+        atLeastZero(toMoney(item.totalAmount).sub(newPaidAmount))
+      );
+
+      await tx.repaymentSchedule.update({
+        where: { id: item.id },
+        data: {
+          paidAmount: newPaidAmount,
+          outstandingAmount: newOutstandingAmount,
+          status: isSettled(newOutstandingAmount) ? 'COMPLETED' : 'PENDING',
+          paymentDate: isSettled(newOutstandingAmount)
+            ? item.paymentDate
+            : null,
+        },
+      });
+
+      remaining = remaining.sub(reversedHere);
+    }
   }
 
   /**
@@ -686,7 +952,9 @@ class PaymentService {
     ] = await Promise.all([
       prisma.payment.count({ where }),
       prisma.payment.count({ where: { ...where, status: 'COMPLETED' } }),
-      prisma.payment.count({ where: { ...where, status: 'CANCELLED' } }),
+      prisma.payment.count({
+        where: { ...where, status: { in: ['CANCELLED', 'REVERSED'] } },
+      }),
       prisma.payment.aggregate({
         where,
         _sum: { amount: true },

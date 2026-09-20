@@ -68,13 +68,18 @@ router.get(
  * Create document type
  * POST /api/v1/documents/types
  */
+// zod strips keys it does not declare, so anything missing here never reaches
+// the controller - which is why `code` could not be supplied even once the
+// controller wanted it.
 const createDocumentTypeSchema = z.object({
   body: z.object({
     name: z.string().min(1, 'Name is required'),
-    description: z.string().optional(),
+    code: z.string().max(30).optional(),
+    description: z.string().nullable().optional(),
     isRequired: z.boolean().optional(),
-    supportsAI: z.boolean().optional(),
-    aiExtractionFields: z.array(z.string()).optional(),
+    isActive: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+    validityDays: z.number().int().nullable().optional(),
   }),
 });
 
@@ -95,11 +100,12 @@ const updateDocumentTypeSchema = z.object({
   }),
   body: z.object({
     name: z.string().min(1).optional(),
-    description: z.string().optional(),
+    code: z.string().max(30).optional(),
+    description: z.string().nullable().optional(),
     isRequired: z.boolean().optional(),
-    supportsAI: z.boolean().optional(),
-    aiExtractionFields: z.array(z.string()).optional(),
     isActive: z.boolean().optional(),
+    sortOrder: z.number().int().optional(),
+    validityDays: z.number().int().nullable().optional(),
   }),
 });
 
@@ -172,6 +178,30 @@ router.put(
 // ===================
 // Document Routes
 // ===================
+
+/**
+ * List every document in the organization (paginated + filterable)
+ * GET /api/v1/documents
+ *
+ * Registered before /:documentId so the collection route is not swallowed.
+ */
+router.get(
+  '/',
+  requirePermission('documents:view'),
+  handleAsync(
+    documentController.getOrganizationDocuments.bind(documentController)
+  )
+);
+
+/**
+ * Clients that have documents, with counts — the folder list
+ * GET /api/v1/documents/folders
+ */
+router.get(
+  '/folders',
+  requirePermission('documents:view'),
+  handleAsync(documentController.getClientFolders.bind(documentController))
+);
 
 /**
  * Get documents for a client

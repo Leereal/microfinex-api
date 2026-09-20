@@ -37,7 +37,9 @@ const router = Router();
 router.post(
   '/organizations/:id/logo',
   authenticate,
-  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  // ORG_ADMIN belongs here: it is their own organization's logo, and they were
+  // the one role unable to change it.
+  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ORG_ADMIN),
   uploadLogo,
   handleUploadError,
   requireFile,
@@ -83,9 +85,22 @@ router.post(
 
       const file = req.file!;
 
-      // Delete old logo if exists
+      // Remove the previous logo, but never let that stop the new one.
+      //
+      // This was awaited unguarded, so if the old object had already been
+      // removed from the bucket - or the bucket refused the delete - replacing
+      // a logo threw before the upload was even attempted, and the operator got
+      // "Upload failed" for a file that was perfectly fine. Cleanup of a file
+      // that is about to be replaced is housekeeping, not part of the outcome.
       if (organization.logo) {
-        await storageService.delete(organization.logo);
+        try {
+          await storageService.delete(organization.logo);
+        } catch (cleanupError) {
+          console.error(
+            'Could not remove previous organization logo:',
+            cleanupError
+          );
+        }
       }
 
       // Upload new logo
@@ -142,7 +157,7 @@ router.post(
 router.delete(
   '/organizations/:id/logo',
   authenticate,
-  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ORG_ADMIN),
   async (req: Request, res: Response) => {
     try {
       const organizationIdParam = req.params.id;

@@ -432,6 +432,7 @@ class ImportService {
         paymentNumber,
         amount: data.amount,
         paymentDate: data.paymentDate,
+        currency: loan.currency,
         method: data.paymentMethod || 'CASH',
         transactionRef: data.reference || paymentNumber,
         notes: data.notes,
@@ -696,7 +697,7 @@ class ImportService {
           'Address': '789 Business Avenue',
           'City': 'Harare',
           'Phone': '+263773456789',
-          'Email': 'main@microfinex.com',
+          'Email': 'main@example.com',
           'Manager ID': '',
           'Is Active': true,
         };

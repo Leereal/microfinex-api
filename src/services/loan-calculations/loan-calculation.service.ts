@@ -11,6 +11,7 @@ import {
   LoanRestructureOptions,
   LoanRestructureResult,
   PenaltyType,
+  LoanCalculationUtils,
 } from './types';
 import { ReducingBalanceStrategy } from './reducing-balance-strategy';
 import { FlatRateStrategy } from './flat-rate-strategy';
@@ -207,30 +208,58 @@ export class LoanCalculationService {
       interestAmount?: Decimal;
     }>
   ): LoanCalculationResult {
-    // Create a copy of the original schedule
-    const updatedSchedule = [...originalCalculation.repaymentSchedule];
-    let remainingBalance = originalCalculation.principalAmount;
+    // Apply payments against the schedule in due-date order, so each
+    // instalment reflects what has actually been settled. The previous
+    // implementation accumulated totals and then discarded them, returning
+    // the original schedule untouched - which is why statements never showed
+    // real payment activity.
+    const paidByOrder = [...actualPayments].sort(
+      (a, b) => a.paymentDate.getTime() - b.paymentDate.getTime()
+    );
+
+    let unapplied = paidByOrder.reduce(
+      (sum, payment) => sum.add(payment.amount),
+      new Decimal(0)
+    );
+
     let totalInterestPaid = new Decimal(0);
     let totalPrincipalPaid = new Decimal(0);
+    let remainingBalance = originalCalculation.principalAmount;
 
-    // Process actual payments
-    for (const payment of actualPayments) {
-      // Find the corresponding installment or create adjustment
-      const paymentPrincipal = payment.principalAmount || new Decimal(0);
-      const paymentInterest = payment.interestAmount || new Decimal(0);
+    const updatedSchedule = originalCalculation.repaymentSchedule.map(
+      installment => {
+        if (unapplied.lte(0)) {
+          return { ...installment };
+        }
 
-      remainingBalance = remainingBalance.sub(paymentPrincipal);
-      totalPrincipalPaid = totalPrincipalPaid.add(paymentPrincipal);
-      totalInterestPaid = totalInterestPaid.add(paymentInterest);
-    }
+        const settled = unapplied.gte(installment.totalAmount)
+          ? installment.totalAmount
+          : unapplied;
+        unapplied = unapplied.sub(settled);
 
-    // Update the calculation result with actual payment data
+        // Within an instalment, money settles interest before principal.
+        const interestSettled = settled.gte(installment.interestAmount)
+          ? installment.interestAmount
+          : settled;
+        const principalSettled = settled.sub(interestSettled);
+
+        totalInterestPaid = totalInterestPaid.add(interestSettled);
+        totalPrincipalPaid = totalPrincipalPaid.add(principalSettled);
+        remainingBalance = remainingBalance.sub(principalSettled);
+
+        return {
+          ...installment,
+          remainingBalance: LoanCalculationUtils.roundDecimal(remainingBalance),
+        };
+      }
+    );
+
     return {
       ...originalCalculation,
       repaymentSchedule: updatedSchedule,
       summary: {
         ...originalCalculation.summary,
-        totalInterestPaid,
+        totalInterestPaid: LoanCalculationUtils.roundDecimal(totalInterestPaid),
       },
     };
   }

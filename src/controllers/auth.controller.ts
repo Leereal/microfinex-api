@@ -247,10 +247,52 @@ class AuthController {
    * User logout
    * POST /api/v1/auth/logout
    */
+  /**
+   * Exchange a refresh token for a new access token
+   * POST /api/v1/auth/refresh
+   *
+   * Deliberately unauthenticated: the refresh token itself is the credential,
+   * and the caller reaches here precisely because their access token has
+   * expired.
+   */
+  async refresh(req: Request, res: Response) {
+    try {
+      const { refreshToken } = req.body;
+
+      const result = await authService.refresh(refreshToken);
+
+      if (!result.success) {
+        return res.status(401).json({
+          ...result,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      res.json({
+        ...result,
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: 'INTERNAL_ERROR',
+        timestamp: new Date().toISOString(),
+      });
+    }
+  }
+
   async logout(req: Request, res: Response) {
     try {
       const userId = req.userContext?.id;
       const sessionId = req.body.sessionId; // Optional: terminate specific session
+
+      // Revoke refresh tokens so a logged-out session cannot mint new access
+      // tokens from a refresh token the client still holds.
+      if (userId) {
+        await authService.revokeRefreshTokens(userId);
+      }
 
       const result = await authService.logout(userId, sessionId);
 

@@ -2,6 +2,12 @@ import app from './app';
 import { config } from './config';
 import { prisma } from './config/database';
 import { cacheService } from './services/cache.service';
+import { startScheduler, stopScheduler } from './jobs/scheduler';
+import { commsDispatcher } from './services/communications/comms.dispatcher';
+import { brandingService } from './services/branding/branding.service';
+import { aiExtractionService } from './services/ai-extraction.service';
+import { closePdfBrowser } from './services/pdf.service';
+import { startAssistant, stopAssistant } from './services/assistant';
 
 const PORT = config.port;
 
@@ -21,6 +27,48 @@ const startServer = async () => {
     } catch (error) {
       console.warn('⚠️ Redis cache not available, running without caching');
     }
+
+    // Move organizations off AI models the provider has shut down. Without
+    // this every extraction request fails against a dead model id.
+    try {
+      const migrated = await aiExtractionService.migrateRetiredModels();
+      if (migrated > 0) {
+        console.log(
+          `✅ Migrated ${migrated} AI config(s) off retired models`
+        );
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not check for retired AI models:', error);
+    }
+
+    // Start background jobs (loan engine, arrears, reminders). Without these
+    // loans never transition to OVERDUE and penalties never accrue.
+    if (process.env.ENABLE_SCHEDULER === 'true') {
+      const count = startScheduler();
+      console.log(`✅ Scheduler started with ${count} job(s)`);
+    } else {
+      console.warn(
+        '⚠️  Scheduler disabled. Loan status transitions, penalties and ' +
+          'reminders will not run. Set ENABLE_SCHEDULER=true to enable.'
+      );
+    }
+
+    // The white-label name used by emails and statements; defaults until loaded.
+    void brandingService.warm();
+
+    // Sends queued client messages (broadcasts) and fetches SMS delivery
+    // reports. Independent of the scheduler, so messages are never left
+    // unsent because ENABLE_SCHEDULER is off. COMMS_DISPATCHER=false turns it
+    // off on an instance that should not send.
+    if (process.env.COMMS_DISPATCHER !== 'false') {
+      commsDispatcher.start();
+      console.log('✅ Communications dispatcher started');
+    }
+
+    // The Agentic Assistant: its tools, and the loop that works its queue of
+    // runs, its scheduled automations and its expiring approvals.
+    startAssistant();
+    console.log('✅ Agentic Assistant started');
 
     // Start the server
     const server = app.listen(PORT, () => {
@@ -42,7 +90,15 @@ const startServer = async () => {
       server.close(async () => {
         console.log('HTTP server closed.');
 
+        // The PDF renderer keeps a headless Chromium alive between requests;
+        // it has to be told to stop or the process will not exit.
+        await closePdfBrowser().catch(() => {});
+
         try {
+          await stopScheduler();
+          commsDispatcher.stop();
+          stopAssistant();
+          console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');
           await prisma.$disconnect();
@@ -61,7 +117,15 @@ const startServer = async () => {
       server.close(async () => {
         console.log('HTTP server closed.');
 
+        // The PDF renderer keeps a headless Chromium alive between requests;
+        // it has to be told to stop or the process will not exit.
+        await closePdfBrowser().catch(() => {});
+
         try {
+          await stopScheduler();
+          commsDispatcher.stop();
+          stopAssistant();
+          console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');
           await prisma.$disconnect();

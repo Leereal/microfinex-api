@@ -38,6 +38,37 @@ export interface MonthlyTargetFilters {
   limit?: number;
 }
 
+/** One loan, top-up or repayment counted towards a monthly target. */
+export interface TargetContribution {
+  id: string;
+  kind: 'DISBURSEMENT' | 'TOP_UP' | 'REPAYMENT';
+  branchName: string;
+  reference: string;
+  loanId: string;
+  loanNumber: string;
+  clientName: string;
+  date: Date | null;
+  amount: number;
+  method?: string;
+  handledBy: string;
+}
+
+const clientName = (
+  client?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    businessName?: string | null;
+  } | null
+): string =>
+  [client?.firstName, client?.lastName].filter(Boolean).join(' ') ||
+  client?.businessName ||
+  'Unknown client';
+
+const personName = (
+  person?: { firstName?: string | null; lastName?: string | null } | null
+): string =>
+  [person?.firstName, person?.lastName].filter(Boolean).join(' ') || '-';
+
 export interface TargetProgress {
   id: string;
   branchId: string;
@@ -314,8 +345,40 @@ class MonthlyTargetService {
 
   /**
    * Get disbursements for a specific month/branch/currency
+   *
+   * Counted as principal advanced, which is two things: the loans first paid
+   * out this month, and any top-up made this month on a loan paid out earlier.
+   * A top-up raises the loan's principal, so charging the whole of it to the
+   * original disbursement date would credit it to the wrong month and leave the
+   * month it actually happened in showing nothing.
    */
   private async getDisbursementsAmount(
+    organizationId: string,
+    branchId: string,
+    currency: Currency,
+    year: number,
+    month: number
+  ): Promise<number> {
+    const items = await this.getDisbursementBreakdown(
+      organizationId,
+      branchId,
+      currency,
+      year,
+      month
+    );
+
+    return items.reduce((total, item) => total + item.amount, 0);
+  }
+
+  /**
+   * Get repayments for a specific month/branch/currency
+   *
+   * Money the lender paid out sits in the same table as money it took in, so
+   * this has to say which it wants. It did not, and a branch that had disbursed
+   * two loans and collected nothing showed its whole disbursement as repayments
+   * collected.
+   */
+  private async getRepaymentsAmount(
     organizationId: string,
     branchId: string,
     currency: Currency,
@@ -325,15 +388,16 @@ class MonthlyTargetService {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const result = await prisma.loan.aggregate({
+    const result = await prisma.payment.aggregate({
       where: {
-        organizationId,
-        branchId,
-        currency,
-        status: {
-          in: [LoanStatus.ACTIVE, LoanStatus.COMPLETED, LoanStatus.DEFAULTED],
+        loan: {
+          organizationId,
+          branchId,
+          currency,
         },
-        disbursedDate: {
+        status: PaymentStatus.COMPLETED,
+        type: { notIn: ['LOAN_DISBURSEMENT', 'LOAN_TOPUP'] },
+        paymentDate: {
           gte: startDate,
           lte: endDate,
         },
@@ -347,38 +411,219 @@ class MonthlyTargetService {
   }
 
   /**
-   * Get repayments for a specific month/branch/currency
+   * The individual advances behind a disbursement figure.
+   *
+   * A target that only shows a total is hard to trust and impossible to check;
+   * this is what the number is made of, so it can be opened up and every loan
+   * and top-up in it seen.
    */
-  private async getRepaymentsAmount(
+  async getDisbursementBreakdown(
     organizationId: string,
-    branchId: string,
+    branchId: string | undefined,
     currency: Currency,
     year: number,
     month: number
-  ): Promise<number> {
+  ): Promise<TargetContribution[]> {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    // Get payments from loans that belong to the specified branch
-    const result = await prisma.payment.aggregate({
+    const loans = await prisma.loan.findMany({
       where: {
-        loan: {
-          organizationId,
-          branchId,
-          currency,
+        organizationId,
+        // Omitted at organization level, where the figure covers every branch.
+        ...(branchId ? { branchId } : {}),
+        currency,
+        status: {
+          in: [LoanStatus.ACTIVE, LoanStatus.COMPLETED, LoanStatus.DEFAULTED],
         },
-        status: PaymentStatus.COMPLETED,
-        paymentDate: {
-          gte: startDate,
-          lte: endDate,
-        },
+        disbursedDate: { gte: startDate, lte: endDate },
       },
-      _sum: {
+      select: {
+        id: true,
+        loanNumber: true,
         amount: true,
+        disbursedDate: true,
+        client: {
+          select: { firstName: true, lastName: true, businessName: true },
+        },
+        branch: { select: { name: true } },
+        disbursedBy: { select: { firstName: true, lastName: true } },
       },
     });
 
-    return Number(result._sum.amount || 0);
+    /**
+     * A loan's `amount` is its principal today, top-ups included. What was
+     * advanced on the day it was paid out is that less everything added since.
+     */
+    const topUpTotals = loans.length
+      ? await prisma.payment.groupBy({
+          by: ['loanId'],
+          where: {
+            loanId: { in: loans.map(loan => loan.id) },
+            type: 'LOAN_TOPUP',
+            status: PaymentStatus.COMPLETED,
+          },
+          _sum: { principalAmount: true },
+        })
+      : [];
+
+    const toppedUp = new Map(
+      topUpTotals.map(row => [row.loanId, Number(row._sum.principalAmount || 0)])
+    );
+
+    const contributions: TargetContribution[] = loans.map(loan => ({
+      id: loan.id,
+      branchName: loan.branch?.name ?? '-',
+      kind: 'DISBURSEMENT' as const,
+      reference: loan.loanNumber,
+      loanId: loan.id,
+      loanNumber: loan.loanNumber,
+      clientName: clientName(loan.client),
+      date: loan.disbursedDate,
+      amount: Math.max(Number(loan.amount) - (toppedUp.get(loan.id) ?? 0), 0),
+      handledBy: personName(loan.disbursedBy),
+    }));
+
+    const topUps = await prisma.payment.findMany({
+      where: {
+        loan: { organizationId, ...(branchId ? { branchId } : {}), currency },
+        type: 'LOAN_TOPUP',
+        status: PaymentStatus.COMPLETED,
+        paymentDate: { gte: startDate, lte: endDate },
+      },
+      select: {
+        id: true,
+        paymentNumber: true,
+        principalAmount: true,
+        amount: true,
+        paymentDate: true,
+        loanId: true,
+        loan: {
+          select: {
+            loanNumber: true,
+            branch: { select: { name: true } },
+            client: {
+              select: {
+                firstName: true,
+                lastName: true,
+                businessName: true,
+              },
+            },
+          },
+        },
+        receiver: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    for (const topUp of topUps) {
+      contributions.push({
+        id: topUp.id,
+        kind: 'TOP_UP',
+        branchName: topUp.loan?.branch?.name ?? '-',
+        reference: topUp.paymentNumber,
+        loanId: topUp.loanId,
+        loanNumber: topUp.loan?.loanNumber ?? '',
+        clientName: clientName(topUp.loan?.client),
+        date: topUp.paymentDate,
+        amount: Number(topUp.principalAmount ?? topUp.amount ?? 0),
+        handledBy: personName(topUp.receiver),
+      });
+    }
+
+    return contributions.sort(
+      (a, b) => (a.date?.getTime() ?? 0) - (b.date?.getTime() ?? 0)
+    );
+  }
+
+  /** The individual repayments behind a repayment figure. */
+  async getRepaymentBreakdown(
+    organizationId: string,
+    branchId: string | undefined,
+    currency: Currency,
+    year: number,
+    month: number
+  ): Promise<TargetContribution[]> {
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const payments = await prisma.payment.findMany({
+      where: {
+        loan: { organizationId, ...(branchId ? { branchId } : {}), currency },
+        status: PaymentStatus.COMPLETED,
+        type: { notIn: ['LOAN_DISBURSEMENT', 'LOAN_TOPUP'] },
+        paymentDate: { gte: startDate, lte: endDate },
+      },
+      select: {
+        id: true,
+        paymentNumber: true,
+        transactionRef: true,
+        amount: true,
+        method: true,
+        paymentDate: true,
+        loanId: true,
+        loan: {
+          select: {
+            loanNumber: true,
+            branch: { select: { name: true } },
+            client: {
+              select: {
+                firstName: true,
+                lastName: true,
+                businessName: true,
+              },
+            },
+          },
+        },
+        receiver: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { paymentDate: 'asc' },
+    });
+
+    return payments.map(payment => ({
+      id: payment.id,
+      kind: 'REPAYMENT' as const,
+      branchName: payment.loan?.branch?.name ?? '-',
+      reference: payment.transactionRef || payment.paymentNumber,
+      loanId: payment.loanId,
+      loanNumber: payment.loan?.loanNumber ?? '',
+      clientName: clientName(payment.loan?.client),
+      date: payment.paymentDate,
+      amount: Number(payment.amount ?? 0),
+      method: payment.method,
+      handledBy: personName(payment.receiver),
+    }));
+  }
+
+  /** Everything that made up one target's achieved figure. */
+  async getTargetBreakdown(
+    organizationId: string,
+    branchId: string | undefined,
+    currency: Currency,
+    targetType: TargetType,
+    year: number,
+    month: number
+  ): Promise<{ items: TargetContribution[]; total: number }> {
+    const items =
+      targetType === TargetType.DISBURSEMENT
+        ? await this.getDisbursementBreakdown(
+            organizationId,
+            branchId,
+            currency,
+            year,
+            month
+          )
+        : await this.getRepaymentBreakdown(
+            organizationId,
+            branchId,
+            currency,
+            year,
+            month
+          );
+
+    return {
+      items,
+      total: items.reduce((sum, item) => sum + item.amount, 0),
+    };
   }
 
   /**

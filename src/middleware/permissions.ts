@@ -110,81 +110,34 @@ export async function loadUserPermissions(
         permissions.add(PERMISSIONS.ORGANIZATIONS_VIEW);
         permissions.add(PERMISSIONS.ORGANIZATIONS_UPDATE);
       } else if (user.role === 'ORG_ADMIN') {
-        // Org Admins get permissions for their organization
-        // Users management
-        permissions.add(PERMISSIONS.USERS_VIEW);
-        permissions.add(PERMISSIONS.USERS_CREATE);
-        permissions.add(PERMISSIONS.USERS_UPDATE);
-        permissions.add(PERMISSIONS.USERS_DELETE);
-        permissions.add(PERMISSIONS.USERS_ASSIGN_ROLE);
-        permissions.add(PERMISSIONS.USERS_PERMISSIONS_VIEW);
-        permissions.add(PERMISSIONS.USERS_PERMISSIONS_MANAGE);
+        /**
+         * An organization's administrator can do anything inside it.
+         *
+         * This used to be a hand-written list of about forty permissions, and
+         * it had fallen a long way behind: 106 of the system's 192 permissions
+         * were unreachable for this role, including payment methods, payments,
+         * charges, documents, notifications, financial transactions - and
+         * dashboard:view, so an ORG_ADMIN could not see the dashboard. Every
+         * module added since the list was written was missing from it, and
+         * every module added next would have been too.
+         *
+         * Stated as a rule instead: everything except the platform-level
+         * actions on organizations themselves. Creating, deleting and
+         * activating organizations belong to a platform operator; viewing and
+         * updating their own is theirs. This mirrors how ADMIN is resolved
+         * immediately above, and stays correct as permissions are added.
+         */
+        const PLATFORM_ONLY: string[] = [
+          PERMISSIONS.ORGANIZATIONS_CREATE,
+          PERMISSIONS.ORGANIZATIONS_DELETE,
+          PERMISSIONS.ORGANIZATIONS_ACTIVATE,
+        ];
 
-        // Roles management
-        permissions.add(PERMISSIONS.ROLES_VIEW);
-        permissions.add(PERMISSIONS.ROLES_CREATE);
-        permissions.add(PERMISSIONS.ROLES_UPDATE);
-        permissions.add(PERMISSIONS.ROLES_DELETE);
-        permissions.add(PERMISSIONS.ROLES_PERMISSIONS_MANAGE);
-
-        // Clients
-        permissions.add(PERMISSIONS.CLIENTS_VIEW);
-        permissions.add(PERMISSIONS.CLIENTS_CREATE);
-        permissions.add(PERMISSIONS.CLIENTS_UPDATE);
-        permissions.add(PERMISSIONS.CLIENTS_DELETE);
-        permissions.add(PERMISSIONS.CLIENTS_EXPORT);
-        permissions.add(PERMISSIONS.CLIENTS_IMPORT);
-
-        // Loans
-        permissions.add(PERMISSIONS.LOANS_VIEW);
-        permissions.add(PERMISSIONS.LOANS_APPLY);
-        permissions.add(PERMISSIONS.LOANS_UPDATE);
-        permissions.add(PERMISSIONS.LOANS_DELETE);
-        permissions.add(PERMISSIONS.LOANS_APPROVE);
-        permissions.add(PERMISSIONS.LOANS_REJECT);
-        permissions.add(PERMISSIONS.LOANS_DISBURSE);
-        permissions.add(PERMISSIONS.LOANS_EXPORT);
-
-        // Branches
-        permissions.add(PERMISSIONS.BRANCHES_VIEW);
-        permissions.add(PERMISSIONS.BRANCHES_CREATE);
-        permissions.add(PERMISSIONS.BRANCHES_UPDATE);
-        permissions.add(PERMISSIONS.BRANCHES_DELETE);
-
-        // Products (shop products)
-        permissions.add(PERMISSIONS.PRODUCTS_VIEW);
-        permissions.add(PERMISSIONS.PRODUCTS_CREATE);
-        permissions.add(PERMISSIONS.PRODUCTS_UPDATE);
-        permissions.add(PERMISSIONS.PRODUCTS_DELETE);
-
-        // Loan Products
-        permissions.add(PERMISSIONS.LOAN_PRODUCTS_VIEW);
-        permissions.add(PERMISSIONS.LOAN_PRODUCTS_CREATE);
-        permissions.add(PERMISSIONS.LOAN_PRODUCTS_UPDATE);
-        permissions.add(PERMISSIONS.LOAN_PRODUCTS_DELETE);
-
-        // Categories
-        permissions.add(PERMISSIONS.CATEGORIES_VIEW);
-        permissions.add(PERMISSIONS.CATEGORIES_CREATE);
-        permissions.add(PERMISSIONS.CATEGORIES_UPDATE);
-        permissions.add(PERMISSIONS.CATEGORIES_DELETE);
-
-        // Reports
-        permissions.add(PERMISSIONS.REPORTS_VIEW);
-        permissions.add(PERMISSIONS.REPORTS_GENERATE);
-        permissions.add(PERMISSIONS.REPORTS_EXPORT);
-
-        // Audit
-        permissions.add(PERMISSIONS.AUDIT_VIEW);
-        permissions.add(PERMISSIONS.AUDIT_EXPORT);
-
-        // Settings for their org
-        permissions.add(PERMISSIONS.SETTINGS_VIEW);
-        permissions.add(PERMISSIONS.SETTINGS_UPDATE);
-
-        // Organization - view and update only (not create/delete)
-        permissions.add(PERMISSIONS.ORGANIZATIONS_VIEW);
-        permissions.add(PERMISSIONS.ORGANIZATIONS_UPDATE);
+        Object.values(PERMISSIONS).forEach(p => {
+          if (!PLATFORM_ONLY.includes(p)) {
+            permissions.add(p);
+          }
+        });
       } else if (user.role === 'MANAGER') {
         // Managers get operational permissions from DEFAULT_ROLE_PERMISSIONS
         DEFAULT_ROLE_PERMISSIONS.MANAGER.forEach(p => permissions.add(p));

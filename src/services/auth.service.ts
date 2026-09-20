@@ -1,8 +1,14 @@
 import { supabase, supabaseAdmin } from '../config/supabase-enhanced';
-import { hashPassword, generateToken } from '../utils/auth';
-import { generateApiKey } from '../utils/security';
-import { UserRole, ApiTier } from '../types';
+import {
+  hashPassword,
+  generateToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} from '../utils/auth';
+import { generateApiKey, hashString } from '../utils/security';
+import { UserRole, ApiTier, JWTPayload } from '../types';
 import { prisma } from '../config/database';
+import { config } from '../config';
 import { sessionManagementService } from './security/session-management.service';
 
 export interface LoginInput {
@@ -53,7 +59,170 @@ export interface AuthResult {
   error?: string;
 }
 
+/**
+ * Milliseconds represented by a JWT-style duration string ("30d", "12h").
+ * Used to set the stored refresh token's expiry alongside the JWT's own.
+ */
+function durationToMs(duration: string): number {
+  const match = /^(\d+)([smhd])$/.exec(duration.trim());
+  if (!match) {
+    return 30 * 24 * 60 * 60 * 1000; // 30 days
+  }
+  const value = Number(match[1]);
+  const unit = match[2];
+  const multipliers: Record<string, number> = {
+    s: 1000,
+    m: 60 * 1000,
+    h: 60 * 60 * 1000,
+    d: 24 * 60 * 60 * 1000,
+  };
+  return value * (multipliers[unit as string] ?? multipliers.d!);
+}
+
 class AuthService {
+  /**
+   * Issue a refresh token and persist its hash.
+   *
+   * Only the SHA-256 hash is stored: a read of the refresh_tokens table then
+   * discloses nothing usable, the same reasoning that applies to passwords.
+   */
+  private async issueRefreshToken(payload: JWTPayload): Promise<string> {
+    const refreshToken = generateRefreshToken(payload);
+    const expiresAt = new Date(
+      Date.now() + durationToMs(config.jwt.refreshExpiresIn)
+    );
+
+    await prisma.refreshToken.create({
+      data: {
+        token: hashString(refreshToken),
+        userId: payload.userId,
+        expiresAt,
+      },
+    });
+
+    return refreshToken;
+  }
+
+  /**
+   * Exchange a refresh token for a new access token.
+   *
+   * Tokens are rotated on every use: the presented token is deleted and a new
+   * one issued, so a stolen token is usable at most once and only until the
+   * legitimate holder next refreshes.
+   */
+  async refresh(refreshToken: string): Promise<AuthResult> {
+    if (!refreshToken) {
+      return {
+        success: false,
+        message: 'Refresh token is required',
+        error: 'REFRESH_TOKEN_REQUIRED',
+      };
+    }
+
+    let payload: JWTPayload;
+    try {
+      payload = verifyRefreshToken(refreshToken);
+    } catch {
+      return {
+        success: false,
+        message: 'Invalid or expired refresh token',
+        error: 'INVALID_REFRESH_TOKEN',
+      };
+    }
+
+    const hashed = hashString(refreshToken);
+    const stored = await prisma.refreshToken.findUnique({
+      where: { token: hashed },
+    });
+
+    // Not on record: either already rotated, revoked at logout, or forged.
+    if (!stored || stored.userId !== payload.userId) {
+      return {
+        success: false,
+        message: 'Refresh token is no longer valid',
+        error: 'INVALID_REFRESH_TOKEN',
+      };
+    }
+
+    if (stored.expiresAt.getTime() < Date.now()) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } });
+      return {
+        success: false,
+        message: 'Refresh token has expired',
+        error: 'REFRESH_TOKEN_EXPIRED',
+      };
+    }
+
+    const user = await prisma.user.findFirst({
+      where: { id: payload.userId, isActive: true },
+      include: { organization: true },
+    });
+
+    if (!user) {
+      await prisma.refreshToken.delete({ where: { id: stored.id } });
+      return {
+        success: false,
+        message: 'User no longer active',
+        error: 'USER_INACTIVE',
+      };
+    }
+
+    // Rebuild the payload from current data so a role or permission change
+    // takes effect on refresh rather than persisting for the token's lifetime.
+    const nextPayload: JWTPayload = {
+      userId: user.id,
+      email: user.email,
+      role: user.role as UserRole,
+      organizationId: user.organizationId || undefined,
+      permissions: user.permissions || [],
+      tier: (user.organization?.apiTier as ApiTier) || ApiTier.BASIC,
+    };
+
+    const accessToken = generateToken(nextPayload);
+
+    // Rotate: the presented token dies with this request.
+    await prisma.refreshToken.delete({ where: { id: stored.id } });
+    const nextRefreshToken = await this.issueRefreshToken(nextPayload);
+
+    return {
+      success: true,
+      message: 'Token refreshed',
+      data: {
+        token: accessToken,
+        refreshToken: nextRefreshToken,
+        expiresIn: config.jwt.expiresIn,
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+        },
+      },
+    };
+  }
+
+  /**
+   * Revoke every refresh token held by a user (logout, password change,
+   * account disabled).
+   */
+  async revokeRefreshTokens(userId: string): Promise<number> {
+    const { count } = await prisma.refreshToken.deleteMany({
+      where: { userId },
+    });
+    return count;
+  }
+
+  /**
+   * Delete refresh tokens that are past their expiry. Safe to call routinely.
+   */
+  async purgeExpiredRefreshTokens(): Promise<number> {
+    const { count } = await prisma.refreshToken.deleteMany({
+      where: { expiresAt: { lt: new Date() } },
+    });
+    return count;
+  }
+
   /**
    * Authenticate user with email and password
    */
@@ -221,14 +390,19 @@ class AuthService {
       .eq('id', user.id);
 
     // Generate our own JWT token for API authentication
-    const token = generateToken({
+    const tokenPayload: JWTPayload = {
       userId: user.id,
       email: user.email,
       role: user.role as UserRole,
       organizationId: user.organization?.id,
       permissions: user.permissions || [],
       tier: (user.organization?.apiTier as ApiTier) || ApiTier.BASIC,
-    });
+    };
+    const token = generateToken(tokenPayload);
+
+    // Issue a refresh token so the client can obtain a new access token
+    // without re-prompting for credentials when the short-lived one expires.
+    const refreshToken = await this.issueRefreshToken(tokenPayload);
 
     // Create session record
     const sessionResult = await sessionManagementService.createSession(
@@ -281,6 +455,8 @@ class AuthService {
           lastLoginAt: user.lastLoginAt,
         },
         token: token,
+        refreshToken,
+        expiresIn: config.jwt.expiresIn,
         sessionId: sessionResult.data?.sessionId,
       },
     };

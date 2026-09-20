@@ -4,6 +4,8 @@ import { authenticate, authorize } from '../middleware/auth-supabase';
 import { validateRequest, validateQuery } from '../middleware/validation';
 import { UserRole } from '../types';
 import { userController } from '../controllers/user.controller';
+import { prisma } from '../config/database';
+import { loadUserPermissions } from '../middleware/permissions';
 
 const router = Router();
 
@@ -171,6 +173,88 @@ router.post(
  *     security:
  *       - bearerAuth: []
  */
+/**
+ * @swagger
+ * /api/v1/users/by-permission:
+ *   get:
+ *     summary: Users in this organization who hold a given permission
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get('/by-permission', authenticate, async (req, res) => {
+  try {
+    const organizationId = req.user?.organizationId;
+    const permission = String(req.query.permission || '').trim();
+    const branchId = req.query.branchId
+      ? String(req.query.branchId)
+      : undefined;
+
+    if (!organizationId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization ID required',
+        error: 'MISSING_ORGANIZATION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    if (!permission) {
+      return res.status(400).json({
+        success: false,
+        message: 'A permission is required, e.g. ?permission=loans:assess',
+        error: 'MISSING_PERMISSION',
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const candidates = await prisma.user.findMany({
+      where: {
+        organizationId,
+        isActive: true,
+        ...(branchId ? { branchId } : {}),
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        role: true,
+        branchId: true,
+      },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
+
+    /*
+     * Filtered by what each person can actually do.
+     *
+     * Offering somebody who cannot assess as the assessor produces a loan
+     * assigned to a person who will never be able to act on it, and a
+     * notification they can do nothing with.
+     */
+    const eligible = [];
+    for (const user of candidates) {
+      const permissions = await loadUserPermissions(user.id);
+      if (permissions.has(permission)) eligible.push(user);
+    }
+
+    res.json({
+      success: true,
+      message: 'Eligible users retrieved successfully',
+      data: { users: eligible, permission },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Get users by permission error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
 router.get('/:id', authenticate, userController.getById.bind(userController));
 
 /**

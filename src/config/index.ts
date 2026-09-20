@@ -1,6 +1,42 @@
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 
 dotenv.config();
+
+const isProduction = (process.env.NODE_ENV || 'development') === 'production';
+
+/**
+ * Resolve a secret that must never fall back to a hardcoded literal.
+ *
+ * A checked-in default (the previous 'fallback_secret_key') means that any
+ * deployment missing the environment variable silently signs and accepts
+ * tokens under a value published in this repository - anyone could mint a
+ * valid admin token. In production we refuse to start; in development we
+ * generate a random per-process secret, which keeps local work frictionless
+ * while guaranteeing the value is never a known constant. Note that a
+ * generated secret changes on restart, so local sessions will not survive one.
+ */
+function requireSecret(name: string): string {
+  const value = process.env[name];
+
+  if (value && value.trim().length > 0) {
+    return value;
+  }
+
+  if (isProduction) {
+    throw new Error(
+      `${name} is not set. Refusing to start: falling back to a default ` +
+        `secret would let anyone forge authentication tokens.`
+    );
+  }
+
+  const generated = crypto.randomBytes(48).toString('hex');
+  console.warn(
+    `⚠️  ${name} is not set. Generated a random development secret. ` +
+      `Tokens will be invalidated on restart. Set ${name} in your .env file.`
+  );
+  return generated;
+}
 
 interface Config {
   port: number;
@@ -59,9 +95,8 @@ export const config: Config = {
   },
 
   jwt: {
-    secret: process.env.JWT_SECRET || 'fallback_secret_key',
-    refreshSecret:
-      process.env.JWT_REFRESH_SECRET || 'fallback_refresh_secret_key',
+    secret: requireSecret('JWT_SECRET'),
+    refreshSecret: requireSecret('JWT_REFRESH_SECRET'),
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
     issuer: process.env.JWT_ISSUER || 'microfinex-api',
@@ -95,7 +130,7 @@ export const config: Config = {
   },
 
   api: {
-    title: process.env.API_TITLE || 'Microfinex API',
+    title: process.env.API_TITLE || 'MicroSteward API',
     version: process.env.API_VERSION || '1.0.0',
     description:
       process.env.API_DESCRIPTION ||
