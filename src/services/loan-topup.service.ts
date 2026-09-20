@@ -241,6 +241,7 @@ export async function topUpLoan(input: TopUpInput): Promise<TopUpResult> {
         interestAmount: 0,
         penaltyAmount: 0,
         type: 'LOAN_TOPUP',
+        currency: loan.currency,
         method: 'CASH',
         status: 'COMPLETED',
         paymentDate: new Date(),

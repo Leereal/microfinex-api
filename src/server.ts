@@ -7,6 +7,7 @@ import { commsDispatcher } from './services/communications/comms.dispatcher';
 import { brandingService } from './services/branding/branding.service';
 import { aiExtractionService } from './services/ai-extraction.service';
 import { closePdfBrowser } from './services/pdf.service';
+import { startAssistant, stopAssistant } from './services/assistant';
 
 const PORT = config.port;
 
@@ -64,6 +65,11 @@ const startServer = async () => {
       console.log('✅ Communications dispatcher started');
     }
 
+    // The Agentic Assistant: its tools, and the loop that works its queue of
+    // runs, its scheduled automations and its expiring approvals.
+    startAssistant();
+    console.log('✅ Agentic Assistant started');
+
     // Start the server
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
@@ -91,6 +97,7 @@ const startServer = async () => {
         try {
           await stopScheduler();
           commsDispatcher.stop();
+          stopAssistant();
           console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');
@@ -117,6 +124,7 @@ const startServer = async () => {
         try {
           await stopScheduler();
           commsDispatcher.stop();
+          stopAssistant();
           console.log('Scheduler stopped.');
           await cacheService.disconnect();
           console.log('Redis cache disconnected.');

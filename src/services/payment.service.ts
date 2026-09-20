@@ -275,6 +275,10 @@ class PaymentService {
                 interestAmount: allocation.interestAmount,
                 penaltyAmount: allocation.penaltyAmount,
                 type: 'LOAN_REPAYMENT',
+                // Denominated in the loan's own currency. Leaving this unset
+                // fell through to Prisma's @default(USD) on Payment.currency,
+                // so a ZAR book reported its collections in dollars.
+                currency: loan.currency,
                 method: paymentData.paymentMethod,
                 status: 'COMPLETED',
                 transactionRef: paymentData.transactionRef,
@@ -296,7 +300,7 @@ class PaymentService {
                 interestAmount: allocation.interestAmount.toNumber(),
                 principalAmount: allocation.principalAmount.toNumber(),
               },
-              loan.product?.currency || 'USD',
+              loan.currency,
               paymentData.paymentMethodId,
               receivedBy,
               tx
@@ -359,7 +363,7 @@ class PaymentService {
               payment: created,
               loanIsCompleted: completed,
               loanAmount: toMoney(loan.amount),
-              currency: loan.product?.currency || Currency.USD,
+              currency: loan.currency,
               clientId: loan.clientId,
             };
           }, PAYMENT_TRANSACTION_OPTIONS),

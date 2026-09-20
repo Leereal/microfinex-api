@@ -44,6 +44,8 @@ export const PERMISSION_MODULES = {
   AI: 'ai',
   // Client communications
   COMMUNICATIONS: 'communications',
+  // Agentic Assistant
+  ASSISTANT: 'assistant',
 } as const;
 
 // Permission interface
@@ -1334,6 +1336,45 @@ export const COMMUNICATION_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== AGENTIC ASSISTANT PERMISSIONS ====================
+//
+// The assistant acts on behalf of whoever is using it, so these permissions
+// govern who may use it and who may set it up - never what it can reach. What
+// it can reach is whatever that person can reach, and no more.
+export const ASSISTANT_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'assistant:use',
+    name: 'Use the Agentic Assistant',
+    description: 'Ask the assistant to look things up and prepare work for you',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:approve',
+    name: 'Approve Assistant Actions',
+    description:
+      'Authorise an action the assistant has prepared, such as creating a client or sending a message',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:automations',
+    name: 'Manage Assistant Automations',
+    description: 'Set up the scheduled work the assistant does on its own',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:connections',
+    name: 'Connect Accounts to the Assistant',
+    description: 'Connect mailboxes, servers and APIs the assistant may use',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+  {
+    code: 'assistant:manage',
+    name: 'Configure the Agentic Assistant',
+    description: 'Turn the assistant on or off and decide what it may do unattended',
+    module: PERMISSION_MODULES.ASSISTANT,
+  },
+];
+
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...CLIENT_PERMISSIONS,
   ...LOAN_PERMISSIONS,
@@ -1374,6 +1415,8 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...AI_PERMISSIONS,
   // Client communications
   ...COMMUNICATION_PERMISSIONS,
+  // Agentic Assistant
+  ...ASSISTANT_PERMISSIONS,
 ];
 
 // ==================== PERMISSION CODES (for easy access) ====================
@@ -1418,7 +1461,6 @@ export const PERMISSIONS = {
 
   // Payments
   PAYMENTS_VIEW: 'payments:view',
-  PAYMENTS_CREATE: 'payments:create',
   PAYMENTS_RECEIVE: 'payments:receive',
   PAYMENTS_REVERSE: 'payments:reverse',
   PAYMENTS_BULK: 'payments:bulk',
@@ -1631,6 +1673,13 @@ export const PERMISSIONS = {
   COMMUNICATIONS_BROADCAST: 'communications:broadcast',
   COMMUNICATIONS_TEMPLATES: 'communications:templates',
 
+  // Agentic Assistant
+  ASSISTANT_USE: 'assistant:use',
+  ASSISTANT_APPROVE: 'assistant:approve',
+  ASSISTANT_AUTOMATIONS: 'assistant:automations',
+  ASSISTANT_CONNECTIONS: 'assistant:connections',
+  ASSISTANT_MANAGE: 'assistant:manage',
+
   // Charges
   CHARGES_VIEW: 'charges:view',
   CHARGES_CREATE: 'charges:create',
@@ -1686,6 +1735,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // AI Module - ADMIN can manage AI settings
     ...AI_PERMISSIONS.map(p => p.code),
     ...COMMUNICATION_PERMISSIONS.map(p => p.code),
+    ...ASSISTANT_PERMISSIONS.map(p => p.code),
   ],
 
   // Organization Admin - same as ADMIN but specifically for organization-level management
@@ -1725,10 +1775,14 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // AI Module - ORG_ADMIN can manage AI settings
     ...AI_PERMISSIONS.map(p => p.code),
     ...COMMUNICATION_PERMISSIONS.map(p => p.code),
+    ...ASSISTANT_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
     // Branch-level management
+    PERMISSIONS.ASSISTANT_USE,
+    PERMISSIONS.ASSISTANT_APPROVE,
+    PERMISSIONS.ASSISTANT_AUTOMATIONS,
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_UPDATE,
@@ -1835,6 +1889,7 @@ export const DEFAULT_ROLE_PERMISSIONS = {
   ],
 
   LOAN_OFFICER: [
+    PERMISSIONS.ASSISTANT_USE,
     PERMISSIONS.CLIENTS_VIEW,
     PERMISSIONS.CLIENTS_CREATE,
     PERMISSIONS.CLIENTS_UPDATE,

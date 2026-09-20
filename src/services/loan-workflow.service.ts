@@ -1239,6 +1239,7 @@ class CategoryAwareWorkflowEngine {
         interestAmount: 0,
         penaltyAmount: 0,
         type: 'LOAN_DISBURSEMENT',
+        currency: loan.currency,
         method: disbursementDetails?.disbursementMethod || 'CASH',
         status: 'COMPLETED',
         paymentDate: disbursementDate,

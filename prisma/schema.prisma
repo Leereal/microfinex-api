@@ -2250,3 +2250,461 @@ model ClientDeletionRequest {
   @@index([requestedById])
   @@map("client_deletion_requests")
 }
+
+// ============================================================================
+// Agentic Assistant
+//
+// The assistant has no identity of its own. Every action it takes is carried
+// out on behalf of a member of staff - the person who asked for it, or the
+// person who approved it - and is refused if that person could not do it
+// themselves. What it may do unattended is set per organization in
+// assistant_settings; anything set to ASK becomes an approval that stores the
+// exact action, so what somebody approves is exactly what runs.
+//
+// Links to organizations, users, clients and loans are enforced by foreign
+// keys in the migration rather than declared as Prisma relations, to keep the
+// assistant out of the core models it observes.
+// ============================================================================
+
+/// One row per organization: whether the assistant is on, what it may do
+/// unattended, and what it is allowed to cost.
+model AssistantSettings {
+  id             String  @id @default(uuid())
+  organizationId String  @unique
+  enabled        Boolean @default(false)
+  /// Overrides the organization's primary AI provider when set.
+  providerName   String?
+  modelName      String?
+  /// capability code -> OFF | ASK | AUTO. Missing codes use the defaults.
+  capabilities   Json?
+  /// Extra house rules from the organization, added to the system prompt.
+  instructions   String?
+  maxStepsPerRun Int     @default(12)
+  /// Model spend guard: tokens per calendar month. Null means no limit.
+  monthlyTokenBudget    Int?
+  dailyRunLimit         Int      @default(200)
+  timezone              String   @default("Africa/Harare")
+  /// When automations may message clients: { days: [1..5], start, end }.
+  workingHours          Json?
+  memoryEnabled         Boolean  @default(true)
+  /// Answers clients who write on WhatsApp, about their own account only.
+  whatsappEnabled       Boolean  @default(false)
+  whatsappConfig        Json?
+  /// Sites the browser tools may visit. Empty means nowhere.
+  browserAllowedDomains String[] @default([])
+  updatedById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("assistant_settings")
+}
+
+/// A thread of conversation: one member of staff and the assistant, or one
+/// client on WhatsApp and the assistant.
+model AssistantConversation {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// The member of staff whose authority the assistant acts with. Null on a
+  /// client-facing WhatsApp thread, which may only read that client's record.
+  userId         String?
+  /// The client on the other end of a WhatsApp thread.
+  clientId       String?
+  title          String?
+  /// APP | WHATSAPP | AUTOMATION
+  channel        String    @default("APP")
+  /// What the person was looking at when they started: client, loan, page.
+  context        Json?
+  /// A WhatsApp caller stays verified for a while, so they are not asked for
+  /// their ID details on every message.
+  verifiedUntil  DateTime?
+  /// Set when a client asks for a person: the assistant stops replying.
+  handoffUntil   DateTime?
+  archivedAt     DateTime?
+  lastMessageAt  DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  messages AssistantMessage[]
+  runs     AssistantRun[]
+
+  @@index([organizationId, userId, lastMessageAt])
+  @@index([organizationId, clientId, lastMessageAt])
+  @@map("assistant_conversations")
+}
+
+/// One turn in a conversation. Tool calls and their results are turns too, so
+/// the transcript can be replayed to the model exactly as it happened.
+model AssistantMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  organizationId String
+  /// user | assistant | tool | system
+  role           String
+  content        String   @default("")
+  /// Tool calls made, or the tool result this message carries.
+  parts          Json?
+  /// Provider-specific content kept verbatim (reasoning blocks, thought
+  /// signatures) - dropping it breaks tool calling on some models.
+  providerData   Json?
+  attachments    Json?
+  runId          String?
+  createdAt      DateTime @default(now())
+
+  conversation AssistantConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("assistant_messages")
+}
+
+/// One execution of the assistant: a model loop with the tools it was allowed.
+model AssistantRun {
+  id              String    @id @default(uuid())
+  organizationId  String
+  conversationId  String?
+  /// CHAT | AUTOMATION | APPROVAL | WHATSAPP
+  trigger         String    @default("CHAT")
+  /// Whose authority this run carries.
+  actingUserId    String?
+  automationId    String?
+  automationRunId String?
+  /// QUEUED | RUNNING | WAITING_APPROVAL | COMPLETED | FAILED | CANCELLED
+  status          String    @default("QUEUED")
+  input           Json?
+  provider        String?
+  model           String?
+  steps           Int       @default(0)
+  inputTokens     Int       @default(0)
+  outputTokens    Int       @default(0)
+  /// True once the run has read something from outside the system - an email,
+  /// a web page, an MCP server. Outbound actions then need approval even when
+  /// they would normally be automatic.
+  tainted         Boolean   @default(false)
+  cancelRequested Boolean   @default(false)
+  error           String?
+  summary         String?
+  lockedAt        DateTime?
+  heartbeatAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  conversation AssistantConversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  runSteps     AssistantRunStep[]
+
+  @@index([status, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([conversationId, createdAt])
+  @@map("assistant_runs")
+}
+
+/// What the run did, step by step - the record staff read to see why the
+/// assistant did something.
+model AssistantRunStep {
+  id         String   @id @default(uuid())
+  runId      String
+  index      Int
+  /// MODEL | TOOL | APPROVAL | NOTE
+  type       String
+  toolName   String?
+  capability String?
+  /// OK | ERROR | DENIED | PENDING_APPROVAL
+  status     String   @default("OK")
+  summary    String?
+  input      Json?
+  output     Json?
+  durationMs Int?
+  createdAt  DateTime @default(now())
+
+  run AssistantRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, index])
+  @@map("assistant_run_steps")
+}
+
+/// An action the assistant prepared and a person must authorise.
+///
+/// The action is stored in full, so approving runs exactly what was shown -
+/// the model is not consulted again. The idempotency key stops a double click,
+/// a retry or a restart from carrying it out twice.
+model AssistantApproval {
+  id             String    @id @default(uuid())
+  organizationId String
+  runId          String?
+  conversationId String?
+  automationId   String?
+  capability     String
+  toolName       String
+  title          String
+  summary        String?
+  /// The exact arguments that will be used.
+  action         Json
+  /// Fields a person may correct before approving.
+  editableFields String[]  @default([])
+  preview        Json?
+  /// PENDING | APPROVED | REJECTED | EXPIRED | EXECUTED | FAILED
+  status         String    @default("PENDING")
+  requestedById  String?
+  decidedById    String?
+  decidedAt      DateTime?
+  decisionNote   String?
+  result         Json?
+  error          String?
+  idempotencyKey String    @unique
+  expiresAt      DateTime?
+  executedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, status, createdAt])
+  @@index([runId])
+  @@map("assistant_approvals")
+}
+
+/// A file the assistant was given or produced: a chat attachment, an email
+/// attachment, a screenshot.
+model AssistantArtifact {
+  id             String   @id @default(uuid())
+  organizationId String
+  conversationId String?
+  runId          String?
+  /// ATTACHMENT | SCREENSHOT | EMAIL_ATTACHMENT | REPORT
+  kind           String   @default("ATTACHMENT")
+  fileName       String
+  mimeType       String
+  fileSize       Int      @default(0)
+  storagePath    String
+  metadata       Json?
+  createdById    String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([conversationId])
+  @@map("assistant_artifacts")
+}
+
+/// Work the assistant does on a schedule.
+model AssistantAutomation {
+  id             String    @id @default(uuid())
+  organizationId String
+  /// DUE_SOON_REMINDERS | BRANCH_BRIEFING | EMAIL_APPLICATION_INTAKE |
+  /// EMAIL_CORRESPONDENCE_CAPTURE | CUSTOM_PROMPT
+  type           String
+  name           String
+  enabled        Boolean   @default(false)
+  /// { kind: DAILY | WEEKDAYS | WEEKLY | INTERVAL, time, days, everyMinutes }
+  schedule       Json
+  timezone       String    @default("Africa/Harare")
+  config         Json?
+  /// Reports what it would do instead of doing it. New automations start here.
+  dryRun         Boolean   @default(true)
+  /// Whose authority the automation runs with.
+  ownerId        String
+  branchId       String?
+  nextRunAt      DateTime?
+  lastRunAt      DateTime?
+  lastStatus     String?
+  lastError      String?
+  lockedAt       DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  runs AssistantAutomationRun[]
+
+  @@index([enabled, nextRunAt])
+  @@index([organizationId, type])
+  @@map("assistant_automations")
+}
+
+model AssistantAutomationRun {
+  id             String    @id @default(uuid())
+  automationId   String
+  organizationId String
+  /// SCHEDULE | MANUAL | WEBHOOK
+  trigger        String    @default("SCHEDULE")
+  /// RUNNING | COMPLETED | FAILED | SKIPPED
+  status         String    @default("RUNNING")
+  dryRun         Boolean   @default(false)
+  summary        String?
+  stats          Json?
+  error          String?
+  runId          String?
+  startedAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  automation AssistantAutomation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId, startedAt])
+  @@index([organizationId, startedAt])
+  @@map("assistant_automation_runs")
+}
+
+/// A mailbox or other account connected through Composio.
+model AssistantConnection {
+  id                   String    @id @default(uuid())
+  organizationId       String
+  /// gmail, outlook, googledrive, googlecalendar, slack ...
+  toolkit              String
+  label                String?
+  /// The address or account name, once the provider reports it.
+  accountLabel         String?
+  composioUserId       String    @unique
+  composioAuthConfigId String?
+  composioAccountId    String?
+  /// INITIATED | ACTIVE | FAILED | EXPIRED | DISCONNECTED
+  status               String    @default("INITIATED")
+  /// Composio's trigger instance, when this mailbox pushes new mail to us.
+  triggerId            String?
+  lastSyncAt           DateTime?
+  lastError            String?
+  connectedById        String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([organizationId, toolkit])
+  @@map("assistant_connections")
+}
+
+/// An email already dealt with, so a second pass does not file it twice.
+model AssistantProcessedEmail {
+  id                String   @id @default(uuid())
+  organizationId    String
+  connectionId      String
+  /// INTAKE | CAPTURE
+  purpose           String
+  providerMessageId String
+  outcome           String?
+  clientId          String?
+  createdAt         DateTime @default(now())
+
+  @@unique([connectionId, purpose, providerMessageId])
+  @@index([organizationId, createdAt])
+  @@map("assistant_processed_emails")
+}
+
+/// A client already reminded about a particular instalment, so a reminder is
+/// never sent twice for the same due date.
+model AssistantOutreach {
+  id             String   @id @default(uuid())
+  organizationId String
+  automationId   String?
+  loanId         String?
+  clientId       String?
+  channel        String?
+  messageId      String?
+  dedupeKey      String   @unique
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("assistant_outreach")
+}
+
+/// A sign-in the assistant may use when browsing a site on the lender's
+/// behalf. The password and the saved session are encrypted at rest and are
+/// never returned by any endpoint.
+model AssistantBrowserLogin {
+  id               String    @id @default(uuid())
+  organizationId   String
+  name             String
+  domain           String
+  loginUrl         String
+  username         String
+  secret           String
+  usernameSelector String?
+  passwordSelector String?
+  submitSelector   String?
+  storageState     String?
+  /// UNVERIFIED | ACTIVE | FAILED
+  status           String    @default("UNVERIFIED")
+  lastVerifiedAt   DateTime?
+  lastError        String?
+  createdById      String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([organizationId, domain])
+  @@map("assistant_browser_logins")
+}
+
+/// An MCP server an administrator has approved for the assistant to use.
+model AssistantMcpServer {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  url            String
+  authHeaderName String?
+  authSecret     String?
+  enabled        Boolean   @default(false)
+  /// tool name -> OFF | ASK | AUTO. Unlisted tools ask.
+  toolPolicy     Json?
+  toolCache      Json?
+  status         String    @default("UNVERIFIED")
+  lastCheckedAt  DateTime?
+  lastError      String?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId, enabled])
+  @@map("assistant_mcp_servers")
+}
+
+/// An HTTP API the assistant may call, with its credential held server-side.
+model AssistantApiConnector {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  baseUrl        String
+  /// NONE | BEARER | HEADER | BASIC
+  authType       String   @default("NONE")
+  authHeaderName String?
+  secret         String?
+  /// Whether anything other than GET may be sent.
+  allowWrite     Boolean  @default(false)
+  enabled        Boolean  @default(true)
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, enabled])
+  @@map("assistant_api_connectors")
+}
+
+/// What the assistant has cost, by day and model.
+model AssistantUsage {
+  id             String   @id @default(uuid())
+  organizationId String
+  day            DateTime @db.Date
+  provider       String
+  model          String
+  runs           Int      @default(0)
+  requests       Int      @default(0)
+  inputTokens    Int      @default(0)
+  outputTokens   Int      @default(0)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([organizationId, day, provider, model])
+  @@index([organizationId, day])
+  @@map("assistant_usage")
+}
+
+/// Something the organization wants the assistant to remember between
+/// conversations - a house rule, a preference, a standing instruction.
+model AssistantMemory {
+  id             String   @id @default(uuid())
+  organizationId String
+  /// ORG | USER
+  scope          String   @default("ORG")
+  userId         String?
+  content        String
+  /// USER | ASSISTANT
+  source         String   @default("USER")
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId, scope])
+  @@map("assistant_memories")
+}

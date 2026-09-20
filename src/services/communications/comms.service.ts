@@ -38,6 +38,7 @@ import {
 } from './comms.logic';
 import { commsSettingsService, type ResolvedCommsConfig } from './comms-settings.service';
 import { listWhatsAppTemplates, sendEmail, sendSms, sendWhatsApp } from './comms.providers';
+import { onClientWhatsAppMessage } from '../assistant/whatsapp/whatsapp.assistant';
 
 export interface CommsContext {
   organizationId: string;
@@ -880,6 +881,22 @@ export class CommsService {
             });
           }
           if (client) await this.notifyReply(organizationId, client, text);
+
+          // The assistant answers clients where the organization has turned
+          // that on. It is deliberately not awaited: WhatsApp retries a
+          // webhook that takes too long, and a reply is not worth a duplicate
+          // inbound message.
+          if (client && !isOptOutKeyword(text)) {
+            void onClientWhatsAppMessage({
+              organizationId,
+              clientId: client.id,
+              text,
+              phone: from,
+              clientName: clientName(client),
+            }).catch(error =>
+              console.error('Assistant WhatsApp reply failed:', (error as Error).message)
+            );
+          }
         }
       }
     }

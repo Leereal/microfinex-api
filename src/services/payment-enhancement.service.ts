@@ -491,6 +491,7 @@ class PaymentEnhancementService {
             loanId: payment.loanId,
             paymentNumber,
             amount: payment.amount,
+            currency: loan.currency,
             method: 'PAYROLL_DEDUCTION',
             transactionRef: payment.reference || `EMP-${employerId}`,
             paymentDate: new Date(),

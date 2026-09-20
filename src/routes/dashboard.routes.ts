@@ -24,6 +24,19 @@ import {
 
 const router = Router();
 
+/**
+ * What "collected" means, for every figure on this dashboard.
+ *
+ * The payments table carries money moving in both directions:
+ * LOAN_DISBURSEMENT and LOAN_TOPUP rows sit alongside LOAN_REPAYMENT. None of
+ * the queries below said which they wanted, so an advance paid out was added
+ * to "collected this month", and the cash-flow endpoint counted the same
+ * disbursement as inflow that it had already reported as outflow.
+ *
+ * REVERSED repayments are excluded separately, by `status: 'COMPLETED'`.
+ */
+const COLLECTED = { type: 'LOAN_REPAYMENT' } as const;
+
 // All dashboard routes require authentication
 router.use(authenticateToken);
 
@@ -113,6 +126,7 @@ router.get(
         loan: { organizationId, ...(branchId && { branchId }) },
         status: 'COMPLETED',
         paymentDate: { gte: startOfMonth },
+        ...COLLECTED,
       },
     });
 
@@ -145,6 +159,7 @@ router.get(
         loan: { organizationId, ...(branchId && { branchId }) },
         status: 'COMPLETED',
         paymentDate: { gte: startOfMonth },
+        ...COLLECTED,
       },
       _sum: { amount: true },
       _count: true,
@@ -288,6 +303,7 @@ router.get(
         loan: { organizationId, ...(branchId && { branchId: String(branchId) }) },
         status: 'COMPLETED',
         paymentDate: { gte: startDate, lte: endDate },
+        ...COLLECTED,
       },
       select: {
         paymentDate: true,
@@ -416,6 +432,7 @@ router.get(
         },
         status: 'COMPLETED',
         paymentDate: { gte: startDate, lte: endDate },
+        ...COLLECTED,
       },
       _sum: { amount: true },
       _count: true,
@@ -432,6 +449,7 @@ router.get(
         },
         status: 'COMPLETED',
         paymentDate: { gte: startDate, lte: endDate },
+        ...COLLECTED,
       },
       _sum: { amount: true },
       _count: true,
@@ -672,6 +690,7 @@ router.get(
           receivedBy: { in: officerIds },
           status: 'COMPLETED',
           paymentDate: { gte: startDate, lte: endDate },
+          ...COLLECTED,
         },
         _sum: { amount: true },
         _count: true,

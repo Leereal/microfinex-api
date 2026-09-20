@@ -411,6 +411,7 @@ class LoanEngineService {
             interestAmount: new Prisma.Decimal(0),
             penaltyAmount: new Prisma.Decimal(0),
             type: 'LOAN_DISBURSEMENT',
+            currency: loan.currency,
             method: paymentMethodId ? 'BANK_TRANSFER' : 'CASH',
             status: 'COMPLETED',
             paymentDate: now,

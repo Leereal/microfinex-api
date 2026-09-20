@@ -68,6 +68,10 @@ import obseRoutes from './obse.routes';
 import communicationsRoutes from './communications.routes';
 import communicationsPublicRoutes from './communications-public.routes';
 import brandingRoutes, { brandingPublicRoutes } from './branding.routes';
+// Agentic Assistant
+import assistantRoutes from './assistant.routes';
+import assistantPublicRoutes from './assistant-public.routes';
+import mcpRoutes from './mcp.routes';
 import { brandName } from '../services/branding/branding.cache';
 
 const router = Router();
@@ -99,6 +103,8 @@ router.use(`${apiVersion}/audit`, auditRoutes);
 // Unsubscribe links and the WhatsApp webhook - reached without signing in.
 router.use(`${apiVersion}/public/communications`, communicationsPublicRoutes);
 router.use(`${apiVersion}/public/branding`, brandingPublicRoutes);
+// New mail pushed to us by Composio, signed rather than signed in.
+router.use(`${apiVersion}/public/assistant`, assistantPublicRoutes);
 router.use(`${apiVersion}/public`, publicRoutes);
 router.use(`${apiVersion}/uploads`, uploadRoutes);
 router.use(`${apiVersion}/sync`, syncRoutes);
@@ -139,6 +145,12 @@ router.use(`${apiVersion}/financial-transactions`, financialTransactionRoutes);
 
 // Notes module
 router.use(`${apiVersion}/notes`, notesRoutes);
+
+// Agentic Assistant
+router.use(`${apiVersion}/assistant`, assistantRoutes);
+
+// This system as an MCP server, for assistants outside it.
+router.use(`${apiVersion}/mcp`, mcpRoutes);
 
 // Loan configuration
 router.use(`${apiVersion}/loan-purposes`, loanPurposeRoutes);

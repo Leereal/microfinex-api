@@ -432,6 +432,7 @@ class ImportService {
         paymentNumber,
         amount: data.amount,
         paymentDate: data.paymentDate,
+        currency: loan.currency,
         method: data.paymentMethod || 'CASH',
         transactionRef: data.reference || paymentNumber,
         notes: data.notes,

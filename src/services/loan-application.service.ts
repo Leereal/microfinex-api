@@ -1018,6 +1018,7 @@ class LoanApplicationService {
         interestAmount: 0,
         penaltyAmount: 0,
         type: 'LOAN_DISBURSEMENT',
+        currency: loan.currency,
         method: disbursementData.disbursementMethod,
         status: 'COMPLETED',
         paymentDate: disbursementDate,

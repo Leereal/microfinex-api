@@ -306,7 +306,7 @@ router.post(
   '/',
   authenticate,
   loadPermissions,
-  requirePermission(PERMISSIONS.PAYMENTS_CREATE),
+  requirePermission(PERMISSIONS.PAYMENTS_RECEIVE),
   validateRequest(createPaymentSchema),
   async (req, res) => {
     try {

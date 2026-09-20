@@ -81,7 +81,8 @@ router.get(
  *     tags: [Organizations]
  *     security:
  *       - bearerAuth: []
- *
+ */
+/**
  * Declared before /:id so "current" is not read as an identifier.
  *
  * Callers previously had to know their own organization's id and take it from
@@ -137,7 +138,8 @@ router.get('/current', authenticate, async (req, res) => {
  *     tags: [Organizations]
  *     security:
  *       - bearerAuth: []
- *
+ */
+/**
  * An organization's own administrator could not edit its address, phone or
  * email: the only screen for it lives in the platform admin area, which the
  * admin layout redirects them away from. This is the same update, scoped to
