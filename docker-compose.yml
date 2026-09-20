@@ -1,0 +1,61 @@
+# Local development only. Coolify builds the Dockerfile directly and does not
+# read this file - see COOLIFY.md.
+#
+#   docker compose up --build api
+#
+# Compose reads .env from this directory automatically, so the ${...} defaults
+# below pick up whatever is already configured for local work. The postgres
+# and redis services are here so the API has something to talk to; point
+# DATABASE_URL at your own instance instead if you would rather.
+
+services:
+  api:
+    build:
+      context: .
+      target: runner
+    image: microfinex-api:latest
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+      # Overrides whatever .env says, which points at the host.
+      DATABASE_URL: postgresql://microfinex:microfinex@postgres:5432/microfinex
+      REDIS_URL: redis://redis:6379
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      TRUST_PROXY: "0"
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: microfinex
+      POSTGRES_PASSWORD: microfinex
+      POSTGRES_DB: microfinex
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U microfinex"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
