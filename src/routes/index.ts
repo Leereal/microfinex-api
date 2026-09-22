@@ -35,6 +35,7 @@ import enhancedReportRoutes from './report.routes';
 import branchRoutes from './branch.routes';
 import paymentEnhancementRoutes from './payment-enhancement.routes';
 import loanAdjustmentRoutes from './loan-adjustment.routes';
+import accountingRoutes from './accounting.routes';
 // Phase 20 routes
 import securityRoutes from './security.routes';
 import encryptionRoutes from './encryption.routes';
@@ -117,6 +118,7 @@ router.use(`${apiVersion}/enhanced-reports`, enhancedReportRoutes);
 router.use(`${apiVersion}/branches`, branchRoutes);
 router.use(`${apiVersion}/payment-enhancements`, paymentEnhancementRoutes);
 router.use(`${apiVersion}/loan-adjustments`, loanAdjustmentRoutes);
+router.use(`${apiVersion}/accounting`, accountingRoutes);
 
 // Phase 20 routes - Security Hardening
 router.use(`${apiVersion}/security`, securityRoutes);

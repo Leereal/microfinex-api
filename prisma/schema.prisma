@@ -55,6 +55,12 @@ model Organization {
   messageBroadcasts      MessageBroadcast[]
   messageTemplates       MessageTemplate[]
   communicationPreferences ClientCommunicationPreference[]
+  chartOfAccounts       ChartOfAccount[]
+  accountingPeriods     AccountingPeriod[]
+  journalEntries        JournalEntry[]
+  provisionBands        ProvisionBand[]
+  provisionRuns         ProvisionRun[]
+
 
   @@map("organizations")
 }
@@ -122,6 +128,11 @@ model PaymentMethod {
   allowRepayment    Boolean                @default(true)
   transactions      FinancialTransaction[]
   organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// The bank or cash account this method posts to. Null falls back to
+  /// the seeded CASH_AND_BANK control account.
+  ledgerAccountId   String?
+  ledgerAccount     ChartOfAccount?        @relation(fields: [ledgerAccountId], references: [id])
+
 
   @@unique([organizationId, code])
   @@map("payment_methods")
@@ -140,6 +151,11 @@ model IncomeCategory {
   createdBy        String?
   transactions     FinancialTransaction[]
   organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  /// Where income in this category lands in the ledger. Null falls back
+  /// to the seeded OTHER_INCOME account.
+  ledgerAccountId  String?
+  ledgerAccount    ChartOfAccount?        @relation(fields: [ledgerAccountId], references: [id])
+
 
   @@unique([organizationId, code])
   @@map("income_categories")
@@ -158,6 +174,11 @@ model ExpenseCategory {
   createdBy        String?
   organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   transactions     FinancialTransaction[]
+  /// Where expenses in this category land. Null falls back to the
+  /// seeded OTHER_EXPENSE account.
+  ledgerAccountId  String?
+  ledgerAccount    ChartOfAccount?        @relation(fields: [ledgerAccountId], references: [id])
+
 
   @@unique([organizationId, code])
   @@map("expense_categories")
@@ -247,6 +268,9 @@ model Branch {
   userBranches          UserBranch[]
   users                 User[]                 @relation("BranchUsers")
   monthlyTargets        MonthlyTarget[]
+  journalEntries        JournalEntry[]
+  journalLines          JournalLine[]
+
 
   @@index([organizationId, isActive])
 
@@ -323,6 +347,11 @@ model User {
   deletionRequestsReviewed ClientDeletionRequest[] @relation("DeletionReviewedBy")
   reversalRequestsRaised   LoanReversalRequest[]   @relation("ReversalRequestedBy")
   reversalRequestsReviewed LoanReversalRequest[]   @relation("ReversalReviewedBy")
+  closedPeriods         AccountingPeriod[] @relation("PeriodClosedBy")
+  journalEntriesPosted  JournalEntry[]     @relation("JournalPostedBy")
+  journalEntriesReversed JournalEntry[]    @relation("JournalReversedBy")
+  provisionRuns         ProvisionRun[]     @relation("ProvisionRunBy")
+
 
   @@index([organizationId, isActive])
   @@index([branchId])
@@ -582,6 +611,9 @@ model Loan {
   nextDueDate           DateTime?
   interestAmount        Decimal                @default(0) @db.Decimal(15, 2)
   gracePeriodDays       Int                    @default(0)
+  /// Interest has been accrued into the ledger up to this date.
+  /// Null means the loan has never been accrued.
+  lastAccrualDate       DateTime?
   collaterals           ClientCollateral[]
   financialTransactions FinancialTransaction[]
   assessments           LoanAssessment[]
@@ -611,6 +643,9 @@ model Loan {
   // Tenant-scoped listings and the loan engine's status sweeps are the
   // hottest queries in the system. PostgreSQL does not index foreign keys
   // automatically, so without these every listing is a sequential scan.
+  journalLines          JournalLine[]
+  provisionRunLines     ProvisionRunLine[]
+
   @@index([organizationId, status])
   @@index([organizationId, branchId])
   @@index([clientId])
@@ -2707,4 +2742,261 @@ model AssistantMemory {
 
   @@index([organizationId, scope])
   @@map("assistant_memories")
+}
+
+// ============================================================================
+// GENERAL LEDGER
+//
+// Everything above records what happened operationally: a loan was paid out, a
+// repayment was taken, a fee was charged. None of it says what any of that did
+// to the financial position, because FinancialTransaction is a cashbook - one
+// row, one payment method, a running balance - and a cashbook cannot produce a
+// trial balance, a profit and loss or a balance sheet.
+//
+// These models are the double entry underneath. Every money event posts a
+// JournalEntry whose lines must sum to zero, against accounts resolved by
+// systemCode so that renaming an account never breaks a posting rule.
+//
+// One deliberate constraint: a journal entry is denominated. This system has no
+// base currency and never converts at read time - see lib/money.ts in the web
+// app - so USD and ZiG are separate books that happen to share a chart. A trial
+// balance is always per currency, which is also what an auditor expects.
+// ============================================================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+/// The accounts the posting engine resolves by name. Seeded per organization
+/// and not deletable; an organization may rename them and add its own children.
+enum LedgerAccount {
+  CASH_AND_BANK
+  LOANS_RECEIVABLE
+  INTEREST_RECEIVABLE
+  LOAN_LOSS_PROVISION
+  OPENING_BALANCE_EQUITY
+  RETAINED_EARNINGS
+  INTEREST_INCOME
+  FEE_INCOME
+  PENALTY_INCOME
+  RECOVERY_INCOME
+  OTHER_INCOME
+  IMPAIRMENT_EXPENSE
+  LOANS_WRITTEN_OFF
+  INTEREST_WAIVED
+  OTHER_EXPENSE
+  SUSPENSE
+}
+
+enum JournalSource {
+  DISBURSEMENT
+  REPAYMENT
+  CHARGE
+  WRITE_OFF
+  WAIVER
+  RECOVERY
+  ACCRUAL
+  PROVISION
+  OPENING_BALANCE
+  INCOME
+  EXPENSE
+  MANUAL
+  REVERSAL
+}
+
+enum JournalStatus {
+  POSTED
+  REVERSED
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model ChartOfAccount {
+  id             String         @id @default(uuid())
+  organizationId String
+  code           String
+  name           String
+  type           AccountType
+  /// Null on accounts an organization added itself.
+  systemCode     LedgerAccount?
+  parentId       String?
+  description    String?
+  isActive       Boolean        @default(true)
+  /// Seeded accounts the posting engine depends on. Renameable, not deletable.
+  isSystem       Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent            ChartOfAccount?   @relation("AccountTree", fields: [parentId], references: [id])
+  children          ChartOfAccount[]  @relation("AccountTree")
+  journalLines      JournalLine[]
+  paymentMethods    PaymentMethod[]
+  incomeCategories  IncomeCategory[]
+  expenseCategories ExpenseCategory[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, systemCode])
+  @@index([organizationId, type])
+  @@map("chart_of_accounts")
+}
+
+model AccountingPeriod {
+  id             String                 @id @default(uuid())
+  organizationId String
+  name           String
+  startDate      DateTime
+  endDate        DateTime
+  status         AccountingPeriodStatus @default(OPEN)
+  closedAt       DateTime?
+  closedById     String?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  closedBy     User?          @relation("PeriodClosedBy", fields: [closedById], references: [id])
+  entries      JournalEntry[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, startDate, endDate])
+  @@map("accounting_periods")
+}
+
+model JournalEntry {
+  id             String        @id @default(uuid())
+  organizationId String
+  branchId       String?
+  entryNumber    String        @unique
+  entryDate      DateTime
+  currency       Currency
+  description    String
+  reference      String?
+  source         JournalSource
+  /// The operational record this entry came from - a loan, a payment, a
+  /// provision run - so the ledger can always be traced back to its cause.
+  sourceId       String?
+  periodId       String?
+  status         JournalStatus @default(POSTED)
+  postedById     String
+  postedAt       DateTime      @default(now())
+  /// Set on the entry that reverses another, pointing at what it reversed.
+  reversalOfId   String?       @unique
+  reversedAt     DateTime?
+  reversedById   String?
+  createdAt      DateTime      @default(now())
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  branch          Branch?           @relation(fields: [branchId], references: [id])
+  period          AccountingPeriod? @relation(fields: [periodId], references: [id])
+  postedBy        User              @relation("JournalPostedBy", fields: [postedById], references: [id])
+  reversedBy      User?             @relation("JournalReversedBy", fields: [reversedById], references: [id])
+  reversalOf      JournalEntry?     @relation("JournalReversal", fields: [reversalOfId], references: [id])
+  reversedByEntry JournalEntry?     @relation("JournalReversal")
+  lines           JournalLine[]
+
+  @@index([organizationId, entryDate])
+  @@index([organizationId, currency, entryDate])
+  @@index([source, sourceId])
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id          String  @id @default(uuid())
+  entryId     String
+  accountId   String
+  /// Exactly one of debit or credit is non-zero on any line.
+  debit       Decimal @default(0) @db.Decimal(15, 2)
+  credit      Decimal @default(0) @db.Decimal(15, 2)
+  description String?
+  /// Optional analysis dimensions, so a trial balance can be cut by branch or
+  /// traced to the loan that caused the posting.
+  branchId    String?
+  loanId      String?
+
+  entry   JournalEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account ChartOfAccount @relation(fields: [accountId], references: [id])
+  branch  Branch?        @relation(fields: [branchId], references: [id])
+  loan    Loan?          @relation(fields: [loanId], references: [id])
+
+  @@index([entryId])
+  @@index([accountId])
+  @@index([loanId])
+  @@map("journal_lines")
+}
+
+/// One arrears band and the rate provided against exposure that falls in it.
+model ProvisionBand {
+  id               String   @id @default(uuid())
+  organizationId   String
+  name             String
+  minDaysInArrears Int
+  /// Null on the last band, which runs to infinity.
+  maxDaysInArrears Int?
+  /// Percent of exposure to provide, 0-100.
+  rate             Decimal  @db.Decimal(5, 2)
+  /// Whether the value of security held is taken off exposure before the rate
+  /// is applied. Regulators differ on this, so it is set per band.
+  deductSecurity   Boolean  @default(false)
+  sortOrder        Int      @default(0)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runLines     ProvisionRunLine[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, sortOrder])
+  @@map("provision_bands")
+}
+
+model ProvisionRun {
+  id                String   @id @default(uuid())
+  organizationId    String
+  asOfDate          DateTime
+  currency          Currency
+  /// What the book should be carrying in provision at asOfDate.
+  requiredProvision Decimal  @db.Decimal(15, 2)
+  /// What it was carrying before this run. The journal posts the difference.
+  previousProvision Decimal  @db.Decimal(15, 2)
+  movement          Decimal  @db.Decimal(15, 2)
+  loansAssessed     Int      @default(0)
+  journalEntryId    String?
+  runById           String
+  runAt             DateTime @default(now())
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  runBy        User               @relation("ProvisionRunBy", fields: [runById], references: [id])
+  lines        ProvisionRunLine[]
+
+  @@unique([organizationId, asOfDate, currency])
+  @@index([organizationId, asOfDate])
+  @@map("provision_runs")
+}
+
+model ProvisionRunLine {
+  id              String  @id @default(uuid())
+  runId           String
+  loanId          String
+  bandId          String?
+  daysInArrears   Int
+  exposure        Decimal @db.Decimal(15, 2)
+  securityValue   Decimal @default(0) @db.Decimal(15, 2)
+  provisionRate   Decimal @db.Decimal(5, 2)
+  provisionAmount Decimal @db.Decimal(15, 2)
+
+  run  ProvisionRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  loan Loan           @relation(fields: [loanId], references: [id])
+  band ProvisionBand? @relation(fields: [bandId], references: [id])
+
+  @@index([runId])
+  @@index([loanId])
+  @@map("provision_run_lines")
 }

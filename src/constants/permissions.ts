@@ -13,6 +13,7 @@ export const PERMISSION_MODULES = {
   SETTINGS: 'settings',
   USERS: 'users',
   AUDIT: 'audit',
+  ACCOUNTING: 'accounting',
   ORGANIZATIONS: 'organizations',
   BRANCHES: 'branches',
   ROLES: 'roles',
@@ -1307,6 +1308,64 @@ export const AI_PERMISSIONS: PermissionDefinition[] = [
   },
 ];
 
+// ==================== ACCOUNTING PERMISSIONS ====================
+export const ACCOUNTING_PERMISSIONS: PermissionDefinition[] = [
+  {
+    code: 'accounting:view',
+    name: 'View Accounting',
+    description: 'View the chart of accounts, journals and financial statements',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:accounts:manage',
+    name: 'Manage Chart of Accounts',
+    description: 'Add and rename accounts in the chart of accounts',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:post',
+    name: 'Post Journal Entries',
+    description: 'Post a manual journal entry',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:reverse',
+    name: 'Reverse Journal Entries',
+    description: 'Reverse a posted journal entry',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:periods:manage',
+    name: 'Manage Accounting Periods',
+    description: 'Open and close accounting periods',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:accrual:run',
+    name: 'Run Interest Accrual',
+    description: 'Recognise interest earned but not yet collected',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:provision:manage',
+    name: 'Manage Provisioning',
+    description: 'Set the provisioning bands used to estimate loan losses',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:provision:run',
+    name: 'Run Provisioning',
+    description: 'Calculate and post the loan loss provision',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+  {
+    code: 'accounting:opening:post',
+    name: 'Post Opening Balances',
+    description: 'Open the books by posting the position at go-live',
+    module: PERMISSION_MODULES.ACCOUNTING,
+  },
+];
+
 // ==================== ALL PERMISSIONS ====================
 // ==================== COMMUNICATION PERMISSIONS ====================
 export const COMMUNICATION_PERMISSIONS: PermissionDefinition[] = [
@@ -1387,6 +1446,7 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   ...USER_PERMISSIONS,
   ...ROLE_PERMISSIONS,
   ...AUDIT_PERMISSIONS,
+  ...ACCOUNTING_PERMISSIONS,
   ...ORGANIZATION_PERMISSIONS,
   ...BRANCH_PERMISSIONS,
   ...PRODUCT_PERMISSIONS,
@@ -1502,6 +1562,17 @@ export const PERMISSIONS = {
   REPORTS_AGING: 'reports:aging',
 
   // Settings
+  // Accounting
+  ACCOUNTING_VIEW: 'accounting:view',
+  ACCOUNTING_ACCOUNTS_MANAGE: 'accounting:accounts:manage',
+  ACCOUNTING_POST: 'accounting:post',
+  ACCOUNTING_REVERSE: 'accounting:reverse',
+  ACCOUNTING_PERIODS_MANAGE: 'accounting:periods:manage',
+  ACCOUNTING_ACCRUAL_RUN: 'accounting:accrual:run',
+  ACCOUNTING_PROVISION_MANAGE: 'accounting:provision:manage',
+  ACCOUNTING_PROVISION_RUN: 'accounting:provision:run',
+  ACCOUNTING_OPENING_POST: 'accounting:opening:post',
+
   SETTINGS_VIEW: 'settings:view',
   SETTINGS_UPDATE: 'settings:update',
   SETTINGS_RESET: 'settings:reset',

@@ -4,6 +4,7 @@ import { prisma } from '../config/database';
 const Decimal = Prisma.Decimal;
 import { financialTransactionService } from './financial-transaction.service';
 import { clientLimitService } from './client-limit.service';
+import { postRepayment } from './ledger/posting-rules';
 import {
   Money,
   toMoney,
@@ -357,6 +358,33 @@ class PaymentService {
                 allocation.interestAmount,
                 allocation.principalAmount,
               ])
+            );
+
+            /**
+             * Take the repayment to the books, inside the same transaction that
+             * moved the balances.
+             *
+             * Principal and interest clear receivables; penalties are income at
+             * the point they are collected, which is here. Because this is in
+             * the transaction, a ledger that refuses the entry rolls the whole
+             * payment back rather than leaving the two records disagreeing.
+             */
+            await postRepayment(
+              {
+                organizationId,
+                branchId: loan.branchId,
+                loanId: paymentData.loanId,
+                loanNumber: loan.loanNumber,
+                currency: loan.currency as string,
+                principal: allocation.principalAmount.toNumber(),
+                interest: allocation.interestAmount.toNumber(),
+                penalty: allocation.penaltyAmount.toNumber(),
+                charges: 0,
+                paymentMethodId: paymentData.paymentMethodId,
+                reference: created.paymentNumber,
+                postedById: receivedBy,
+              },
+              tx
             );
 
             return {

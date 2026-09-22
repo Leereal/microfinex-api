@@ -7,6 +7,7 @@ import {
   Currency,
 } from '@prisma/client';
 import { financialTransactionService } from './financial-transaction.service';
+import { postDisbursement } from './ledger/posting-rules';
 import { chargeService } from './charge.service';
 import { loanEngineService } from './loan-engine.service';
 import { clientLimitService } from './client-limit.service';
@@ -1251,6 +1252,37 @@ class CategoryAwareWorkflowEngine {
             (chargesResult ? ` (Charges: ${chargesResult.totalCharges})` : ''),
       },
     });
+
+    /**
+     * Take the disbursement to the books.
+     *
+     * The borrower owes the full principal whatever they physically receive, so
+     * the receivable is the loan amount and the cash credit is the net. The
+     * difference is the charge withheld, which is fee income at this moment.
+     *
+     * Logged rather than thrown on failure: the money has already left the
+     * account, and losing the disbursement because the ledger refused would be
+     * far worse than an entry that has to be posted again.
+     */
+    try {
+      await postDisbursement({
+        organizationId: loan.organizationId,
+        branchId: loan.branchId,
+        loanId,
+        loanNumber: loan.loanNumber,
+        currency: (loan.currency as string) || 'USD',
+        principal: loanAmount,
+        chargesDeducted: loanAmount - netDisbursement,
+        paymentMethodId: disbursementDetails?.paymentMethodId ?? null,
+        postedById: disbursedBy,
+        entryDate: disbursementDate,
+      });
+    } catch (error) {
+      console.error(
+        `Loan ${loan.loanNumber} was disbursed but could not be posted to the ledger:`,
+        error
+      );
+    }
 
     // Create financial transaction for the disbursement (expense) if paymentMethodId is provided
     if (disbursementDetails?.paymentMethodId) {

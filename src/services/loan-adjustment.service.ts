@@ -10,6 +10,10 @@ import {
   LoanCalculationUtils,
   RepaymentFrequency,
 } from './loan-calculations/types';
+import {
+  postWriteOff,
+  postInterestWaiver,
+} from './ledger/posting-rules';
 
 export type AdjustmentType = 
   | 'PRINCIPAL_INCREASE'
@@ -214,6 +218,30 @@ class LoanAdjustmentService {
           },
         });
 
+        /**
+         * Only interest reaches the ledger.
+         *
+         * Penalties are recognised as income when they are collected, not when
+         * they are charged, so a penalty that is waived was never on the books
+         * and forgiving it costs nothing. Interest is accrued as it is earned,
+         * so waiving it is a real expense and the receivable has to come off.
+         */
+        if (interestChange < 0) {
+          await postInterestWaiver(
+            {
+              organizationId,
+              branchId: loan.branchId,
+              loanId,
+              loanNumber: loan.loanNumber,
+              currency: loan.currency as string,
+              interestWaived: Math.abs(interestChange),
+              postedById: adjustedBy,
+              entryDate: effectiveDate,
+            },
+            tx
+          );
+        }
+
         return auditLog;
       });
 
@@ -285,6 +313,25 @@ class LoanAdjustmentService {
         newStatus = newBalance === 0 ? 'WRITTEN_OFF' : loan.status;
       }
 
+      /**
+       * How the loss splits across what was owed.
+       *
+       * Principal first, then interest. The interest figure used to be able to
+       * go negative on a partial write-off smaller than the principal balance,
+       * which then read as interest recovered; it is floored at zero.
+       */
+      const principalWrittenOff = Math.min(
+        writeoffAmount,
+        Number(loan.principalBalance)
+      );
+      const interestWrittenOff = Math.max(
+        0,
+        Math.min(
+          writeoffAmount - principalWrittenOff,
+          Number(loan.interestBalance)
+        )
+      );
+
       const result = await prisma.$transaction(async (tx) => {
         // Update loan
         await tx.loan.update({
@@ -334,11 +381,8 @@ class LoanAdjustmentService {
             changes: {
               writeoffType,
               amountWrittenOff: writeoffAmount,
-              principalWrittenOff: Math.min(writeoffAmount, Number(loan.principalBalance)),
-              interestWrittenOff: Math.min(
-                writeoffAmount - Number(loan.principalBalance),
-                Number(loan.interestBalance)
-              ),
+              principalWrittenOff,
+              interestWrittenOff,
               penaltyWrittenOff: Number(loan.penaltyBalance),
               reason,
               notes,
@@ -349,6 +393,28 @@ class LoanAdjustmentService {
             timestamp: new Date(),
           },
         });
+
+        /**
+         * Take the loss to the books.
+         *
+         * Without this the loan came off the operational record and the ledger
+         * went on carrying it as an asset, so writing off made the balance
+         * sheet wrong rather than right. Posted inside the same transaction as
+         * the loan update, so the two can never disagree.
+         */
+        await postWriteOff(
+          {
+            organizationId,
+            branchId: loan.branchId,
+            loanId,
+            loanNumber: loan.loanNumber,
+            currency: loan.currency as string,
+            principalWrittenOff,
+            interestWrittenOff,
+            postedById: approvedBy,
+          },
+          tx
+        );
 
         return auditLog;
       });
