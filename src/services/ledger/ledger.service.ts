@@ -58,6 +58,16 @@ function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+/**
+ * How long a posting is allowed to take.
+ *
+ * Prisma's five-second default assumes a database next door. A posting is
+ * several round trips - resolve the chart, find the period, number the entry,
+ * write the lines - and against a hosted database each one costs real time.
+ * The same headroom the payment service gives itself, for the same reason.
+ */
+const POSTING_TRANSACTION_OPTIONS = { timeout: 20_000, maxWait: 10_000 };
+
 class LedgerService {
   /**
    * Map every system code to its account id for one organization, seeding the
@@ -217,7 +227,9 @@ class LedgerService {
       return entry;
     };
 
-    return client ? run(client) : prisma.$transaction(run);
+    return client
+      ? run(client)
+      : prisma.$transaction(run, POSTING_TRANSACTION_OPTIONS);
   }
 
   /**
@@ -292,7 +304,7 @@ class LedgerService {
       });
 
       return reversal;
-    });
+    }, POSTING_TRANSACTION_OPTIONS);
   }
 
   /**

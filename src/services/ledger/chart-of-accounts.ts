@@ -13,6 +13,7 @@
  * profit and loss have something to group by.
  */
 
+import { randomUUID } from 'crypto';
 import { AccountType, LedgerAccount, Prisma } from '@prisma/client';
 import { prisma } from '../../config/database';
 
@@ -194,37 +195,40 @@ export async function ensureChartOfAccounts(
   });
   if (existing > 0) return;
 
-  // Parents first, so children can point at them.
-  const created = new Map<string, string>();
+  /**
+   * Two round trips, not twenty-one.
+   *
+   * This ran one `create` per account, which is fine next to a local database
+   * and not fine against a hosted one: twenty-one sequential round trips took
+   * over five seconds, and since the seed runs inside the caller's transaction
+   * - the posting engine seeds on its first write - that blew Prisma's default
+   * interactive transaction timeout. The very first journal entry an
+   * organization ever posted would fail.
+   *
+   * Ids are generated here so children can name their parent without a read
+   * between the two writes.
+   */
+  const ids = new Map<string, string>(
+    STANDARD_CHART.map(account => [account.code, randomUUID()])
+  );
 
-  for (const account of STANDARD_CHART.filter(a => !a.parent)) {
-    const row = await client.chartOfAccount.create({
-      data: {
-        organizationId,
-        code: account.code,
-        name: account.name,
-        type: account.type,
-        systemCode: account.systemCode ?? null,
-        description: account.description ?? null,
-        isSystem: true,
-      },
-    });
-    created.set(account.code, row.id);
-  }
+  const row = (account: SeedAccount) => ({
+    id: ids.get(account.code)!,
+    organizationId,
+    code: account.code,
+    name: account.name,
+    type: account.type,
+    systemCode: account.systemCode ?? null,
+    description: account.description ?? null,
+    parentId: account.parent ? (ids.get(account.parent) ?? null) : null,
+    isSystem: true,
+  });
 
-  for (const account of STANDARD_CHART.filter(a => a.parent)) {
-    const row = await client.chartOfAccount.create({
-      data: {
-        organizationId,
-        code: account.code,
-        name: account.name,
-        type: account.type,
-        systemCode: account.systemCode ?? null,
-        description: account.description ?? null,
-        parentId: created.get(account.parent!) ?? null,
-        isSystem: true,
-      },
-    });
-    created.set(account.code, row.id);
-  }
+  // Parents first, so the children's foreign key has something to point at.
+  await client.chartOfAccount.createMany({
+    data: STANDARD_CHART.filter(a => !a.parent).map(row),
+  });
+  await client.chartOfAccount.createMany({
+    data: STANDARD_CHART.filter(a => a.parent).map(row),
+  });
 }
