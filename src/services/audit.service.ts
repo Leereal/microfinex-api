@@ -113,6 +113,32 @@ function isValidUUID(str: string | null | undefined): boolean {
 }
 
 /**
+ * Flatten a value into something a Json column will actually accept.
+ *
+ * What gets audited is usually a Prisma result, and those carry Decimal and
+ * Date instances. Prisma will not serialize a class instance into a Json field,
+ * so any audit entry holding a money column - which is most of them - failed
+ * with "We could not serialize [object Function]". The write is wrapped in a
+ * try/catch by its callers, so nothing broke loudly; the entries were simply
+ * never written, and an audit trail with silent holes in it is worse than one
+ * that is obviously missing.
+ *
+ * A round trip through JSON is what makes them plain: Decimal and Date both
+ * define toJSON, so they come back as a string rather than an object.
+ */
+function toPlainJson(value: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  if (value === null || value === undefined) return Prisma.DbNull;
+  try {
+    const plain = JSON.parse(JSON.stringify(value));
+    return plain === null ? Prisma.DbNull : plain;
+  } catch {
+    // Circular, or something else JSON cannot express. Record that there was a
+    // value rather than losing the audit entry over it.
+    return { unserializable: true } as Prisma.InputJsonValue;
+  }
+}
+
+/**
  * Create an audit log entry
  */
 export async function createAuditLog(entry: AuditLogEntry): Promise<AuditLog> {
@@ -131,9 +157,9 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<AuditLog> {
       userId: validUserId,
       organizationId: validOrganizationId,
       branchId: validBranchId,
-      previousValue: entry.previousValue || Prisma.DbNull,
-      newValue: entry.newValue || Prisma.DbNull,
-      changes: entry.changes || Prisma.DbNull,
+      previousValue: toPlainJson(entry.previousValue),
+      newValue: toPlainJson(entry.newValue),
+      changes: toPlainJson(entry.changes),
       status: entry.status || 'SUCCESS',
       duration: entry.duration || null,
       requestId: entry.requestId || null,
