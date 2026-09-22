@@ -1736,6 +1736,14 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...AI_PERMISSIONS.map(p => p.code),
     ...COMMUNICATION_PERMISSIONS.map(p => p.code),
     ...ASSISTANT_PERMISSIONS.map(p => p.code),
+    // These four modules are enforced by their routes but were granted to no
+    // role at all, so every page behind them answered 403 to everyone except
+    // the Super Admin - client documents, loan charges, collateral and the
+    // client importer. Same class of omission as the loan products above.
+    ...DOCUMENT_PERMISSIONS.map(p => p.code),
+    ...CHARGE_PERMISSIONS.map(p => p.code),
+    ...COLLATERAL_PERMISSIONS.map(p => p.code),
+    ...IMPORT_PERMISSIONS.map(p => p.code),
   ],
 
   // Organization Admin - same as ADMIN but specifically for organization-level management
@@ -1776,6 +1784,14 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     ...AI_PERMISSIONS.map(p => p.code),
     ...COMMUNICATION_PERMISSIONS.map(p => p.code),
     ...ASSISTANT_PERMISSIONS.map(p => p.code),
+    // These four modules are enforced by their routes but were granted to no
+    // role at all, so every page behind them answered 403 to everyone except
+    // the Super Admin - client documents, loan charges, collateral and the
+    // client importer. Same class of omission as the loan products above.
+    ...DOCUMENT_PERMISSIONS.map(p => p.code),
+    ...CHARGE_PERMISSIONS.map(p => p.code),
+    ...COLLATERAL_PERMISSIONS.map(p => p.code),
+    ...IMPORT_PERMISSIONS.map(p => p.code),
   ],
 
   MANAGER: [
@@ -1861,6 +1877,24 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.COMMUNICATIONS_SEND,
     PERMISSIONS.COMMUNICATIONS_BROADCAST,
     PERMISSIONS.COMMUNICATIONS_TEMPLATES,
+    // Documents follow the client rights, charges the loan product rights and
+    // collateral the pledge rights - the same rule scripts/seed-document-
+    // charge-collateral-permissions.ts applies to an organization that was
+    // already running, so a new organization and an upgraded one end up with
+    // the same role. No imports: that follows clients:import, which a manager
+    // does not hold.
+    PERMISSIONS.DOCUMENTS_VIEW,
+    PERMISSIONS.DOCUMENTS_CREATE,
+    PERMISSIONS.DOCUMENTS_VERIFY,
+    PERMISSIONS.DOCUMENTS_EXTRACT,
+    PERMISSIONS.CHARGES_VIEW,
+    PERMISSIONS.CHARGES_CREATE,
+    PERMISSIONS.CHARGES_UPDATE,
+    PERMISSIONS.CHARGES_APPLY,
+    PERMISSIONS.COLLATERALS_VIEW,
+    PERMISSIONS.COLLATERALS_CREATE,
+    PERMISSIONS.COLLATERALS_UPDATE,
+    PERMISSIONS.COLLATERALS_VALUATE,
   ],
 
   LOAN_ASSESSOR: [
@@ -1886,6 +1920,17 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // AI - Loan Assessors can use AI extraction for documents
     PERMISSIONS.AI_EXTRACT,
     PERMISSIONS.COMMUNICATIONS_VIEW,
+    // Reads what was submitted and puts a value on what secures the loan.
+    // Collateral follows the pledges they already work; verifying documents
+    // does not, because that follows clients:kyc:update and they only hold
+    // clients:kyc:view.
+    PERMISSIONS.DOCUMENTS_VIEW,
+    PERMISSIONS.DOCUMENTS_EXTRACT,
+    PERMISSIONS.CHARGES_VIEW,
+    PERMISSIONS.COLLATERALS_VIEW,
+    PERMISSIONS.COLLATERALS_CREATE,
+    PERMISSIONS.COLLATERALS_UPDATE,
+    PERMISSIONS.COLLATERALS_VALUATE,
   ],
 
   LOAN_OFFICER: [
@@ -1919,6 +1964,15 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.AI_EXTRACT,
     PERMISSIONS.COMMUNICATIONS_VIEW,
     PERMISSIONS.COMMUNICATIONS_SEND,
+    // Takes in the paperwork for the loans they originate, and applies the
+    // charges that come with updating one. Records collateral but does not
+    // register it: that follows pledges:create, which they do not hold.
+    PERMISSIONS.DOCUMENTS_VIEW,
+    PERMISSIONS.DOCUMENTS_CREATE,
+    PERMISSIONS.DOCUMENTS_EXTRACT,
+    PERMISSIONS.CHARGES_VIEW,
+    PERMISSIONS.CHARGES_APPLY,
+    PERMISSIONS.COLLATERALS_VIEW,
   ],
 
   CASHIER: [
@@ -1940,6 +1994,11 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     PERMISSIONS.NOTES_CREATE,
     PERMISSIONS.COMMUNICATIONS_VIEW,
     PERMISSIONS.COMMUNICATIONS_SEND,
+    // Cannot change any of it, but has to see what a loan is charged before
+    // taking money against it.
+    PERMISSIONS.DOCUMENTS_VIEW,
+    PERMISSIONS.CHARGES_VIEW,
+    PERMISSIONS.COLLATERALS_VIEW,
   ],
 
   VIEWER: [
@@ -1952,6 +2011,9 @@ export const DEFAULT_ROLE_PERMISSIONS = {
     // Notes - Viewers can only view
     PERMISSIONS.NOTES_VIEW,
     PERMISSIONS.COMMUNICATIONS_VIEW,
+    PERMISSIONS.DOCUMENTS_VIEW,
+    PERMISSIONS.CHARGES_VIEW,
+    PERMISSIONS.COLLATERALS_VIEW,
   ],
 };
 
