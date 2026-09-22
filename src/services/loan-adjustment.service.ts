@@ -6,6 +6,10 @@
 
 import { Prisma, LoanStatus } from '@prisma/client';
 import { prisma } from '../config/database';
+import {
+  LoanCalculationUtils,
+  RepaymentFrequency,
+} from './loan-calculations/types';
 
 export type AdjustmentType = 
   | 'PRINCIPAL_INCREASE'
@@ -123,8 +127,11 @@ class LoanAdjustmentService {
           balanceChange = amount;
           break;
         case 'PRINCIPAL_DECREASE':
-          principalChange = -amount;
-          balanceChange = -amount;
+          // Clamped, like the waivers below it. Unclamped, a typed figure
+          // larger than the balance drove the loan negative, which then read
+          // as money the organization owed the borrower.
+          principalChange = -Math.min(amount, Number(loan.principalBalance));
+          balanceChange = principalChange;
           break;
         case 'INTEREST_INCREASE':
           interestChange = amount;
@@ -144,8 +151,8 @@ class LoanAdjustmentService {
           balanceChange = amount;
           break;
         case 'FEE_WAIVER':
-          penaltyChange = -amount;
-          balanceChange = -amount;
+          penaltyChange = -Math.min(amount, Number(loan.penaltyBalance));
+          balanceChange = penaltyChange;
           break;
       }
 
@@ -406,14 +413,27 @@ class LoanAdjustmentService {
       const oldRate = Number(loan.interestRate);
       const effectiveRate = newInterestRate ?? oldRate;
       const outstandingPrincipal = Number(loan.principalBalance);
-      
-      // Calculate new monthly payment
-      const monthlyRate = effectiveRate / 100 / 12;
+
+      /**
+       * Reschedule on the loan's own repayment frequency.
+       *
+       * This used to divide the annual rate by 12 and step every due date with
+       * setMonth, whatever the loan actually was. Rescheduling a weekly loan
+       * silently turned it into a monthly one: the borrower's instalment
+       * roughly quadrupled and every due date moved, which is not what anyone
+       * asking for more time had agreed to.
+       */
+      const frequency = (loan.repaymentFrequency ??
+        RepaymentFrequency.MONTHLY) as RepaymentFrequency;
+      const periodsPerYear = LoanCalculationUtils.getPeriodsPerYear(frequency);
+      const periodicRate = effectiveRate / 100 / periodsPerYear;
+
       let newMonthlyPayment: number;
-      
-      if (monthlyRate > 0) {
-        newMonthlyPayment = (outstandingPrincipal * monthlyRate * Math.pow(1 + monthlyRate, newTerm)) /
-          (Math.pow(1 + monthlyRate, newTerm) - 1);
+
+      if (periodicRate > 0) {
+        newMonthlyPayment =
+          (outstandingPrincipal * periodicRate * Math.pow(1 + periodicRate, newTerm)) /
+          (Math.pow(1 + periodicRate, newTerm) - 1);
       } else {
         newMonthlyPayment = outstandingPrincipal / newTerm;
       }
@@ -430,7 +450,9 @@ class LoanAdjustmentService {
           },
         });
 
-        // Generate new schedule
+        // Generate new schedule. The grace period is expressed in months by
+        // the request, so it is applied in months whatever the frequency; the
+        // instalments themselves then follow the loan's own period.
         let scheduleDate = new Date(startDate);
         if (gracePeriod > 0) {
           scheduleDate.setMonth(scheduleDate.getMonth() + gracePeriod);
@@ -440,10 +462,9 @@ class LoanAdjustmentService {
         let remainingPrincipal = outstandingPrincipal;
 
         for (let i = 1; i <= newTerm; i++) {
-          scheduleDate = new Date(scheduleDate);
-          scheduleDate.setMonth(scheduleDate.getMonth() + 1);
+          scheduleDate = LoanCalculationUtils.addPeriod(scheduleDate, 1, frequency);
 
-          const interestDue = remainingPrincipal * monthlyRate;
+          const interestDue = remainingPrincipal * periodicRate;
           const principalDue = newMonthlyPayment - interestDue;
           remainingPrincipal -= principalDue;
 
@@ -465,7 +486,17 @@ class LoanAdjustmentService {
           data: schedules,
         });
 
-        // Update loan
+        /**
+         * Move the loan's own dates with its schedule.
+         *
+         * These were left untouched, so a rescheduled loan went on advertising
+         * the maturity and next-due date of the schedule it no longer had. The
+         * arrears job reads nextDueDate, so a loan given more time could be
+         * marked overdue the next morning against a date that no longer existed.
+         */
+        const firstInstalment = schedules[0];
+        const lastInstalment = schedules[schedules.length - 1];
+
         await tx.loan.update({
           where: { id: loanId },
           data: {
@@ -473,6 +504,15 @@ class LoanAdjustmentService {
             interestRate: effectiveRate,
             installmentAmount: newMonthlyPayment,
             status: 'ACTIVE',
+            ...(firstInstalment
+              ? { nextDueDate: firstInstalment.dueDate as Date }
+              : {}),
+            ...(lastInstalment
+              ? {
+                  maturityDate: lastInstalment.dueDate as Date,
+                  expectedRepaymentDate: lastInstalment.dueDate as Date,
+                }
+              : {}),
             updatedAt: new Date(),
           },
         });
