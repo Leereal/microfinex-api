@@ -7,60 +7,61 @@ datasource db {
 }
 
 model Organization {
-  id                    String                 @id @default(uuid())
-  name                  String                 @unique
-  type                  OrganizationType       @default(MICROFINANCE)
-  address               String?
-  phone                 String?
-  email                 String?
-  website               String?
-  registrationNumber    String?                @unique
-  licenseNumber         String?                @unique
-  isActive              Boolean                @default(true)
-  apiTier               ApiTier                @default(BASIC)
-  apiKeysCount          Int                    @default(0)
-  maxApiKeys            Int                    @default(1)
-  rateLimit             Int                    @default(100)
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  logo                  String?
-  apiKeys               ApiKey[]
-  auditLogs             AuditLog[]
-  branches              Branch[]
-  charges               Charge[]
-  clients               Client[]
-  collateralTypes       CollateralType[]
-  documentTypes         DocumentType[]
-  exchangeRates         ExchangeRate[]
-  expenseCategories     ExpenseCategory[]
-  financialTransactions FinancialTransaction[]
-  importJobs            ImportJob[]
-  incomeCategories      IncomeCategory[]
-  loanCategories        LoanCategory[]
-  loanProducts          LoanProduct[]
-  loanPurposes          LoanPurpose[]
-  loans                 Loan[]
-  organizationAIConfigs OrganizationAIConfig[]
-  settings              OrganizationSettings[]
-  paymentMethods        PaymentMethod[]
-  roles                 Role[]
-  shops                 Shop[]
-  users                 User[]
-  monthlyTargets        MonthlyTarget[]
-  notifications         Notification[]
-  clientDeletionRequests ClientDeletionRequest[]
-  loanReversalRequests   LoanReversalRequest[]
-  bankStatementAnalyses  BankStatementAnalysis[]
-  clientMessages         ClientMessage[]
-  messageBroadcasts      MessageBroadcast[]
-  messageTemplates       MessageTemplate[]
+  id                       String                          @id @default(uuid())
+  name                     String                          @unique
+  type                     OrganizationType                @default(MICROFINANCE)
+  address                  String?
+  phone                    String?
+  email                    String?
+  website                  String?
+  registrationNumber       String?                         @unique
+  licenseNumber            String?                         @unique
+  isActive                 Boolean                         @default(true)
+  apiTier                  ApiTier                         @default(BASIC)
+  apiKeysCount             Int                             @default(0)
+  maxApiKeys               Int                             @default(1)
+  rateLimit                Int                             @default(100)
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
+  logo                     String?
+  apiKeys                  ApiKey[]
+  auditLogs                AuditLog[]
+  branches                 Branch[]
+  charges                  Charge[]
+  clients                  Client[]
+  collateralTypes          CollateralType[]
+  documentTypes            DocumentType[]
+  exchangeRates            ExchangeRate[]
+  expenseCategories        ExpenseCategory[]
+  financialTransactions    FinancialTransaction[]
+  importJobs               ImportJob[]
+  incomeCategories         IncomeCategory[]
+  loanCategories           LoanCategory[]
+  loanProducts             LoanProduct[]
+  loanPurposes             LoanPurpose[]
+  loans                    Loan[]
+  organizationAIConfigs    OrganizationAIConfig[]
+  settings                 OrganizationSettings[]
+  paymentMethods           PaymentMethod[]
+  roles                    Role[]
+  shops                    Shop[]
+  users                    User[]
+  monthlyTargets           MonthlyTarget[]
+  notifications            Notification[]
+  clientDeletionRequests   ClientDeletionRequest[]
+  loanReversalRequests     LoanReversalRequest[]
+  bankStatementAnalyses    BankStatementAnalysis[]
+  clientMessages           ClientMessage[]
+  messageBroadcasts        MessageBroadcast[]
+  messageTemplates         MessageTemplate[]
   communicationPreferences ClientCommunicationPreference[]
-  chartOfAccounts       ChartOfAccount[]
-  accountingPeriods     AccountingPeriod[]
-  journalEntries        JournalEntry[]
-  provisionBands        ProvisionBand[]
-  provisionRuns         ProvisionRun[]
-
+  chartOfAccounts          ChartOfAccount[]
+  accountingPeriods        AccountingPeriod[]
+  journalEntries           JournalEntry[]
+  provisionBands           ProvisionBand[]
+  provisionRuns            ProvisionRun[]
+  writeOffRequests         LoanWriteOffRequest[]
+  loanRecoveries           LoanRecovery[]
 
   @@map("organizations")
 }
@@ -132,7 +133,7 @@ model PaymentMethod {
   /// the seeded CASH_AND_BANK control account.
   ledgerAccountId   String?
   ledgerAccount     ChartOfAccount?        @relation(fields: [ledgerAccountId], references: [id])
-
+  loanRecoveries    LoanRecovery[]
 
   @@unique([organizationId, code])
   @@map("payment_methods")
@@ -156,7 +157,6 @@ model IncomeCategory {
   ledgerAccountId  String?
   ledgerAccount    ChartOfAccount?        @relation(fields: [ledgerAccountId], references: [id])
 
-
   @@unique([organizationId, code])
   @@map("income_categories")
 }
@@ -178,7 +178,6 @@ model ExpenseCategory {
   /// seeded OTHER_EXPENSE account.
   ledgerAccountId  String?
   ledgerAccount    ChartOfAccount?        @relation(fields: [ledgerAccountId], references: [id])
-
 
   @@unique([organizationId, code])
   @@map("expense_categories")
@@ -225,7 +224,6 @@ model FinancialTransaction {
 
   @@index([organizationId, transactionDate])
   @@index([paymentMethodId])
-
   @@index([relatedLoanId])
   @@index([relatedPaymentId])
   @@map("financial_transactions")
@@ -271,9 +269,7 @@ model Branch {
   journalEntries        JournalEntry[]
   journalLines          JournalLine[]
 
-
   @@index([organizationId, isActive])
-
   @@map("branches")
 }
 
@@ -295,67 +291,68 @@ model UserBranch {
 }
 
 model User {
-  id                    String                 @id @default(uuid())
-  email                 String                 @unique
-  password              String
-  firstName             String
-  lastName              String
-  phone                 String?
-  dateOfBirth           DateTime?
-  avatar                String?
-  role                  UserRole               @default(STAFF)
-  isActive              Boolean                @default(true)
-  isEmailVerified       Boolean                @default(false)
-  lastLoginAt           DateTime?
-  organizationId        String?
-  branchId              String?
-  permissions           String[]               @default([])
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
-  auditLogs             AuditLog[]
-  managedBranch         Branch?                @relation("BranchManager")
-  createdClients        Client[]               @relation("ClientCreatedBy")
-  approvedTransactions  FinancialTransaction[] @relation("TransactionApprover")
-  processedTransactions FinancialTransaction[] @relation("TransactionProcessor")
-  voidedTransactions    FinancialTransaction[] @relation("TransactionVoider")
-  assessments           LoanAssessment[]
-  visits                LoanVisit[]
-  workflowChanges       LoanWorkflowHistory[]
-  createdLoans          Loan[]                 @relation("LoanOfficer")
-  loansCreatedByUser    Loan[]                 @relation("LoanCreatedBy")
-  loansDisbursedByUser  Loan[]                 @relation("LoanDisbursedBy")
-  loansToAssess         Loan[]                 @relation("LoanAssignedAssessor")
-  loansToDisburse       Loan[]                 @relation("LoanAssignedDisburser")
-  createdLoanProducts   LoanProduct[]
-  notes                 Note[]
-  payments              Payment[]              @relation("PaymentReceivedBy")
-  reversedPayments      Payment[]              @relation("PaymentReversedBy")
-  bankStatementAnalyses BankStatementAnalysis[] @relation("BankStatementAnalysisRequestedBy")
+  id                            String                  @id @default(uuid())
+  email                         String                  @unique
+  password                      String
+  firstName                     String
+  lastName                      String
+  phone                         String?
+  dateOfBirth                   DateTime?
+  avatar                        String?
+  role                          UserRole                @default(STAFF)
+  isActive                      Boolean                 @default(true)
+  isEmailVerified               Boolean                 @default(false)
+  lastLoginAt                   DateTime?
+  organizationId                String?
+  branchId                      String?
+  permissions                   String[]                @default([])
+  createdAt                     DateTime                @default(now())
+  updatedAt                     DateTime                @updatedAt
+  auditLogs                     AuditLog[]
+  managedBranch                 Branch?                 @relation("BranchManager")
+  createdClients                Client[]                @relation("ClientCreatedBy")
+  approvedTransactions          FinancialTransaction[]  @relation("TransactionApprover")
+  processedTransactions         FinancialTransaction[]  @relation("TransactionProcessor")
+  voidedTransactions            FinancialTransaction[]  @relation("TransactionVoider")
+  assessments                   LoanAssessment[]
+  visits                        LoanVisit[]
+  workflowChanges               LoanWorkflowHistory[]
+  createdLoans                  Loan[]                  @relation("LoanOfficer")
+  loansCreatedByUser            Loan[]                  @relation("LoanCreatedBy")
+  loansDisbursedByUser          Loan[]                  @relation("LoanDisbursedBy")
+  loansToAssess                 Loan[]                  @relation("LoanAssignedAssessor")
+  loansToDisburse               Loan[]                  @relation("LoanAssignedDisburser")
+  createdLoanProducts           LoanProduct[]
+  notes                         Note[]
+  payments                      Payment[]               @relation("PaymentReceivedBy")
+  reversedPayments              Payment[]               @relation("PaymentReversedBy")
+  bankStatementAnalyses         BankStatementAnalysis[] @relation("BankStatementAnalysisRequestedBy")
   adjustedBankStatementAnalyses BankStatementAnalysis[] @relation("BankStatementAnalysisAdjustedBy")
-  sentClientMessages    ClientMessage[] @relation("ClientMessageSentBy")
-  createdBroadcasts     MessageBroadcast[] @relation("MessageBroadcastCreatedBy")
-  createdMessageTemplates MessageTemplate[] @relation("MessageTemplateCreatedBy")
-  refreshTokens         RefreshToken[]
-  userBranches          UserBranch[]
-  userPermissions       UserPermission[]
-  userRoles             UserRoleAssignment[]
-  sessions              UserSession[]
-  branch                Branch?                @relation("BranchUsers", fields: [branchId], references: [id])
-  organization          Organization?          @relation(fields: [organizationId], references: [id])
-  notifications         Notification[]
-  deletionRequestsRaised   ClientDeletionRequest[] @relation("DeletionRequestedBy")
-  deletionRequestsReviewed ClientDeletionRequest[] @relation("DeletionReviewedBy")
-  reversalRequestsRaised   LoanReversalRequest[]   @relation("ReversalRequestedBy")
-  reversalRequestsReviewed LoanReversalRequest[]   @relation("ReversalReviewedBy")
-  closedPeriods         AccountingPeriod[] @relation("PeriodClosedBy")
-  journalEntriesPosted  JournalEntry[]     @relation("JournalPostedBy")
-  journalEntriesReversed JournalEntry[]    @relation("JournalReversedBy")
-  provisionRuns         ProvisionRun[]     @relation("ProvisionRunBy")
-
+  sentClientMessages            ClientMessage[]         @relation("ClientMessageSentBy")
+  createdBroadcasts             MessageBroadcast[]      @relation("MessageBroadcastCreatedBy")
+  createdMessageTemplates       MessageTemplate[]       @relation("MessageTemplateCreatedBy")
+  refreshTokens                 RefreshToken[]
+  userBranches                  UserBranch[]
+  userPermissions               UserPermission[]
+  userRoles                     UserRoleAssignment[]
+  sessions                      UserSession[]
+  branch                        Branch?                 @relation("BranchUsers", fields: [branchId], references: [id])
+  organization                  Organization?           @relation(fields: [organizationId], references: [id])
+  notifications                 Notification[]
+  deletionRequestsRaised        ClientDeletionRequest[] @relation("DeletionRequestedBy")
+  deletionRequestsReviewed      ClientDeletionRequest[] @relation("DeletionReviewedBy")
+  reversalRequestsRaised        LoanReversalRequest[]   @relation("ReversalRequestedBy")
+  reversalRequestsReviewed      LoanReversalRequest[]   @relation("ReversalReviewedBy")
+  closedPeriods                 AccountingPeriod[]      @relation("PeriodClosedBy")
+  journalEntriesPosted          JournalEntry[]          @relation("JournalPostedBy")
+  journalEntriesReversed        JournalEntry[]          @relation("JournalReversedBy")
+  provisionRuns                 ProvisionRun[]          @relation("ProvisionRunBy")
+  writeOffsRequested            LoanWriteOffRequest[]   @relation("WriteOffRequestedBy")
+  writeOffsReviewed             LoanWriteOffRequest[]   @relation("WriteOffReviewedBy")
+  recoveriesRecorded            LoanRecovery[]          @relation("RecoveryRecordedBy")
 
   @@index([organizationId, isActive])
   @@index([branchId])
-
   @@map("users")
 }
 
@@ -390,69 +387,69 @@ model UserSession {
 }
 
 model Client {
-  id               String             @id @default(uuid())
-  clientNumber     String
-  type             ClientType         @default(INDIVIDUAL)
-  firstName        String?
-  lastName         String?
-  businessName     String?
-  email            String?
-  phone            String
-  dateOfBirth      DateTime?
-  gender           String?
-  maritalStatus    String?
-  idNumber         String?
-  address          String?
-  city             String?
-  state            String?
-  zipCode          String?
-  country          String?
-  employmentStatus String?
-  monthlyIncome    Decimal?           @db.Decimal(15, 2)
-  creditScore      Int?
-  isActive         Boolean            @default(true)
-  kycStatus        String             @default("PENDING")
-  kycDocuments     Json?
-  profileImage     String?
-  thumbprintImage  String?
-  signatureImage   String?
-  organizationId   String
-  branchId         String
-  homeBranchId     String?
-  createdBy        String
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  idExpiryDate     DateTime?
-  idIssueDate      DateTime?
-  idType           String?            @default("national_id")
-  issuingAuthority String?
-  nationality      String?            @default("Zimbabwean")
-  passportCountry  String?
-  passportNumber   String?
-  placeOfBirth     String?
-  title            String?
+  id                      String                         @id @default(uuid())
+  clientNumber            String
+  type                    ClientType                     @default(INDIVIDUAL)
+  firstName               String?
+  lastName                String?
+  businessName            String?
+  email                   String?
+  phone                   String
+  dateOfBirth             DateTime?
+  gender                  String?
+  maritalStatus           String?
+  idNumber                String?
+  address                 String?
+  city                    String?
+  state                   String?
+  zipCode                 String?
+  country                 String?
+  employmentStatus        String?
+  monthlyIncome           Decimal?                       @db.Decimal(15, 2)
+  creditScore             Int?
+  isActive                Boolean                        @default(true)
+  kycStatus               String                         @default("PENDING")
+  kycDocuments            Json?
+  profileImage            String?
+  thumbprintImage         String?
+  signatureImage          String?
+  organizationId          String
+  branchId                String
+  homeBranchId            String?
+  createdBy               String
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
+  idExpiryDate            DateTime?
+  idIssueDate             DateTime?
+  idType                  String?                        @default("national_id")
+  issuingAuthority        String?
+  nationality             String?                        @default("Zimbabwean")
+  passportCountry         String?
+  passportNumber          String?
+  placeOfBirth            String?
+  title                   String?
   // Default guarantor - another client who acts as guarantor for this client
-  defaultGuarantorId String?
-  defaultGuarantor   Client?            @relation("ClientDefaultGuarantor", fields: [defaultGuarantorId], references: [id])
-  guarantorFor       Client[]           @relation("ClientDefaultGuarantor")
-  addresses        ClientAddress[]
-  business         ClientBusiness?
-  collaterals      ClientCollateral[]
-  contacts         ClientContact[]
-  documents        ClientDocument[]
-  bankStatementAnalyses BankStatementAnalysis[]
-  messages              ClientMessage[]
+  defaultGuarantorId      String?
+  defaultGuarantor        Client?                        @relation("ClientDefaultGuarantor", fields: [defaultGuarantorId], references: [id])
+  guarantorFor            Client[]                       @relation("ClientDefaultGuarantor")
+  addresses               ClientAddress[]
+  business                ClientBusiness?
+  collaterals             ClientCollateral[]
+  contacts                ClientContact[]
+  documents               ClientDocument[]
+  bankStatementAnalyses   BankStatementAnalysis[]
+  messages                ClientMessage[]
   communicationPreference ClientCommunicationPreference?
-  employers        ClientEmployer[]
-  clientLimits     ClientLimit[]
-  branch           Branch             @relation(fields: [branchId], references: [id])
-  creator          User               @relation("ClientCreatedBy", fields: [createdBy], references: [id])
-  homeBranch       Branch?            @relation("ClientHomeBranch", fields: [homeBranchId], references: [id])
-  organization     Organization       @relation(fields: [organizationId], references: [id])
-  groupMemberships GroupMember[]
-  deletionRequests ClientDeletionRequest[]
-  loans            Loan[]
-  nextOfKins       NextOfKin[]
+  employers               ClientEmployer[]
+  clientLimits            ClientLimit[]
+  branch                  Branch                         @relation(fields: [branchId], references: [id])
+  creator                 User                           @relation("ClientCreatedBy", fields: [createdBy], references: [id])
+  homeBranch              Branch?                        @relation("ClientHomeBranch", fields: [homeBranchId], references: [id])
+  organization            Organization                   @relation(fields: [organizationId], references: [id])
+  groupMemberships        GroupMember[]
+  deletionRequests        ClientDeletionRequest[]
+  loans                   Loan[]
+  nextOfKins              NextOfKin[]
 
   // Scoped to the organization rather than the whole database.
   //
@@ -468,7 +465,6 @@ model Client {
   @@index([organizationId, isActive])
   @@index([organizationId, branchId])
   @@index([email])
-
   @@map("clients")
 }
 
@@ -524,37 +520,36 @@ model LoanPurpose {
 }
 
 model LoanProduct {
-  id                    String                    @id @default(uuid())
+  id                    String                @id @default(uuid())
   name                  String
   description           String?
-  type                  LoanType                  @default(SHORT_TERM)
-  minAmount             Decimal                   @db.Decimal(15, 2)
-  maxAmount             Decimal                   @db.Decimal(15, 2)
-  currency              Currency                  @default(USD)
-  interestRate          Decimal                   @db.Decimal(5, 2)
-  interestRateFrequency RepaymentFrequency        @default(ANNUAL)
-  calculationMethod     LoanCalculationMethod     @default(REDUCING_BALANCE)
+  type                  LoanType              @default(SHORT_TERM)
+  minAmount             Decimal               @db.Decimal(15, 2)
+  maxAmount             Decimal               @db.Decimal(15, 2)
+  currency              Currency              @default(USD)
+  interestRate          Decimal               @db.Decimal(5, 2)
+  interestRateFrequency RepaymentFrequency    @default(ANNUAL)
+  calculationMethod     LoanCalculationMethod @default(REDUCING_BALANCE)
   minTerm               Int
   maxTerm               Int
-  repaymentFrequency    RepaymentFrequency        @default(MONTHLY)
-  gracePeriod           Int                       @default(0)
-  penaltyRate           Decimal                   @default(0) @db.Decimal(5, 2)
-  isActive              Boolean                   @default(true)
-  requiresCollateral    Boolean                   @default(false)
-  requiresGuarantor     Boolean                   @default(false)
-  isOnlineEligible      Boolean                   @default(false)
+  repaymentFrequency    RepaymentFrequency    @default(MONTHLY)
+  gracePeriod           Int                   @default(0)
+  penaltyRate           Decimal               @default(0) @db.Decimal(5, 2)
+  isActive              Boolean               @default(true)
+  requiresCollateral    Boolean               @default(false)
+  requiresGuarantor     Boolean               @default(false)
+  isOnlineEligible      Boolean               @default(false)
   organizationId        String
   createdById           String?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
-  allowAutoCalculations Boolean                   @default(true)
-  createdBy             User?                     @relation(fields: [createdById], references: [id])
-  organization          Organization              @relation(fields: [organizationId], references: [id])
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  allowAutoCalculations Boolean               @default(true)
+  createdBy             User?                 @relation(fields: [createdById], references: [id])
+  organization          Organization          @relation(fields: [organizationId], references: [id])
   loans                 Loan[]
   productCharges        ProductCharge[]
 
   @@index([organizationId, isActive])
-
   @@map("loan_products")
 }
 
@@ -643,15 +638,16 @@ model Loan {
   // Tenant-scoped listings and the loan engine's status sweeps are the
   // hottest queries in the system. PostgreSQL does not index foreign keys
   // automatically, so without these every listing is a sequential scan.
-  journalLines          JournalLine[]
-  provisionRunLines     ProvisionRunLine[]
+  journalLines      JournalLine[]
+  provisionRunLines ProvisionRunLine[]
+  writeOffRequests  LoanWriteOffRequest[]
+  recoveries        LoanRecovery[]
 
   @@index([organizationId, status])
   @@index([organizationId, branchId])
   @@index([clientId])
   @@index([loanOfficerId])
   @@index([status, maturityDate])
-
   @@map("loans")
 }
 
@@ -672,27 +668,26 @@ model RepaymentSchedule {
   loan              Loan          @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@unique([loanId, installmentNumber])
-
   @@index([loanId, dueDate])
   @@index([status, dueDate])
   @@map("repayment_schedule")
 }
 
 model Payment {
-  id                String          @id @default(uuid())
-  paymentNumber     String          @unique
+  id                String                @id @default(uuid())
+  paymentNumber     String                @unique
   loanId            String
-  amount            Decimal         @db.Decimal(15, 2)
-  currency          Currency        @default(USD)
-  principalAmount   Decimal         @default(0) @db.Decimal(15, 2)
-  interestAmount    Decimal         @default(0) @db.Decimal(15, 2)
-  penaltyAmount     Decimal         @default(0) @db.Decimal(15, 2)
-  type              TransactionType @default(LOAN_REPAYMENT)
+  amount            Decimal               @db.Decimal(15, 2)
+  currency          Currency              @default(USD)
+  principalAmount   Decimal               @default(0) @db.Decimal(15, 2)
+  interestAmount    Decimal               @default(0) @db.Decimal(15, 2)
+  penaltyAmount     Decimal               @default(0) @db.Decimal(15, 2)
+  type              TransactionType       @default(LOAN_REPAYMENT)
   method            String
-  status            PaymentStatus   @default(PENDING)
+  status            PaymentStatus         @default(PENDING)
   transactionRef    String?
   gatewayResponse   Json?
-  paymentDate       DateTime        @default(now())
+  paymentDate       DateTime              @default(now())
   receivedBy        String
   notes             String?
   processedBranchId String?
@@ -702,19 +697,18 @@ model Payment {
   reversedAt        DateTime?
   reversedById      String?
   reversalReason    String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  loan              Loan            @relation(fields: [loanId], references: [id])
-  processedBranch   Branch?         @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
-  receiver          User            @relation("PaymentReceivedBy", fields: [receivedBy], references: [id])
-  reverser          User?           @relation("PaymentReversedBy", fields: [reversedById], references: [id])
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  loan              Loan                  @relation(fields: [loanId], references: [id])
+  processedBranch   Branch?               @relation("PaymentProcessedBranch", fields: [processedBranchId], references: [id])
+  receiver          User                  @relation("PaymentReceivedBy", fields: [receivedBy], references: [id])
+  reverser          User?                 @relation("PaymentReversedBy", fields: [reversedById], references: [id])
   reversalRequests  LoanReversalRequest[] @relation("PaymentReversalRequest")
 
   @@index([loanId, paymentDate])
   @@index([status])
   @@index([paymentDate])
   @@index([reversedById])
-
   @@map("payments")
 }
 
@@ -811,7 +805,6 @@ model LoanCharge {
   loan                    Loan                  @relation(fields: [loanId], references: [id], onDelete: Cascade)
 
   @@index([loanId])
-
   @@map("loan_charges")
 }
 
@@ -880,7 +873,6 @@ model ClientLimit {
   client           Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId, isActive])
-
   @@map("client_limits")
 }
 
@@ -1009,7 +1001,6 @@ model ClientDocument {
   documentType     DocumentType   @relation(fields: [documentTypeId], references: [id])
 
   @@index([clientId])
-
   @@map("client_documents")
 }
 
@@ -1183,7 +1174,6 @@ model AuditLog {
   @@index([timestamp])
   @@index([requestId])
   @@index([resourceId])
-
   @@index([organizationId, timestamp])
   @@index([userId, timestamp])
   @@index([resource, resourceId])
@@ -1270,20 +1260,20 @@ model UserPermission {
 }
 
 model LoanCategory {
-  id                     String        @id @default(uuid())
+  id                     String       @id @default(uuid())
   name                   String
   code                   String
   description            String?
-  isLongTerm             Boolean       @default(false)
-  requiresBusinessVisit  Boolean       @default(false)
-  requiresHomeVisit      Boolean       @default(false)
-  requiresSecurityPledge Boolean       @default(false)
-  requiresCollateral     Boolean       @default(false)
+  isLongTerm             Boolean      @default(false)
+  requiresBusinessVisit  Boolean      @default(false)
+  requiresHomeVisit      Boolean      @default(false)
+  requiresSecurityPledge Boolean      @default(false)
+  requiresCollateral     Boolean      @default(false)
   organizationId         String
-  isActive               Boolean       @default(true)
-  createdAt              DateTime      @default(now())
-  updatedAt              DateTime      @updatedAt
-  organization           Organization  @relation(fields: [organizationId], references: [id])
+  isActive               Boolean      @default(true)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+  organization           Organization @relation(fields: [organizationId], references: [id])
 
   @@unique([organizationId, code])
   @@map("loan_categories")
@@ -1680,25 +1670,24 @@ model MessageTemplate {
 
 /// Whether a client has opted out of broadcasts on each channel.
 model ClientCommunicationPreference {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   organizationId String
-  clientId       String    @unique
-  emailOptOut    Boolean   @default(false)
-  smsOptOut      Boolean   @default(false)
-  whatsappOptOut Boolean   @default(false)
+  clientId       String   @unique
+  emailOptOut    Boolean  @default(false)
+  smsOptOut      Boolean  @default(false)
+  whatsappOptOut Boolean  @default(false)
   /// STAFF | UNSUBSCRIBE_LINK | WHATSAPP_STOP | SMS_BLOCKED
   source         String?
   note           String?
   updatedById    String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@map("client_communication_preferences")
 }
-
 
 model NoteAttachment {
   id          String   @id @default(uuid())
@@ -1943,29 +1932,29 @@ enum ApiTier {
 
 enum Currency {
   // African currencies
-  ZWG  // Zimbabwe Gold
-  ZIG  // Zimbabwe ZiG
-  ZAR  // South African Rand
-  BWP  // Botswana Pula
-  KES  // Kenyan Shilling
-  NGN  // Nigerian Naira
-  GHS  // Ghanaian Cedi
-  TZS  // Tanzanian Shilling
-  UGX  // Ugandan Shilling
+  ZWG // Zimbabwe Gold
+  ZIG // Zimbabwe ZiG
+  ZAR // South African Rand
+  BWP // Botswana Pula
+  KES // Kenyan Shilling
+  NGN // Nigerian Naira
+  GHS // Ghanaian Cedi
+  TZS // Tanzanian Shilling
+  UGX // Ugandan Shilling
   // Major world currencies
-  USD  // US Dollar
-  EUR  // Euro
-  GBP  // British Pound
-  JPY  // Japanese Yen
-  CNY  // Chinese Yuan
-  CAD  // Canadian Dollar
-  AUD  // Australian Dollar
+  USD // US Dollar
+  EUR // Euro
+  GBP // British Pound
+  JPY // Japanese Yen
+  CNY // Chinese Yuan
+  CAD // Canadian Dollar
+  AUD // Australian Dollar
   // Caribbean/Americas
-  HTG  // Haitian Gourde
-  DOP  // Dominican Peso
-  JMD  // Jamaican Dollar
-  TTD  // Trinidad Dollar
-  XCD  // East Caribbean Dollar
+  HTG // Haitian Gourde
+  DOP // Dominican Peso
+  JMD // Jamaican Dollar
+  TTD // Trinidad Dollar
+  XCD // East Caribbean Dollar
 }
 
 enum AddressType {
@@ -2081,7 +2070,7 @@ model MonthlyTarget {
   targetType     TargetType
   targetAmount   Decimal      @db.Decimal(15, 2)
   year           Int
-  month          Int          // 1-12
+  month          Int // 1-12
   notes          String?
   isActive       Boolean      @default(true)
   createdBy      String?
@@ -2257,7 +2246,6 @@ model BankStatementAnalysis {
   @@map("bank_statement_analyses")
 }
 
-
 model ClientDeletionRequest {
   id             String    @id @default(uuid())
   organizationId String
@@ -2304,17 +2292,17 @@ model ClientDeletionRequest {
 /// One row per organization: whether the assistant is on, what it may do
 /// unattended, and what it is allowed to cost.
 model AssistantSettings {
-  id             String  @id @default(uuid())
-  organizationId String  @unique
-  enabled        Boolean @default(false)
+  id                    String   @id @default(uuid())
+  organizationId        String   @unique
+  enabled               Boolean  @default(false)
   /// Overrides the organization's primary AI provider when set.
-  providerName   String?
-  modelName      String?
+  providerName          String?
+  modelName             String?
   /// capability code -> OFF | ASK | AUTO. Missing codes use the defaults.
-  capabilities   Json?
+  capabilities          Json?
   /// Extra house rules from the organization, added to the system prompt.
-  instructions   String?
-  maxStepsPerRun Int     @default(12)
+  instructions          String?
+  maxStepsPerRun        Int      @default(12)
   /// Model spend guard: tokens per calendar month. Null means no limit.
   monthlyTokenBudget    Int?
   dailyRunLimit         Int      @default(200)
@@ -2999,4 +2987,76 @@ model ProvisionRunLine {
   @@index([runId])
   @@index([loanId])
   @@map("provision_run_lines")
+}
+
+/// A write-off waiting for a second pair of eyes.
+///
+/// Writing a loan off removes a receivable from the books and takes the loss to
+/// profit. It is the most consequential thing anyone can do to a loan short of
+/// reversing a disbursement, and reversals already go through request and
+/// review - so this does too. The request records what was asked for; the
+/// approval is what actually performs the write-off.
+model LoanWriteOffRequest {
+  id               String    @id @default(uuid())
+  organizationId   String
+  loanId           String
+  requestedById    String
+  /// FULL clears the whole balance and closes the loan; PARTIAL writes down
+  /// `amount` and leaves it running.
+  writeoffType     String    @default("FULL")
+  amount           Decimal?  @db.Decimal(15, 2)
+  reason           String
+  notes            String?
+  recoveryExpected Boolean   @default(false)
+  recoveryAmount   Decimal?  @db.Decimal(15, 2)
+  /// PENDING | APPROVED | REJECTED | CANCELLED
+  status           String    @default("PENDING")
+  reviewedById     String?
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  /// What the write-off actually did, recorded as it happened. The loan's own
+  /// balances are cleared by it, so without this there would be no record of
+  /// what was given up.
+  writeoffRecord   Json?
+  writtenOffAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  loan         Loan         @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  requestedBy  User         @relation("WriteOffRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy   User?        @relation("WriteOffReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([loanId])
+  @@map("loan_writeoff_requests")
+}
+
+/// Money collected on a loan that was already written off.
+///
+/// Kept separately from Payment because it is not a repayment: the loan is
+/// closed and its balances are zero, so there is nothing left to allocate
+/// against. It is income in the period it arrives, and the write-off it follows
+/// stays visible in the period it was taken.
+model LoanRecovery {
+  id              String   @id @default(uuid())
+  organizationId  String
+  loanId          String
+  amount          Decimal  @db.Decimal(15, 2)
+  currency        Currency
+  paymentMethodId String?
+  reference       String?
+  notes           String?
+  recoveredAt     DateTime @default(now())
+  recordedById    String
+  createdAt       DateTime @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  loan          Loan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  recordedBy    User           @relation("RecoveryRecordedBy", fields: [recordedById], references: [id])
+
+  @@index([organizationId, recoveredAt])
+  @@index([loanId])
+  @@map("loan_recoveries")
 }

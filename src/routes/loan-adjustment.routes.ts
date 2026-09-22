@@ -8,6 +8,13 @@ import { z } from 'zod';
 import { authenticateToken, requirePermission } from '../middleware/auth.middleware';
 import { validateRequest, handleAsync } from '../middleware/validation.middleware';
 import { loanAdjustmentService, AdjustmentType } from '../services/loan-adjustment.service';
+import { prisma } from '../config/database';
+import {
+  requestWriteOff,
+  reviewWriteOff,
+  cancelWriteOffRequest,
+  recordRecovery,
+} from '../services/loan-writeoff-approval.service';
 
 const router = Router();
 
@@ -115,31 +122,195 @@ const writeoffSchema = z.object({
   ),
 });
 
+/**
+ * Ask for a loan to be written off.
+ *
+ * Writing off is not done directly. It removes a receivable from the books and
+ * takes the loss to profit, so - like reversing a disbursement - one person
+ * asks and a different person decides. The approval is what performs it.
+ */
 router.post(
-  '/writeoff',
-  requirePermission('loans:writeoff'),
+  '/writeoff-requests',
+  requirePermission('loans:writeoff:request'),
   validateRequest(writeoffSchema),
   handleAsync(async (req, res) => {
-    const organizationId = req.user!.organizationId!;
-    const userId = req.user!.userId;
-
-    const result = await loanAdjustmentService.writeoffLoan(
-      req.body,
-      organizationId,
-      userId
-    );
-
-    if (!result.success) {
-      return res.status(400).json({
+    try {
+      const request = await requestWriteOff({
+        ...req.body,
+        organizationId: req.user!.organizationId!,
+        requestedById: req.user!.userId,
+      });
+      res.status(201).json({
+        success: true,
+        message:
+          'Write-off requested. Whoever may approve write-offs has been notified.',
+        data: request,
+      });
+    } catch (error) {
+      res.status(400).json({
         success: false,
-        message: result.error,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Could not request the write-off',
       });
     }
+  })
+);
 
-    res.json({
-      success: true,
-      data: result,
+/** Write-off requests, newest first. */
+router.get(
+  '/writeoff-requests',
+  requirePermission('loans:view'),
+  handleAsync(async (req, res) => {
+    const status = (req.query.status as string) || undefined;
+
+    const requests = await prisma.loanWriteOffRequest.findMany({
+      where: {
+        organizationId: req.user!.organizationId!,
+        ...(status && status !== 'ALL' ? { status } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+      include: {
+        loan: {
+          select: {
+            id: true,
+            loanNumber: true,
+            currency: true,
+            outstandingBalance: true,
+            principalBalance: true,
+            interestBalance: true,
+            penaltyBalance: true,
+            status: true,
+            client: {
+              select: { firstName: true, lastName: true, clientNumber: true },
+            },
+          },
+        },
+        requestedBy: { select: { firstName: true, lastName: true } },
+        reviewedBy: { select: { firstName: true, lastName: true } },
+      },
     });
+
+    res.json({ success: true, data: requests });
+  })
+);
+
+/** Approve or refuse one. Approving performs the write-off. */
+const reviewWriteOffSchema = z.object({
+  params: z.object({ requestId: z.string().uuid() }),
+  body: z.object({
+    decision: z.enum(['APPROVE', 'REJECT']),
+    reviewNotes: z.string().max(500).optional(),
+  }),
+});
+
+router.post(
+  '/writeoff-requests/:requestId/review',
+  requirePermission('loans:writeoff'),
+  validateRequest(reviewWriteOffSchema),
+  handleAsync(async (req, res) => {
+    try {
+      const request = await reviewWriteOff({
+        requestId: req.params.requestId!,
+        organizationId: req.user!.organizationId!,
+        reviewedById: req.user!.userId,
+        decision: req.body.decision,
+        reviewNotes: req.body.reviewNotes,
+      });
+      res.json({ success: true, data: request });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Could not review the request',
+      });
+    }
+  })
+);
+
+/** Withdraw your own request before anybody has decided on it. */
+router.post(
+  '/writeoff-requests/:requestId/cancel',
+  requirePermission('loans:writeoff:request'),
+  handleAsync(async (req, res) => {
+    try {
+      const request = await cancelWriteOffRequest(
+        req.params.requestId!,
+        req.user!.organizationId!,
+        req.user!.userId
+      );
+      res.json({ success: true, data: request });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Could not withdraw the request',
+      });
+    }
+  })
+);
+
+/** Record money collected on a loan that was already written off. */
+const recoverySchema = z.object({
+  params: z.object({ loanId: z.string().uuid() }),
+  body: z.object({
+    amount: z.number().positive('A recovery has to be for more than nothing'),
+    paymentMethodId: z.string().uuid().optional(),
+    reference: z.string().max(120).optional(),
+    notes: z.string().max(500).optional(),
+    recoveredAt: z.string().optional(),
+  }),
+});
+
+router.post(
+  '/:loanId/recoveries',
+  requirePermission('loans:recover'),
+  validateRequest(recoverySchema),
+  handleAsync(async (req, res) => {
+    try {
+      const recovery = await recordRecovery({
+        loanId: req.params.loanId!,
+        organizationId: req.user!.organizationId!,
+        recordedById: req.user!.userId,
+        amount: req.body.amount,
+        paymentMethodId: req.body.paymentMethodId,
+        reference: req.body.reference,
+        notes: req.body.notes,
+        recoveredAt: req.body.recoveredAt
+          ? new Date(req.body.recoveredAt)
+          : undefined,
+      });
+      res.status(201).json({ success: true, data: recovery });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message:
+          error instanceof Error ? error.message : 'Could not record the recovery',
+      });
+    }
+  })
+);
+
+/** What has been collected on a written-off loan. */
+router.get(
+  '/:loanId/recoveries',
+  requirePermission('loans:view'),
+  handleAsync(async (req, res) => {
+    const recoveries = await prisma.loanRecovery.findMany({
+      where: {
+        loanId: req.params.loanId!,
+        organizationId: req.user!.organizationId!,
+      },
+      orderBy: { recoveredAt: 'desc' },
+      include: {
+        recordedBy: { select: { firstName: true, lastName: true } },
+        paymentMethod: { select: { name: true } },
+      },
+    });
+
+    res.json({ success: true, data: recoveries });
   })
 );
 

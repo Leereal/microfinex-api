@@ -210,6 +210,12 @@ export const LOAN_PERMISSIONS: PermissionDefinition[] = [
     module: PERMISSION_MODULES.LOANS,
   },
   {
+    code: 'loans:writeoff:request',
+    name: 'Request Loan Writeoff',
+    description: 'Ask for a loan to be written off, for someone else to approve',
+    module: PERMISSION_MODULES.LOANS,
+  },
+  {
     code: 'loans:writeoff',
     name: 'Write-off Loan',
     description: 'Write-off bad loans',
@@ -1511,6 +1517,7 @@ export const PERMISSIONS = {
   LOANS_RESCHEDULE: 'loans:reschedule',
   LOANS_ADJUST: 'loans:adjust',
   LOANS_WRITEOFF: 'loans:writeoff',
+  LOANS_WRITEOFF_REQUEST: 'loans:writeoff:request',
   LOANS_RECOVER: 'loans:recover',
   LOANS_SCHEDULE_VIEW: 'loans:schedule:view',
   LOANS_SCHEDULE_MODIFY: 'loans:schedule:modify',
