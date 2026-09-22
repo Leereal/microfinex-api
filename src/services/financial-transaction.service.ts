@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { postIncome, postExpense } from './ledger/posting-rules';
 import {
   Prisma,
   FinancialTransactionType,
@@ -550,6 +551,46 @@ class FinancialTransactionService {
       where: { id: paymentMethodId },
       data: { currentBalance: balanceAfter },
     });
+
+    /**
+     * Take income and expenses to the books.
+     *
+     * Only the ones that stand on their own. This method is also how a loan
+     * disbursement and the three components of a repayment are recorded, and
+     * those already post their own journal entries with the right receivable
+     * and income split - posting again here would count the same money twice.
+     * `relatedLoanId` is what separates the two.
+     *
+     * A category can be mapped to an account of its own; anything unmapped
+     * lands in Other income or Other expenses, which is visible on the profit
+     * and loss and so gets noticed and mapped.
+     */
+    if (!relatedLoanId) {
+      const categoryAccountId =
+        type === 'INCOME'
+          ? (transaction.incomeCategory?.ledgerAccountId ?? null)
+          : (transaction.expenseCategory?.ledgerAccountId ?? null);
+
+      const posting = {
+        organizationId,
+        branchId,
+        currency: currency || paymentMethod.currency,
+        amount: Number(amount),
+        description,
+        reference: reference ?? transactionNumber,
+        sourceId: transaction.id,
+        paymentMethodId,
+        categoryAccountId,
+        postedById: processedBy,
+        entryDate: transactionDate,
+      };
+
+      if (type === 'INCOME') {
+        await postIncome(posting, tx);
+      } else {
+        await postExpense(posting, tx);
+      }
+    }
 
     return transaction;
   }
