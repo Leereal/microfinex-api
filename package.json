@@ -20,6 +20,7 @@
     "bootstrap": "tsx scripts/bootstrap-system.ts",
     "bootstrap:sql": "tsx scripts/bootstrap-sql.ts",
     "db:seed": "tsx prisma/seed.ts",
+    "permissions:sync": "tsx scripts/sync-permissions.ts",
     "docs:generate": "swagger-jsdoc -d swaggerDef.js src/routes/*.ts -o docs/swagger.json",
     "prepare": "husky install"
   },
